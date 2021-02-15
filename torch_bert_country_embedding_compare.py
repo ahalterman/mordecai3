@@ -28,36 +28,37 @@ def augment_data(y):
 def load_data():
     # duplicate so we get some negative examples
     X_train = np.load("X_train.npy")
-    X_train = np.vstack([X_train, X_train])
 
     X_test = np.load("X_test.npy")
-    X_test = np.vstack([X_test, X_test])
 
     y_test = np.load("y_test.npy")
     y_test2 = augment_data(y_test)
-    y_test = np.vstack([y_test, y_test2])
     y_test_cat = np.argmax(y_test, axis=1).astype("int")
+    y_test2_cat = np.argmax(y_test2, axis=1).astype("int")
 
     y_train = np.load("y_train.npy")
     y_train2 = augment_data(y_train)
-    y_train = np.vstack([y_train, y_train2])
     y_train_cat = np.argmax(y_train, axis=1).astype("int")
+    y_train2_cat = np.argmax(y_train2, axis=1).astype("int")
 
-    labels_train = np.concatenate([np.ones(y_train2.shape[0]), np.zeros(y_train2.shape[0])]).astype("int")
-    labels_test = np.concatenate([np.ones(y_test2.shape[0]), np.zeros(y_test2.shape[0])]).astype("int")
-    return X_train, y_train_cat, labels_train, X_test, y_test_cat, labels_test
+    labels_train = np.array([np.array([1, 0])] * len(y_train))
+    labels_test = np.array([np.array([1, 0])] * len(y_test))
+    return (X_train, y_train_cat, y_train2_cat, labels_train, 
+            X_test, y_test_cat, y_test2_cat, labels_test)
 
 
 class CountryData(Dataset):
-    def __init__(self, X_data, y_data, labels):
+    def __init__(self, X_data, y_data, y_data2, labels):
         assert X_data.shape[0] == X_data.shape[0]
-        assert X_data.shape[0] == labels.shape[0]
+        assert y_data.shape[0] == y_data2.shape[0]
+        #assert X_data.shape[0] == labels.shape[0]
         self.X_data = X_data.astype(np.float32) #torch.tensor(X_data, dtype=torch.float32)
         self.y_data = y_data.astype(np.long) #torch.tensor(y_data, dtype=torch.long)
+        self.y_data2 = y_data2.astype(np.long) #torch.tensor(y_data, dtype=torch.long)
         self.labels = labels.astype(np.float32) #torch.tensor(labels, dtype=torch.long)
         
     def __getitem__(self, index):
-        return self.X_data[index], self.y_data[index], self.labels[index]
+        return self.X_data[index], self.y_data[index], self.y_data2[index], self.labels[index]
         
     def __len__ (self):
         return len(self.X_data)
@@ -65,11 +66,13 @@ class CountryData(Dataset):
 
 
 def binary_acc(y_pred, y_test):
-    y_pred_tag = torch.round(y_pred)
-    correct_results_sum = (y_pred_tag == y_test).sum().float()
-    acc = correct_results_sum/y_test.shape[0]
+    y_pred_tag = torch.round(y_pred[0])
+    correct_results_sum = (y_pred_tag == 1).sum().float()
+    acc = correct_results_sum/y_pred.shape[1]
     acc = torch.round(acc * 100)
     return acc
+
+
 
 class embedding_compare(nn.Module):
     def __init__(self, bert_size, num_embeddings, embedding_dim=32):
@@ -80,20 +83,30 @@ class embedding_compare(nn.Module):
         self.emb_layer = nn.Embedding(num_embeddings, embedding_dim)
         
         self.sigmoid = nn.Sigmoid()
+        self.softmax = nn.Softmax(dim=0)
         self.dropout = nn.Dropout(p=0.1) # not used for now
-        self.similarity = nn.CosineSimilarity()
+        self.similarity = nn.CosineSimilarity(dim=2)
         #self.layer_out = nn.Linear(1, 1)
-        
-    def forward(self, inputs: list):
-        text, country = inputs
+
+    def forward(self, text, country1, country2):
+        #text, country = inputs
+        #text = X_train[0]
+        #country1 = y_train[0]
+        #country2 = y_train2[0]
+        #print("country1:", country1, "country2:", country2)
         x = self.sigmoid(self.text_layer(text))
         x = self.text2(x)
         #print("x_dim:", x.shape)
-        y = self.emb_layer(country)
-        #print("y_dim:", y.shape)
-        cos_sim = self.similarity(x, y)
+        y1 = self.emb_layer(country1)
+        y2 = self.emb_layer(country2)
+        #print("y_dim:", y1.shape)
+        y_stack = torch.stack([y1, y2])
+        x_stack = torch.stack([x, x])
+        #print("y shape:", y_stack.shape)
+        cos_sim = self.similarity(x_stack, y_stack)
         #print("cos_sim:", cos_sim.shape)
-        out = self.sigmoid(cos_sim)
+        out = self.softmax(cos_sim)
+        #print("out shape:", out.shape)
         return out
 
 
@@ -101,13 +114,15 @@ EPOCHS = 100
 BATCH_SIZE = 44
 LEARNING_RATE = 0.001
 
-X_train, y_train, labels_train, X_test, y_test, labels_test = load_data()
+X_train, y_train, y_train2, labels_train, X_test, y_test, y_test2, labels_test = load_data()
 ## Create the pytorch data objects
 train_data = CountryData(X_train, 
                        y_train,
+                       y_train2,
                        labels_train)
 val_data = CountryData(X_test, 
                         y_test,
+                        y_test2,
                         labels_test)
 
 train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
@@ -116,7 +131,7 @@ val_loader = DataLoader(dataset=val_data, batch_size=BATCH_SIZE)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = embedding_compare(bert_size = X_train.shape[1],
-                            num_embeddings=len(np.unique(y_train))+1, 
+                            num_embeddings=np.max(y_train)+1, 
                             embedding_dim=32)
 model.to(device)
 print(model)
@@ -130,13 +145,13 @@ for e in range(1, EPOCHS+1):
     epoch_acc = 0
     epoch_loss_val = 0
     epoch_acc_val = 0
-    for X_batch, y_batch, label_batch in train_loader:
-        X_batch, y_batch, label_batch = X_batch.to(device), y_batch.to(device), label_batch.to(device)
+    for X_batch, y_batch, y_batch2, label_batch in train_loader:
+        X_batch, y_batch, y_batch2, label_batch = X_batch.to(device), y_batch.to(device), y_batch2.to(device), label_batch.to(device)
         optimizer.zero_grad()
-        label_pred = model([X_batch, y_batch])
+        label_pred = model(X_batch, y_batch, y_batch2)
         #print(torch.mean(label_batch)) 
         
-        loss = loss_func(label_pred, label_batch)
+        loss = loss_func(torch.transpose(label_pred, 1, 0), label_batch)
         acc = binary_acc(label_pred, label_batch)
         
         loss.backward()
@@ -145,14 +160,16 @@ for e in range(1, EPOCHS+1):
         epoch_loss += loss.item()
         epoch_acc += acc.item()
 
+    # evaluate once per epoch
     with torch.no_grad():
         model.eval()
-        for X_val, y_val, label_val in val_loader:
+        for X_val, y_val, y_val2, label_val in val_loader:
             X_val = X_val.to(device)
             y_val = y_val.to(device)
+            y_val2 = y_val2.to(device)
             label_val = label_val.to(device)
             
-            pred_label_val = model([X_val, y_val])
+            pred_label_val = model(X_val, y_val, y_val2)
     #        val_loss = loss_func(label_val, pred_label)
             val_acc = binary_acc(pred_label_val, label_val)
     #        epoch_loss_val += val_loss.item()
