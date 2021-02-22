@@ -32,22 +32,17 @@ def load_data():
     X_test = np.load("X_test.npy")
 
     y_test = np.load("y_test.npy")
-    y_test2 = augment_data(y_test)
     y_test_cat = np.argmax(y_test, axis=1).astype("int")
     y_test2_cat = np.argmax(y_test2, axis=1).astype("int")
     y_test_both = np.array(list(zip(y_test_cat, y_test2_cat)))
 
     y_train = np.load("y_train.npy")
-    y_train2 = augment_data(y_train)
-    y_train_cat = np.argmax(y_train, axis=1).astype("int")
-    y_train2_cat = np.argmax(y_train2, axis=1).astype("int")
-    y_train_both = np.array(list(zip(y_train_cat, y_train2_cat)))
 
-    labels_train = np.array([np.array([1, 0])] * len(y_train))
-    labels_test = np.array([np.array([1, 0])] * len(y_test))
+    labels_train = y_train #np.argmax(y_train, axis=1).astype("int")
+    labels_test = y_test #np.argmax(y_test, axis=1).astype("int")
     
-    return (X_train, y_train_both, labels_train, 
-            X_test, y_test_both, labels_test)
+    return (X_train, y_train, labels_train, 
+            X_test, y_test, labels_test)
 
 
 class CountryData(Dataset):
@@ -67,8 +62,9 @@ class CountryData(Dataset):
 
 
 def binary_acc(y_pred, y_test):
-    y_pred_tag = torch.round(y_pred[0])
-    correct_results_sum = (y_pred_tag == 1).sum().float()
+    y_pred_tag = torch.argmax(label_pred, axis=0)
+    y_test_cat = torch.argmax(y_test, axis=0) 
+    correct_results_sum = (y_pred_tag == y_test_cat).sum().float()
     acc = correct_results_sum/y_pred.shape[1]
     acc = torch.round(acc * 100)
     return acc
@@ -105,11 +101,14 @@ class embedding_compare(nn.Module):
         y = self.dropout(y)
         #print("y_dim:", y.shape)
         #y_stack = torch.stack([y1, y2])
-        x_stack = torch.stack([x, x])
-        x_stack = self.dropout(x_stack)
+        # turn x from (batch_size, choices) into (1, batch_size, choices)
+        # so it can be broadcast into a similarity comparison with all the ys.
+        x_stack = torch.unsqueeze(x, 0) #torch.stack([x, x])
+        #x_stack = self.dropout(x_stack)
         #print("x shape:", x_stack.shape)
         # x_stack is (choices, batch_size, embed_size)
-        cos_sim = self.similarity(x_stack, y)
+        cos_sim = torch.transpose(self.similarity(x_stack, y), 0, 1)
+        # make sure cos_sim is (batch size, choices)
         #print("cos_sim:", cos_sim.shape)
         cos_sim = self.dropout(cos_sim)
         out = self.softmax(cos_sim)
@@ -136,7 +135,7 @@ val_loader = DataLoader(dataset=val_data, batch_size=BATCH_SIZE)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = embedding_compare(bert_size = X_train.shape[1],
-                            num_embeddings=np.max(y_train)+1, 
+                            num_embeddings=y_train.shape[1]+1, 
                             embedding_dim=32)
 model.to(device)
 print(model)
@@ -154,9 +153,8 @@ for e in range(1, EPOCHS+1):
         X_batch, y_batch, label_batch = X_batch.to(device), y_batch.to(device), label_batch.to(device)
         optimizer.zero_grad()
         label_pred = model(X_batch, y_batch)
-        #print(torch.mean(label_batch)) 
         
-        loss = loss_func(torch.transpose(label_pred, 1, 0), label_batch)
+        loss = loss_func(label_pred, label_batch)
         acc = binary_acc(label_pred, label_batch)
         
         loss.backward()
