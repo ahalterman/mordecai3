@@ -67,41 +67,21 @@ with open("feature_code_dict.json", "r") as f:
 #    all_feature_codes.append(feature_codes)
 
 
-class TrainData(Dataset):
+class ProductionData(Dataset):
     def __init__(self, es_data, max_choices=25, max_codes=50):
         self.max_codes = max_codes
         #self.X_data = X_data.astype(np.float32) #torch.tensor(X_data, dtype=torch.float32)
         #self.country_code = y_data.astype(np.long) #torch.tensor(y_data, dtype=torch.long)
         self.X_data = np.array([i['tensor'] for i in es_data]).astype(np.float32)
-        self.labels = self.create_labels(es_data)
         self.feature_codes = self.create_feature_codes(es_data)
         self.country_codes = self.create_country_codes(es_data)
         
     def __getitem__(self, index):
-        return self.X_data[index], self.labels[index], self.feature_codes[index], self.country_codes[index]
+        return (self.X_data[index],  
+                self.feature_codes[index], self.country_codes[index])
         
     def __len__ (self):
         return len(self.X_data)
-
-    def create_labels(self, es_data):
-        """Create an array with the location of the correct geonames entry"""
-        all_labels = []
-        for ex in es_data:
-            labels = np.zeros(max_choices)
-            if np.sum(ex['correct']) == 0:
-               labels[-1] = 1 
-            else:
-                correct_num = np.where(np.array(ex['correct']))[0]
-                if correct_num[0] >= max_choices:
-                    # TODO: make a better missing/NA prediction. Maybe the first one??
-                    labels[-1] = 1
-                else:
-                    labels[correct_num] = 1
-            ## HACK here: convert back to index, not one-hot
-            labels = np.argmax(labels)
-            all_labels.append(labels)
-        all_labels = np.array(all_labels).astype(np.long)
-        return all_labels
 
     # need to make this into a one-hot matrix, not a vector.
     # Inside the model, it should be a 3d one hot tensor, not binary.
@@ -136,9 +116,38 @@ class TrainData(Dataset):
         all_country_codes = np.array(all_country_codes).astype(np.long)
         return all_country_codes
 
-split = round(len(es_data)*0.7)
-train_data = TrainData(es_data[0:split])
-val_data = TrainData(es_data[split:])
+
+class TrainData(ProductionData):
+    def __init__(self, es_data, max_choices=25, max_codes=50):
+        super().__init__(es_data, max_choices, max_codes)
+        self.labels = self.create_labels(es_data)
+
+    def __getitem__(self, index):
+        return (self.X_data[index], self.labels[index], 
+                self.feature_codes[index], self.country_codes[index])
+
+    def create_labels(self, es_data):
+        """Create an array with the location of the correct geonames entry"""
+        all_labels = []
+        for ex in es_data:
+            labels = np.zeros(max_choices)
+            if np.sum(ex['correct']) == 0:
+               labels[-1] = 1 
+            else:
+                correct_num = np.where(np.array(ex['correct']))[0]
+                if correct_num[0] >= max_choices:
+                    # TODO: make a better missing/NA prediction. Maybe the first one??
+                    labels[-1] = 1
+                else:
+                    labels[correct_num] = 1
+            ## HACK here: convert back to index, not one-hot
+            labels = np.argmax(labels)
+            all_labels.append(labels)
+        all_labels = np.array(all_labels).astype(np.long)
+        return all_labels
+
+
+
 
 
 def binary_acc(y_pred, y_test):
@@ -185,7 +194,6 @@ class embedding_compare(nn.Module):
         logger.debug("country_code_emb: {}".format(cc.shape))
         embed_stack = torch.cat((fc, cc), 2)
         logger.debug("stack_emb: {}".format(embed_stack.shape))
-        #y_stack = torch.stack([y1, y2])
         # turn x from (batch_size, choices) into (1, batch_size, choices)
         # so it can be broadcast into a similarity comparison with all the ys.
         x_stack = torch.unsqueeze(x, 0) #torch.stack([x, x])
@@ -204,72 +212,69 @@ class embedding_compare(nn.Module):
         logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 129)
         return out
 
+if __name__ == "__main__":
 
-EPOCHS = 30 
-BATCH_SIZE = 44
-LEARNING_RATE = 0.01
+    split = round(len(es_data)*0.7)
+    train_data = TrainData(es_data[0:split])
+    val_data = TrainData(es_data[split:])
 
-#X_train, y_train, labels_train, X_test, y_test, labels_test = load_data()
-## Create the pytorch data objects
-#train_data = CountryData(X_train, 
-#                       y_train,
-#                       labels_train)
-#val_data = CountryData(X_test, 
-#                        y_test,
-#                        labels_test)
+    EPOCHS = 15 
+    BATCH_SIZE = 44
+    LEARNING_RATE = 0.01
 
-train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(dataset=val_data, batch_size=BATCH_SIZE)
+    train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(dataset=val_data, batch_size=BATCH_SIZE, shuffle=True)
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model = embedding_compare(bert_size = train_data.X_data.shape[1],
+                                num_feature_codes=53+1, 
+                                num_countries=len(country_dict)+1,
+                                max_choices=25)
+    model.to(device)
+    #print(model)
+    # Can add  an "ignore_index" argument so that some inputs don't have losses calculated
+    loss_func=nn.CrossEntropyLoss() #BCELoss()
+    #loss_func = nn.NLLLOSS()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = embedding_compare(bert_size = train_data.X_data.shape[1],
-                            num_feature_codes=53+1, 
-                            num_countries=len(country_dict)+1,
-                            max_choices=25)
-model.to(device)
-#print(model)
-# Can add  an "ignore_index" argument so that some inputs don't have losses calculated
-loss_func=nn.CrossEntropyLoss() #BCELoss()
-#loss_func = nn.NLLLOSS()
-optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    logger.setLevel(logging.INFO)
 
-logger.setLevel(logging.INFO)
+    model.train()
+    for e in range(1, EPOCHS+1):
+        epoch_loss = 0
+        epoch_acc = 0
+        epoch_loss_val = 0
+        epoch_acc_val = 0
+        for X_batch, label_batch, feature_codes, country_codes in train_loader:
+            X_batch, feature_codes, label_batch, country_codes = X_batch.to(device), feature_codes.to(device), label_batch.to(device), country_codes.to(device)
+            optimizer.zero_grad()
+            label_pred = model(X_batch, feature_codes, country_codes)
 
-model.train()
-for e in range(1, EPOCHS+1):
-    epoch_loss = 0
-    epoch_acc = 0
-    epoch_loss_val = 0
-    epoch_acc_val = 0
-    for X_batch, label_batch, feature_codes, country_codes in train_loader:
-        X_batch, feature_codes, label_batch, country_codes = X_batch.to(device), feature_codes.to(device), label_batch.to(device), country_codes.to(device)
-        optimizer.zero_grad()
-        label_pred = model(X_batch, feature_codes, country_codes)
-        
-        loss = loss_func(label_pred, label_batch)
-        acc = binary_acc(label_pred, label_batch)
-        
-        loss.backward()
-        optimizer.step()
-        
-        epoch_loss += loss.item()
-        epoch_acc += acc.item()
+            loss = loss_func(label_pred, label_batch)
+            acc = binary_acc(label_pred, label_batch)
 
-    # evaluate once per epoch
-    with torch.no_grad():
-        model.eval()
-        for X_val, label_val, code_val, country_val in val_loader:
-            X_val = X_val.to(device)
-            label_val = label_val.to(device)
-            code_val = code_val.to(device)
-            country_val = country_val.to(device)
+            loss.backward()
+            optimizer.step()
 
-            pred_val = model(X_val, code_val, country_val)
-    #        val_loss = loss_func(label_val, pred_label)
-            val_acc = binary_acc(pred_val, label_val)
-    #        epoch_loss_val += val_loss.item()
-            epoch_acc_val += val_acc.item() 
-    
-    print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Val Acc: {epoch_acc_val/len(val_loader):.3f}')
+            epoch_loss += loss.item()
+            epoch_acc += acc.item()
+
+        # evaluate once per epoch
+        with torch.no_grad():
+            model.eval()
+            for X_val, label_val, code_val, country_val in val_loader:
+                X_val = X_val.to(device)
+                label_val = label_val.to(device)
+                code_val = code_val.to(device)
+                country_val = country_val.to(device)
+
+                pred_val = model(X_val, code_val, country_val)
+        #        val_loss = loss_func(label_val, pred_label)
+                val_acc = binary_acc(pred_val, label_val)
+        #        epoch_loss_val += val_loss.item()
+                epoch_acc_val += val_acc.item() 
+
+        print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Val Acc: {epoch_acc_val/len(val_loader):.3f}')
+
+    torch.save(model.state_dict(), "mordecai1.pt")
 
