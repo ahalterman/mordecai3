@@ -2,6 +2,7 @@
 ## and predict the country using pytorch
 import numpy as np
 import random
+import wandb
 
 import torch
 import torch.nn as nn
@@ -36,7 +37,6 @@ with open('es_formatted.pkl', 'rb') as f:
 
 
 # Get the label for whether each guess is correct or not
-
 # convert feature code to numeric value, handling padding and 
 # unknown valudes
 
@@ -46,12 +46,12 @@ import pandas as pd
 
 country = pd.read_csv("wikipedia-iso-country-codes.txt")
 country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
-country_dict["CUW"] = len(country_dict)+1
-country_dict["XKX"] = len(country_dict)+1
-country_dict["SCG"] = len(country_dict)+1
-country_dict["SSD"] = len(country_dict)+1
-country_dict["NULL"] = len(country_dict)+1
-country_dict["NA"] = len(country_dict)+1
+country_dict["CUW"] = len(country_dict)
+country_dict["XKX"] = len(country_dict)
+country_dict["SCG"] = len(country_dict)
+country_dict["SSD"] = len(country_dict)
+country_dict["NULL"] = len(country_dict)
+country_dict["NA"] = len(country_dict)
 
 with open("feature_code_dict.json", "r") as f:
     feature_code_dict = json.load(f)
@@ -160,18 +160,22 @@ def binary_acc(y_pred, y_test):
 
 
 class embedding_compare(nn.Module):
-    def __init__(self, bert_size, num_countries, num_feature_codes,
-                max_choices):
+    def __init__(self, bert_size, num_feature_codes, max_choices):
         super(embedding_compare, self).__init__()
+        pretrained_country = np.load("country_bert.npy")
+        pretrained_country = torch.FloatTensor(pretrained_country)
+        logging.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
         # Take in two inputs: the text, and the country. Learn an embedding for country.
         self.text_layer = nn.Linear(bert_size, 64) 
         self.text2 = nn.Linear(64, 32)
         self.code_emb = nn.Embedding(num_feature_codes, 8)
-        self.country_emb = nn.Embedding(num_countries, 24)
-        
+        self.country_emb = nn.Embedding(pretrained_country.shape[0], pretrained_country.shape[1])
+        #self.country_emb = nn.Embedding.from_pretrained(pretrained_country, freeze=False)
+        #self.country_emb.weight.data.copy_(torch.from_numpy(pretrained_country))
+
         self.sigmoid = nn.Sigmoid()
         self.last_linear = nn.Linear(max_choices, max_choices)
-        self.softmax = nn.Softmax(dim=0)
+        self.softmax = nn.Softmax(dim=1)
         self.dropout = nn.Dropout(p=0.2) 
         self.similarity = nn.CosineSimilarity(dim=2)
         #self.layer_out = nn.Linear(1, 1)
@@ -197,50 +201,56 @@ class embedding_compare(nn.Module):
         # turn x from (batch_size, choices) into (1, batch_size, choices)
         # so it can be broadcast into a similarity comparison with all the ys.
         x_stack = torch.unsqueeze(x, 0) #torch.stack([x, x])
-        #x_stack = self.dropout(x_stack)
         logger.debug("x shape: {}".format(x_stack.shape))
         # x_stack is (choices, batch_size, embed_size)
         cos_sim = self.similarity(x_stack, embed_stack)
         logger.debug("cos_sim:{}".format(cos_sim.shape))
-        # make sure cos_sim is (batch size, choices)  (44, 129)
+        # put cos_sim into (batch size, choices)  
         cos_sim = torch.transpose(cos_sim, 0, 1)
-        logger.debug("cos_sim: {}".format(cos_sim.shape))
+        logger.debug("cos_sim shape: {}".format(cos_sim.shape))
         #cos_sim = self.dropout(cos_sim)
         #last = self.last_linear(cos_sim)
-        #out = self.softmax(cos_sim)
-        out = cos_sim
+        out = self.softmax(cos_sim)
+        #logger.debug(out)
+        #out = cos_sim
         logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 129)
         return out
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
+    wandb.init(project="mordecai3", entity="ahalt")
     split = round(len(es_data)*0.7)
     train_data = TrainData(es_data[0:split])
     val_data = TrainData(es_data[split:])
 
-    EPOCHS = 15 
-    BATCH_SIZE = 44
-    LEARNING_RATE = 0.01
+    config = wandb.config          # Initialize config
+    config.batch_size = 44          # input batch size for training (default: 64)
+    config.test_batch_size = 44    # input batch size for testing (default: 1000)
+    config.epochs = 100          # number of epochs to train (default: 10)
+    config.lr = 0.01               # learning rate (default: 0.01)
+    config.seed = 42               # random seed (default: 42)
+    config.log_interval = 10     # how many batches to wait before logging training status
 
-    train_loader = DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(dataset=val_data, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
+    val_loader = DataLoader(dataset=val_data, batch_size=config.test_batch_size, shuffle=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = embedding_compare(bert_size = train_data.X_data.shape[1],
                                 num_feature_codes=53+1, 
-                                num_countries=len(country_dict)+1,
                                 max_choices=25)
+    model = torch.nn.DataParallel(model)
     model.to(device)
     #print(model)
     # Can add  an "ignore_index" argument so that some inputs don't have losses calculated
     loss_func=nn.CrossEntropyLoss() #BCELoss()
     #loss_func = nn.NLLLOSS()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
+    wandb.watch(model)
     logger.setLevel(logging.INFO)
 
     model.train()
-    for e in range(1, EPOCHS+1):
+    for e in range(1, config.epochs+1):
         epoch_loss = 0
         epoch_acc = 0
         epoch_loss_val = 0
@@ -275,6 +285,10 @@ if __name__ == "__main__":
                 epoch_acc_val += val_acc.item() 
 
         print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Val Acc: {epoch_acc_val/len(val_loader):.3f}')
+        wandb.log({
+            "Train Loss": epoch_loss/len(train_loader),
+            "Test Accuracy": epoch_acc/len(train_loader),
+            "Val Accuracy": epoch_acc_val/len(val_loader)})
 
-    torch.save(model.state_dict(), "mordecai1.pt")
+#    torch.save(model.state_dict(), "mordecai1.pt")
 
