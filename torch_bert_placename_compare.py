@@ -37,6 +37,15 @@ with open('es_formatted_tr_corpus.pkl', 'rb') as f:
     # Pickle dictionary using protocol 0.
     es_data_tr_eval = pickle.load(f)
 
+with open('es_formatted_tgl_corpus.pkl', 'rb') as f:
+    # Pickle dictionary using protocol 0.
+    es_formatted_tgl_corpus = pickle.load(f)
+
+es_data_tr_eval = es_data_tr_eval + es_formatted_tgl_corpus
+es_data = es_data + es_data_tr_eval
+random.seed(617)
+random.shuffle(es_data)
+
 
 # Get the label for whether each guess is correct or not
 # convert feature code to numeric value, handling padding and 
@@ -60,28 +69,23 @@ with open("feature_code_dict.json", "r") as f:
     feature_code_dict = json.load(f)
 
 
-#all_country_codes = []
-#for ex in es_data:
-#    country_code_raw = [i['country_code3'] for i in ex['es_choices']]
-#    country_code_raw += ['NULL'] * (max_choices - len(country_code_raw))
-#    country_codes = [country_dict[i] for i in country_code_raw]
-#    # the last one is an other/not present category
-#    feature_codes[-1] = "OTHER" 
-#    all_feature_codes.append(feature_codes)
-
-
 class ProductionData(Dataset):
     def __init__(self, es_data, max_choices=25, max_codes=50):
         self.max_codes = max_codes
         #self.X_data = X_data.astype(np.float32) #torch.tensor(X_data, dtype=torch.float32)
         #self.country_code = y_data.astype(np.long) #torch.tensor(y_data, dtype=torch.long)
         self.X_data = np.array([i['tensor'] for i in es_data]).astype(np.float32)
+        self.doc_data = np.array([i['doc_tensor'] for i in es_data]).astype(np.float32)
+        self.locs_data = np.array([i['locs_tensor'] for i in es_data]).astype(np.float32)
         self.feature_codes = self.create_feature_codes(es_data)
         self.country_codes = self.create_country_codes(es_data)
         
     def __getitem__(self, index):
         return (self.X_data[index],  
-                self.feature_codes[index], self.country_codes[index])
+                self.feature_codes[index], 
+                self.doc_data[index],
+                self.locs_data[index],
+                self.country_codes[index])
         
     def __len__ (self):
         return len(self.X_data)
@@ -126,8 +130,12 @@ class TrainData(ProductionData):
         self.labels = self.create_labels(es_data)
 
     def __getitem__(self, index):
-        return (self.X_data[index], self.labels[index], 
-                self.feature_codes[index], self.country_codes[index])
+        return (self.labels[index],
+                self.X_data[index],  
+                self.feature_codes[index], 
+                self.doc_data[index],
+                self.locs_data[index],
+                self.country_codes[index])
 
     def create_labels(self, es_data):
         """Create an array with the location of the correct geonames entry"""
@@ -139,7 +147,7 @@ class TrainData(ProductionData):
             else:
                 correct_num = np.where(np.array(ex['correct']))[0]
                 if correct_num[0] >= max_choices:
-                    # TODO: make a better missing/NA prediction. Maybe the first one??
+                    # TODO: make a better missing/NA prediction.
                     labels[-1] = 1
                 else:
                     labels[correct_num] = 1
@@ -170,6 +178,7 @@ class embedding_compare(nn.Module):
         logging.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
         # Take in two inputs: the text, and the country. Learn an embedding for country.
         self.text_to_country = nn.Linear(bert_size, 24) 
+        self.context_to_country = nn.Linear(bert_size, 24) 
         self.country_layer = nn.Linear(bert_size, 24) 
         #self.text2 = nn.Linear(64, 32)
         self.text_to_code = nn.Linear(bert_size, 8) 
@@ -179,18 +188,18 @@ class embedding_compare(nn.Module):
         #self.country_emb.weight.data.copy_(torch.from_numpy(pretrained_country))
 
         self.sigmoid = nn.Sigmoid()
-        self.last_linear = nn.Linear(2, 1)
+        self.last_linear = nn.Linear(3, 1) # number of comparisons --> final
         self.softmax = nn.Softmax(dim=1)
         self.dropout = nn.Dropout(p=0.2) 
         self.similarity = nn.CosineSimilarity(dim=2)
-        #self.layer_out = nn.Linear(1, 1)
         #nn.Linear()
 
-    def forward(self, text, feature_code, country_code):
+    def forward(self, text, feature_code, country_code, loc_tr):
         logger.debug("feature_code input shape:{}".format(feature_code.shape))
         #x = self.sigmoid(self.text_layer(text))
         x = self.text_to_country(text)
         x_code = self.text_to_code(text)
+        x_other_locs = self.context_to_country(loc_tr)
         logger.debug(f"x shape: {x.shape}")
         #x = self.text2(x)
         logger.debug("x_dim: {}".format(x.shape))
@@ -211,10 +220,12 @@ class embedding_compare(nn.Module):
         # so it can be broadcast into a similarity comparison with all the ys.
         x_stack_country = torch.unsqueeze(x, 0) #torch.stack([x, x])
         x_stack_code = torch.unsqueeze(x_code, 0) #torch.stack([x, x])
+        x_stack_locs = torch.unsqueeze(x_other_locs, 0)
         logger.debug("x shape: {}".format(cc.shape))
         # x_stack is (choices, batch_size, embed_size)
         cos_sim_country = self.similarity(x_stack_country, cc)
         cos_sim_code = self.similarity(x_stack_code, fc)
+        cos_sim_other_locs = self.similarity(x_stack_locs, cc)
         logger.debug("cos_sim_country: {}".format(cos_sim_country.shape))
         logger.debug("cos_sim_code: {}".format(cos_sim_country.shape))
         # put cos_sim into (batch size, choices)  
@@ -222,12 +233,14 @@ class embedding_compare(nn.Module):
         cos_sim_country = torch.unsqueeze(cos_sim_country, 2) 
         cos_sim_code = torch.transpose(cos_sim_code, 0, 1)
         cos_sim_code = torch.unsqueeze(cos_sim_code, 2)
+        cos_sim_other_locs = torch.transpose(cos_sim_other_locs, 0, 1)
+        cos_sim_other_locs = torch.unsqueeze(cos_sim_other_locs, 2) 
         logger.debug("cos_sim_country shape: {}".format(cos_sim_country.shape))
         logger.debug("cos_sim_code shape: {}".format(cos_sim_code.shape))
-        both_sim = torch.cat((cos_sim_country, cos_sim_code), 2)
+        both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs), 2)
         logger.debug(f"concat shape: {both_sim.shape}")
         #cos_sim = self.dropout(cos_sim)
-        last = torch.squeeze(self.last_linear(both_sim))
+        last = torch.squeeze(self.last_linear(both_sim), dim=2)
         logger.debug(f"last shape: {last.shape}")
         out = self.softmax(last) # should be (batch, choices)  (44, 25)
         #logger.debug(out)
@@ -244,9 +257,9 @@ if __name__ == "__main__":
     tr_data = TrainData(es_data_tr_eval)
 
     config = wandb.config          # Initialize config
-    config.batch_size = 44          # input batch size for training (default: 64)
+    config.batch_size = 1         # input batch size for training (default: 64)
     config.test_batch_size = 44    # input batch size for testing (default: 1000)
-    config.epochs = 100          # number of epochs to train (default: 10)
+    config.epochs = 40            # number of epochs to train (default: 10)
     config.lr = 0.01               # learning rate (default: 0.01)
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
@@ -268,7 +281,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
     wandb.watch(model)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     model.train()
     for e in range(1, config.epochs+1):
@@ -278,10 +291,11 @@ if __name__ == "__main__":
         epoch_acc_val = 0
         epoch_acc_tr = 0
 
-        for X_batch, label_batch, feature_codes, country_codes in train_loader:
-            X_batch, feature_codes, label_batch, country_codes = X_batch.to(device), feature_codes.to(device), label_batch.to(device), country_codes.to(device)
+        for label_batch, X_batch, feature_codes, doc_tensor, loc_tensor, country_codes in train_loader:
+            label_batch, X_batch, feature_codes, country_codes = label_batch.to(device), X_batch.to(device), feature_codes.to(device), country_codes.to(device)
+            loc_tensor = loc_tensor.to(device)
             optimizer.zero_grad()
-            label_pred = model(X_batch, feature_codes, country_codes)
+            label_pred = model(X_batch, feature_codes, country_codes, loc_tensor)
 
             loss = loss_func(label_pred, label_batch)
             acc = binary_acc(label_pred, label_batch)
@@ -295,25 +309,27 @@ if __name__ == "__main__":
         # evaluate once per epoch
         with torch.no_grad():
             model.eval()
-            for X_val, label_val, code_val, country_val in val_loader:
+            for label_val, X_val, code_val, doc_val, loc_val, country_val in val_loader:
                 X_val = X_val.to(device)
                 label_val = label_val.to(device)
                 code_val = code_val.to(device)
+                loc_val = loc_val.to(device)
                 country_val = country_val.to(device)
 
-                pred_val = model(X_val, code_val, country_val)
+                pred_val = model(X_val, code_val, country_val, loc_val)
         #        val_loss = loss_func(label_val, pred_label)
                 val_acc = binary_acc(pred_val, label_val)
         #        epoch_loss_val += val_loss.item()
                 epoch_acc_val += val_acc.item()
 
-            for X_tr, label_tr, code_tr, country_tr in tr_loader:
+            for label_tr, X_tr, code_tr, doc_tr, loc_tr, country_tr in tr_loader:
                 X_tr = X_tr.to(device)
                 label_tr = label_tr.to(device)
                 code_tr = code_tr.to(device)
+                loc_tr = loc_tr.to(device)
                 country_tr = country_tr.to(device)
 
-                pred_tr = model(X_tr, code_tr, country_tr)
+                pred_tr = model(X_tr, code_tr, country_tr, loc_tr)
         #        val_loss = loss_func(label_val, pred_label)
                 tr_acc = binary_acc(pred_tr, label_tr)
         #        epoch_loss_val += val_loss.item()
@@ -326,6 +342,7 @@ if __name__ == "__main__":
             "Test Accuracy": epoch_acc/len(train_loader),
             "Val Accuracy": epoch_acc_val/len(val_loader),
             "TR Accuracy": epoch_acc_tr/len(tr_loader)})
-
-#    torch.save(model.state_dict(), "mordecai1.pt")
+    logger.info("Saving model...")
+    #torch.save(model.state_dict(), "mordecai2.pt")
+    logger.info("Run complete.")
 
