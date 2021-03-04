@@ -15,6 +15,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 import pickle
 import json
+from pandas import read_csv
 
 import logging
 logger = logging.getLogger()
@@ -29,49 +30,21 @@ logger.setLevel(logging.DEBUG)
 #logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 
-with open('es_formatted.pkl', 'rb') as f:
-    # Pickle dictionary using protocol 0.
-    es_data = pickle.load(f)
-
-with open('es_formatted_tr_corpus.pkl', 'rb') as f:
-    # Pickle dictionary using protocol 0.
-    es_data_tr_eval = pickle.load(f)
-
-with open('es_formatted_tgl_corpus.pkl', 'rb') as f:
-    # Pickle dictionary using protocol 0.
-    es_formatted_tgl_corpus = pickle.load(f)
-
-es_data_tr_eval = es_data_tr_eval + es_formatted_tgl_corpus
-es_data = es_data + es_data_tr_eval
-random.seed(617)
-random.shuffle(es_data)
 
 
 # Get the label for whether each guess is correct or not
 # convert feature code to numeric value, handling padding and 
 # unknown valudes
 
-max_choices = 25
 
-import pandas as pd
-
-country = pd.read_csv("wikipedia-iso-country-codes.txt")
-country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
-country_dict["CUW"] = len(country_dict)
-country_dict["XKX"] = len(country_dict)
-country_dict["SCG"] = len(country_dict)
-country_dict["SSD"] = len(country_dict)
-country_dict["BES"] = len(country_dict)
-country_dict["NULL"] = len(country_dict)
-country_dict["NA"] = len(country_dict)
-
-with open("feature_code_dict.json", "r") as f:
-    feature_code_dict = json.load(f)
 
 
 class ProductionData(Dataset):
     def __init__(self, es_data, max_choices=25, max_codes=50):
+        self.max_choices = max_choices
         self.max_codes = max_codes
+        self.country_dict = self.make_country_dict()
+        self.feature_code_dict = self.make_feature_code_dict()
         #self.X_data = X_data.astype(np.float32) #torch.tensor(X_data, dtype=torch.float32)
         #self.country_code = y_data.astype(np.long) #torch.tensor(y_data, dtype=torch.long)
         self.X_data = np.array([i['tensor'] for i in es_data]).astype(np.float32)
@@ -79,6 +52,7 @@ class ProductionData(Dataset):
         self.locs_data = np.array([i['locs_tensor'] for i in es_data]).astype(np.float32)
         self.feature_codes = self.create_feature_codes(es_data)
         self.country_codes = self.create_country_codes(es_data)
+
         
     def __getitem__(self, index):
         return (self.X_data[index],  
@@ -96,9 +70,9 @@ class ProductionData(Dataset):
         all_feature_codes = []
         for ex in es_data:
             feature_code_raw = [i['feature_code'] for i in ex['es_choices']]
-            feature_code_raw += ['NULL'] * (max_choices - len(feature_code_raw))
-            feature_code_raw = feature_code_raw[0:max_choices]
-            feature_codes = [feature_code_dict[i] if i in feature_code_dict else len(feature_code_dict)+1 for i in feature_code_raw]
+            feature_code_raw += ['NULL'] * (self.max_choices - len(feature_code_raw))
+            feature_code_raw = feature_code_raw[0:self.max_choices]
+            feature_codes = [self.feature_code_dict[i] if i in self.feature_code_dict else len(self.feature_code_dict)+1 for i in feature_code_raw]
             # the last one is an other/not present category
             feature_codes[-1] = 53
             feature_codes = np.array(feature_codes, dtype="int")
@@ -115,13 +89,30 @@ class ProductionData(Dataset):
         all_country_codes = []
         for ex in es_data:
             country_code_raw = [i['country_code3'] for i in ex['es_choices']]
-            country_code_raw += ['NULL'] * (max_choices - len(country_code_raw))
-            country_code_raw = country_code_raw[0:max_choices]
-            country_codes = [country_dict[i] for i in country_code_raw]
+            country_code_raw += ['NULL'] * (self.max_choices - len(country_code_raw))
+            country_code_raw = country_code_raw[0:self.max_choices]
+            country_codes = [self.country_dict[i] for i in country_code_raw]
             country_codes = np.array(country_codes, dtype="int")
             all_country_codes.append(country_codes)
         all_country_codes = np.array(all_country_codes).astype(np.long)
         return all_country_codes
+
+    def make_country_dict(self):
+        country = read_csv("wikipedia-iso-country-codes.txt")
+        country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
+        country_dict["CUW"] = len(country_dict)
+        country_dict["XKX"] = len(country_dict)
+        country_dict["SCG"] = len(country_dict)
+        country_dict["SSD"] = len(country_dict)
+        country_dict["BES"] = len(country_dict)
+        country_dict["NULL"] = len(country_dict)
+        country_dict["NA"] = len(country_dict)
+        return country_dict
+
+    def make_feature_code_dict(self):
+        with open("feature_code_dict.json", "r") as f:
+            feature_code_dict = json.load(f)
+            return feature_code_dict
 
 
 class TrainData(ProductionData):
@@ -141,12 +132,12 @@ class TrainData(ProductionData):
         """Create an array with the location of the correct geonames entry"""
         all_labels = []
         for ex in es_data:
-            labels = np.zeros(max_choices)
+            labels = np.zeros(self.max_choices)
             if np.sum(ex['correct']) == 0:
                labels[-1] = 1 
             else:
                 correct_num = np.where(np.array(ex['correct']))[0]
-                if correct_num[0] >= max_choices:
+                if correct_num[0] >= self.max_choices:
                     # TODO: make a better missing/NA prediction.
                     labels[-1] = 1
                 else:
@@ -248,17 +239,36 @@ class embedding_compare(nn.Module):
         logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 129)
         return out
 
+def load_data():
+    with open('es_formatted_prodigy.pkl', 'rb') as f:
+        es_data = pickle.load(f)
+    
+    with open('es_formatted_tr.pkl', 'rb') as f:
+        es_data_tr = pickle.load(f)
+    
+    with open('es_formatted_lgl.pkl', 'rb') as f:
+        es_data_lgl = pickle.load(f)
+
+    with open('es_formatted_gwn.pkl', 'rb') as f:
+        es_data_gwn = pickle.load(f)
+    
+    train_data = es_data + es_data_tr + es_data_lgl + es_data_gwn
+    random.seed(617)
+    random.shuffle(es_data)
+    return train_data, es_data_tr
 
 if __name__ == "__main__":
     wandb.init(project="mordecai3", entity="ahalt")
+    es_data, es_data_tr_eval = load_data()
     split = round(len(es_data)*0.7)
+    logger.info(f"Total training examples: {split}")
     train_data = TrainData(es_data[0:split])
     val_data = TrainData(es_data[split:])
     tr_data = TrainData(es_data_tr_eval)
 
     config = wandb.config          # Initialize config
-    config.batch_size = 1         # input batch size for training (default: 64)
-    config.test_batch_size = 44    # input batch size for testing (default: 1000)
+    config.batch_size = 64         # input batch size for training (default: 64)
+    config.test_batch_size = 64    # input batch size for testing (default: 1000)
     config.epochs = 40            # number of epochs to train (default: 10)
     config.lr = 0.01               # learning rate (default: 0.01)
     config.seed = 42               # random seed (default: 42)
@@ -281,7 +291,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
     wandb.watch(model)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
 
     model.train()
     for e in range(1, config.epochs+1):
@@ -343,6 +353,6 @@ if __name__ == "__main__":
             "Val Accuracy": epoch_acc_val/len(val_loader),
             "TR Accuracy": epoch_acc_tr/len(tr_loader)})
     logger.info("Saving model...")
-    #torch.save(model.state_dict(), "mordecai2.pt")
+    torch.save(model.state_dict(), "mordecai2.pt")
     logger.info("Run complete.")
 
