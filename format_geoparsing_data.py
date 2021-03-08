@@ -19,30 +19,31 @@ from typing import List, Set, Dict, Tuple, Optional
 import pickle
 
 
+try:
+    Token.set_extension('tensor', default=False)
+    @Language.component("token_tensors")
+    def token_tensors(doc):
+        chunk_len = len(doc._.trf_data.tensors[0][0])
+        token_tensors = [[]]*len(doc)
 
-Token.set_extension('tensor', default=False)
-
-@Language.component("token_tensors")
-def token_tensors(doc):
-    chunk_len = len(doc._.trf_data.tensors[0][0])
-    token_tensors = [[]]*len(doc)
-    
-    for n, i in enumerate(doc):
-        wordpiece_num = doc._.trf_data.align[n]
-        for d in wordpiece_num.dataXd:
-            which_chunk = int(np.floor(d[0] / chunk_len))
-            which_token = d[0] % chunk_len
-            ## You can uncomment this to see that spaCy tokens are being aligned with the correct 
-            ## wordpieces.
-            #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
-            #print(n, i, wordpiece)
-            token_tensors[n] = token_tensors[n] + [doc._.trf_data.tensors[0][which_chunk][which_token]]
-    for n, d in enumerate(doc):
-        if token_tensors[n]:
-            d._.set('tensor', np.mean(np.vstack(token_tensors[n]), axis=0))
-        else:
-            d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
-    return doc
+        for n, i in enumerate(doc):
+            wordpiece_num = doc._.trf_data.align[n]
+            for d in wordpiece_num.dataXd:
+                which_chunk = int(np.floor(d[0] / chunk_len))
+                which_token = d[0] % chunk_len
+                ## You can uncomment this to see that spaCy tokens are being aligned with the correct 
+                ## wordpieces.
+                #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
+                #print(n, i, wordpiece)
+                token_tensors[n] = token_tensors[n] + [doc._.trf_data.tensors[0][which_chunk][which_token]]
+        for n, d in enumerate(doc):
+            if token_tensors[n]:
+                d._.set('tensor', np.mean(np.vstack(token_tensors[n]), axis=0))
+            else:
+                d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
+        return doc
+except ValueError:
+    pass 
 
 
 def read_file(fn):
@@ -116,19 +117,30 @@ def data_to_docs(data, source):
 
 def data_formatter_prodigy(docs, data):
     """
-    Format a single example from the Prodigy training round into a format for training.
-    (placename, BERT embedding, correct geonames id)
+    Format the annotated documents from the Prodigy training round into a format for training.
     
+    Returns a list of lists, with one list for each document, consisting of each entity
+    within the document. This round of training only annotated one location per
+    "document"/sentence, so non-annotated entitys have None as their value for
+    correct_geonamesid. These will be discarded later.
+
+    Parameters
+    ---------
+    docs: list of spaCy docs
+    data: list of dicts
+      Data from Gritta et al, converted from XML to dict
+    source: the short name of the source used
+
     Returns
     -------
-    data: dict
-      - placename 
-      - tensor
-      - correct geonames id
+    all_formatted: list of lists
+      The list is of length docs, which each element a list of all the place 
+      names within the document.
     """
-    formatted = []
+    all_formatted = []
     doc_num = 0
-    for doc, ex in tqdm(zip(docs, data)): 
+    for doc, ex in tqdm(zip(docs, data), total=len(docs), leave=False): 
+        doc_formatted = []
         # Check if the example is good
         if ex['answer'] in ['reject', 'ignore']:
             continue
@@ -159,17 +171,46 @@ def data_formatter_prodigy(docs, data):
                 "locs_tensor": locs_tensor,
                 "doc_tensor": doc_tensor,
                "correct_geonamesid": correct_id}
-            formatted.append(d)
+            doc_formatted.append(d)
+            # Only one place name is annotated in each example, but we still want to know
+            # the other place names that were extracted to calculate Geonames overlap
+            # features. We'll throw these away later, so we can set the other values
+            # to None. 
+            for loc in other_locs:
+                d = {"placename": loc.text,
+                     "tensor": None,
+                     "locs_tensor": None,
+                     "doc_tensor": None,
+                     "correct_geonamesid": None}
+                doc_formatted.append(d)
+            all_formatted.append(doc_formatted)
         doc_num += 1
-    return formatted
+    return all_formatted
 
 def data_formatter(docs, data, source):
     """
-    This is for the data provided by Gritta et al
+    Calculate named entity and tensor info for training from the data provided by Gritta et al.
+
+    Returns a list of lists, with one list for each document, consisting of each entity
+    within the document.
+
+    Parameters
+    ---------
+    docs: list of spaCy docs
+    data: list of dicts
+      Data from Gritta et al, converted from XML to dict
+    source: the short name of the source used
+
+    Returns
+    -------
+    all_formatted: list of lists
+      The list is of length docs, which each element a list of all the place 
+      names within the document.
     """
-    formatted = []
+    all_formatted = []
     doc_num = 0
-    for doc, ex in tqdm(zip(docs, data['articles']['article'])):
+    for doc, ex in tqdm(zip(docs, data['articles']['article']), total=len(docs), leave=False):
+        doc_formatted = []
         doc_tensor = np.max(np.vstack([i._.tensor for i in doc]), axis=0)
         loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
         for n, topo in enumerate(ex['toponyms']['toponym']):
@@ -197,7 +238,7 @@ def data_formatter(docs, data, source):
                     correct_geonamesid = topo['gaztag']['@geonameid']
                     placename = topo['phrase']
 
-                formatted.append({"placename": placename,
+                doc_formatted.append({"placename": placename,
                                   "tensor": tensor,
                                   "locs_tensor": locs_tensor,
                                   "doc_tensor": doc_tensor,
@@ -206,12 +247,13 @@ def data_formatter(docs, data, source):
                 pass
                 #print(e)
                 #print(f"{doc_num}_{n}")
+        all_formatted.append(doc_formatted)
         doc_num += 1
-    return formatted
+    return all_formatted
 
 def format_source(source, conn):
     fn = f"source_{source}.pkl"
-    print(f"reading in {source}...")
+    print(f"===== {source} =====")
     # did it two different ways...
     try:
         with open(fn, "rb") as f:
@@ -230,10 +272,16 @@ def format_source(source, conn):
         formatted = data_formatter_prodigy(docs, data)
     else:
         formatted = data_formatter(docs, data, source)
+    # formatted is a list of lists. We want the final data to be a flat list.
+    # At the same time, we can exclude examples with missing geonames info 
     esed_data = []
-    for ex in tqdm(formatted):
-        d = util.add_es_data(ex, conn)
-        esed_data.append(d)
+    print("Adding Elasticsearch data...")
+    for ff in tqdm(formatted, leave=False):
+        esd = util.add_es_data_doc(ff, conn)
+        for e in esd:
+            if e['correct_geonamesid']:
+                esed_data.append(e)
+
     print(f"Total place names in {source}: {len(esed_data)}")
     fn = f"es_formatted_{source}.pkl"
     print(f"Writing to {fn}...")

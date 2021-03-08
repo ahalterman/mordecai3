@@ -30,28 +30,18 @@ logger.setLevel(logging.DEBUG)
 #logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 
-
-
-# Get the label for whether each guess is correct or not
-# convert feature code to numeric value, handling padding and 
-# unknown valudes
-
-
-
-
 class ProductionData(Dataset):
     def __init__(self, es_data, max_choices=25, max_codes=50):
         self.max_choices = max_choices
         self.max_codes = max_codes
         self.country_dict = self._make_country_dict()
         self.feature_code_dict = self._make_feature_code_dict()
-        #self.X_data = X_data.astype(np.float32) #torch.tensor(X_data, dtype=torch.float32)
-        #self.country_code = y_data.astype(np.long) #torch.tensor(y_data, dtype=torch.long)
         self.placename_tensor = np.array([i['tensor'] for i in es_data]).astype(np.float32)
         self.doc_tensor = np.array([i['doc_tensor'] for i in es_data]).astype(np.float32)
         self.other_locs_tensor = np.array([i['locs_tensor'] for i in es_data]).astype(np.float32)
         self.feature_codes = self.create_feature_codes(es_data)
         self.country_codes = self.create_country_codes(es_data)
+        self.gaz_info = self.create_gaz_features(es_data).astype(np.float32)
 
         
     def __getitem__(self, index):
@@ -59,7 +49,8 @@ class ProductionData(Dataset):
                 "doc_tensor": self.doc_tensor[index], 
                 "other_locs_tensor": self.other_locs_tensor[index],
                 "feature_codes": self.feature_codes[index], 
-                "country_codes": self.country_codes[index]}
+                "country_codes": self.country_codes[index],
+                "gaz_info": self.gaz_info[index]}
         
     def __len__ (self):
         return len(self.placename_tensor)
@@ -69,18 +60,14 @@ class ProductionData(Dataset):
     def create_feature_codes(self, es_data):
         all_feature_codes = []
         for ex in es_data:
-            feature_code_raw = [i['feature_code'] for i in ex['es_choices']]
+            feature_code_raw = [i['feature_code'] for i in ex['es_choices'][0:self.max_choices]]
             feature_code_raw += ['NULL'] * (self.max_choices - len(feature_code_raw))
             feature_code_raw = feature_code_raw[0:self.max_choices]
+            ## Pytorch embedding layers need indices, not one-hot
             feature_codes = [self.feature_code_dict[i] if i in self.feature_code_dict else len(self.feature_code_dict)+1 for i in feature_code_raw]
             # the last one is an other/not present category
             feature_codes[-1] = 53
             feature_codes = np.array(feature_codes, dtype="int")
-            ## DON'T DO THIS: Pytorch embedding layers need indices, not one-hot
-            # convert from a vector [0, 3, 1, 18,...] to a one-hot matrix
-            #one_hot = np.zeros((max_choices, 53+1))
-            #one_hot[np.arange(feature_codes.size), feature_codes] = 1
-            #all_feature_codes.append(one_hot)
             all_feature_codes.append(feature_codes)
         all_feature_codes = np.array(all_feature_codes).astype(np.long)
         return all_feature_codes
@@ -88,7 +75,7 @@ class ProductionData(Dataset):
     def create_country_codes(self, es_data):
         all_country_codes = []
         for ex in es_data:
-            country_code_raw = [i['country_code3'] for i in ex['es_choices']]
+            country_code_raw = [i['country_code3'] for i in ex['es_choices'][0:self.max_choices]]
             country_code_raw += ['NULL'] * (self.max_choices - len(country_code_raw))
             country_code_raw = country_code_raw[0:self.max_choices]
             country_codes = [self.country_dict[i] for i in country_code_raw]
@@ -96,6 +83,29 @@ class ProductionData(Dataset):
             all_country_codes.append(country_codes)
         all_country_codes = np.array(all_country_codes).astype(np.long)
         return all_country_codes
+
+    def create_gaz_features(self, es_data):
+        """
+        Format all non-query/gazetteer-only feautures.
+
+        Specifically, this includes edit distance features and adm1 and country overlap
+        """
+        edit_info = []
+        for ex in es_data:
+            min_dist = [i['min_dist'] for i in ex['es_choices'][0:self.max_choices]]
+            min_dist += [1] * (self.max_choices - len(min_dist))
+            max_dist = [i['max_dist'] for i in ex['es_choices'][0:self.max_choices]]
+            max_dist += [1] * (self.max_choices - len(max_dist))
+            avg_dist = [i['avg_dist'] for i in ex['es_choices'][0:self.max_choices]]
+            avg_dist += [1] * (self.max_choices - len(avg_dist))
+            adm1_overlap = [i['adm1_count'] for i in ex['es_choices'][0:self.max_choices]]
+            adm1_overlap += [1] * (self.max_choices - len(adm1_overlap))
+            country_overlap = [i['country_count'] for i in ex['es_choices'][0:self.max_choices]]
+            country_overlap += [1] * (self.max_choices - len(country_overlap))
+            ed = np.transpose(np.array([max_dist, avg_dist, min_dist, adm1_overlap, country_overlap]))
+            edit_info.append(ed)
+        ed_stack = np.stack(edit_info)
+        return ed_stack
 
     def _make_country_dict(self):
         country = read_csv("wikipedia-iso-country-codes.txt")
@@ -126,7 +136,8 @@ class TrainData(ProductionData):
                 "doc_tensor": self.doc_tensor[index], 
                 "other_locs_tensor": self.other_locs_tensor[index],
                 "feature_codes": self.feature_codes[index], 
-                "country_codes": self.country_codes[index]}) 
+                "country_codes": self.country_codes[index],
+                "gaz_info": self.gaz_info[index]}) 
 
     def create_labels(self, es_data):
         """Create an array with the location of the correct geonames entry"""
@@ -162,12 +173,12 @@ def binary_acc(y_pred, y_test):
 
 
 class embedding_compare(nn.Module):
-    def __init__(self, bert_size, num_feature_codes, max_choices):
+    def __init__(self, device, bert_size, num_feature_codes, max_choices):
         super(embedding_compare, self).__init__()
+        self.device = device
         pretrained_country = np.load("country_bert_768.npy")
         pretrained_country = torch.FloatTensor(pretrained_country)
         logging.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
-        # Take in two inputs: the text, and the country. Learn an embedding for country.
         self.text_to_country = nn.Linear(bert_size, 24) 
         self.context_to_country = nn.Linear(bert_size, 24) 
         self.country_layer = nn.Linear(bert_size, 24) 
@@ -179,7 +190,7 @@ class embedding_compare(nn.Module):
         #self.country_emb.weight.data.copy_(torch.from_numpy(pretrained_country))
 
         self.sigmoid = nn.Sigmoid()
-        self.last_linear = nn.Linear(4, 1) # number of comparisons --> final
+        self.last_linear = nn.Linear(9, 1) # number of comparisons --> final
         self.softmax = nn.Softmax(dim=1)
         self.dropout = nn.Dropout(p=0.2) 
         self.similarity = nn.CosineSimilarity(dim=2)
@@ -188,11 +199,12 @@ class embedding_compare(nn.Module):
     def forward(self, input):
         # Unpack the dictionary here. Sending the data to device within the forward
         # function isn't standard, but it makes the training loop code easier to follow.
-        placename_tensor = input['placename_tensor'].to(device)
-        other_locs_tensor = input['other_locs_tensor'].to(device)
-        doc_tensor = input['doc_tensor'].to(device)
-        feature_codes = input['feature_codes'].to(device)
-        country_codes = input['country_codes'].to(device)
+        placename_tensor = input['placename_tensor'].to(self.device)
+        other_locs_tensor = input['other_locs_tensor'].to(self.device)
+        doc_tensor = input['doc_tensor'].to(self.device)
+        feature_codes = input['feature_codes'].to(self.device)
+        country_codes = input['country_codes'].to(self.device)
+        gaz_info = input['gaz_info'].to(self.device)
 
         logger.debug("feature_code input shape:{}".format(feature_codes.shape))
         x = self.text_to_country(placename_tensor)
@@ -231,25 +243,23 @@ class embedding_compare(nn.Module):
         logger.debug("cos_sim_code: {}".format(cos_sim_country.shape))
         logger.debug("cos_sim_doc: {}".format(cos_sim_doc.shape))
         # put cos_sim into (batch size, choices)  
-        cos_sim_country = torch.transpose(cos_sim_country, 0, 1)
-        cos_sim_country = torch.unsqueeze(cos_sim_country, 2) 
-        cos_sim_code = torch.transpose(cos_sim_code, 0, 1)
-        cos_sim_code = torch.unsqueeze(cos_sim_code, 2)
-        cos_sim_other_locs = torch.transpose(cos_sim_other_locs, 0, 1)
-        cos_sim_other_locs = torch.unsqueeze(cos_sim_other_locs, 2) 
-        cos_sim_doc = torch.transpose(cos_sim_doc, 0, 1)
-        cos_sim_doc = torch.unsqueeze(cos_sim_doc, 2) 
+        cos_sim_country = torch.unsqueeze(torch.transpose(cos_sim_country, 0, 1), 2)
+        cos_sim_code = torch.unsqueeze(torch.transpose(cos_sim_code, 0, 1), 2)
+        cos_sim_other_locs = torch.unsqueeze(torch.transpose(cos_sim_other_locs, 0, 1), 2)
+        cos_sim_doc = torch.unsqueeze(torch.transpose(cos_sim_doc, 0, 1), 2)
         logger.debug("cos_sim_country shape: {}".format(cos_sim_country.shape))
         logger.debug("cos_sim_code shape: {}".format(cos_sim_code.shape))
-        both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc), 2)
-        logger.debug(f"concat shape: {both_sim.shape}")
-        #cos_sim = self.dropout(cos_sim)
-        last = torch.squeeze(self.last_linear(both_sim), dim=2)
-        logger.debug(f"last shape: {last.shape}")
-        out = self.softmax(last) # should be (batch, choices)  (44, 25)
-        #logger.debug(out)
-        #out = cos_sim
-        logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 129)
+        logger.debug("gaz_info info shape: {}".format(gaz_info.shape))
+        #both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc), 2)
+        both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc, gaz_info), 2)
+        # so the new gaz_info features need to be (batch_size, choices, 3), to make 7 in the last dim.
+        logger.debug(f"concat shape: {both_sim.shape}")  # (batch_size, choices, 4)
+        #both_sim = self.dropout(both_sim)
+        last = torch.squeeze(self.last_linear(both_sim), dim=2)  
+        logger.debug(f"last shape: {last.shape}")  # (batch_size, choices)
+        logger.debug(f"last max: {torch.max(last)}")
+        out = self.softmax(last) 
+        logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 25) 
         return out
 
 def load_data():
@@ -282,7 +292,7 @@ if __name__ == "__main__":
     config = wandb.config          # Initialize config
     config.batch_size = 64         # input batch size for training (default: 64)
     config.test_batch_size = 64    # input batch size for testing (default: 1000)
-    config.epochs = 40            # number of epochs to train (default: 10)
+    config.epochs = 40           # number of epochs to train (default: 10)
     config.lr = 0.01               # learning rate (default: 0.01)
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
@@ -292,15 +302,14 @@ if __name__ == "__main__":
     tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = embedding_compare(bert_size = train_data.placename_tensor.shape[1],
-                                num_feature_codes=53+1, 
-                                max_choices=25)
+    model = embedding_compare(device = device,
+                              bert_size = train_data.placename_tensor.shape[1],
+                              num_feature_codes=53+1, 
+                              max_choices=25)
     #model = torch.nn.DataParallel(model)
     model.to(device)
-    #print(model)
-    # Can add  an "ignore_index" argument so that some inputs don't have losses calculated
-    loss_func=nn.CrossEntropyLoss() #BCELoss()
-    #loss_func = nn.NLLLOSS()
+    # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
+    loss_func=nn.CrossEntropyLoss() # single label, multi-class
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
     wandb.watch(model)
@@ -333,9 +342,7 @@ if __name__ == "__main__":
             for label_val, input_val in val_loader:
 
                 pred_val = model(input_val)
-        #        val_loss = loss_func(label_val, pred_label)
                 val_acc = binary_acc(pred_val, label_val)
-        #        epoch_loss_val += val_loss.item()
                 epoch_acc_val += val_acc.item()
 
             for label_tr, input_tr in tr_loader:
@@ -353,6 +360,6 @@ if __name__ == "__main__":
             "Val Accuracy": epoch_acc_val/len(val_loader),
             "TR Accuracy": epoch_acc_tr/len(tr_loader)})
     logger.info("Saving model...")
-    #torch.save(model.state_dict(), "mordecai2.pt")
+    torch.save(model.state_dict(), "mordecai2.pt")
     logger.info("Run complete.")
 

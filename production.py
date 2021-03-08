@@ -54,6 +54,8 @@ def load_nlp():
     nlp.add_pipe("token_tensors")
     return nlp
 
+
+
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def setup_es():
     kwargs = dict(
@@ -82,6 +84,7 @@ conn = setup_es()
 model = load_model()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model.to(device)
+
 
 #= "Afghanistan's major population centers are all government-held, with capital city Kabul especially well-fortified, though none are immune to occasional attacks by Taliban operatives. And though the conflict sometimes seems to engulf the whole country, the provinces of Panjshir, Bamyan, and Nimroz stand out as being mostly free of Taliban influence."
 #default_text = 'A "scorched earth"-type policy was used in the city of New York City and the north-western governorate of Idleb.'
