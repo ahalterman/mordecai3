@@ -73,6 +73,7 @@ def res_formatter(res, placename):
     min_dist = []
     max_dist = []
     avg_dist = []
+    ascii_dist = []
     for i in res['hits']['hits']:
         i = i.to_dict()['_source']
         names = [i['name']] + i['alternativenames'] 
@@ -89,36 +90,26 @@ def res_formatter(res, placename):
         choices.append(d)
         alt_lengths.append(len(i['alternativenames']))
         dists = [jellyfish.levenshtein_distance(placename, j) for j in names]
-        mn = np.min(dists)
-        if np.isnan(mn):
-            print("min problem")
-            mn = 10
-            print(dists)
-        min_dist.append(mn)
-        mx = np.max(dists)
-        if np.isnan(mx):
-            print("max problem")
-            mx = 10
-        max_dist.append(mx)
-        ag = np.mean(dists)
-        if np.isnan(ag):
-            print("avg problem")
-            ag = 10
-        avg_dist.append(ag)
+        min_dist.append(np.min(dists))
+        max_dist.append(np.max(dists))
+        avg_dist.append(np.mean(dists))
+        ascii_dist.append(jellyfish.levenshtein_distance(placename, i['asciiname']))
     alt_lengths = normalize(alt_lengths)
     min_dist = normalize(min_dist)
     max_dist = normalize(max_dist)
     avg_dist = normalize(avg_dist)
+    ascii_dist = normalize(ascii_dist)
 
     for n, i in enumerate(choices):
         i['alt_name_length'] = alt_lengths[n]
         i['min_dist'] = min_dist[n]
         i['max_dist'] = max_dist[n]
         i['avg_dist'] = avg_dist[n]
+        i['ascii_dist'] = ascii_dist[n]
     return choices
 
 
-def add_es_data(ex, conn, fuzzy=True):
+def add_es_data(ex, conn, max_results=50, fuzzy=True):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
 
@@ -141,14 +132,14 @@ def add_es_data(ex, conn, fuzzy=True):
     q = {"multi_match": {"query": ex['placename'],
                                  "fields": ['name', 'asciiname', 'alternativenames'],
                                 "type" : "phrase"}}
-    res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:50].execute()
+    res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     choices = res_formatter(res, ex['placename'])
     if fuzzy and not choices:
         q = {"multi_match": {"query": ex['placename'],
                              "fields": ['name', 'alternativenames', 'asciiname'],
                              "fuzziness" : 1,
                             }}
-        res = conn.query(q)[0:10].execute()
+        res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
         choices = res_formatter(res, ex['placename'])
 
     ex['es_choices'] = choices
@@ -156,12 +147,12 @@ def add_es_data(ex, conn, fuzzy=True):
         ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
     return ex
 
-def add_es_data_doc(doc_ex, conn):
+def add_es_data_doc(doc_ex, conn, max_results=50):
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
             try:
-                es = add_es_data(ex, conn)
+                es = add_es_data(ex, conn, max_results)
                 doc_es.append(es)
             except Warning:
                 continue

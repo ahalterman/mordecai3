@@ -102,7 +102,7 @@ def data_to_docs(data, source):
     """
     print("NLPing docs...")
     doc_bin = DocBin(store_user_data=True)
-    if source == "prodigy":
+    if source in ["prodigy", "syn_cities"]:
         for doc in tqdm(nlp.pipe([i['text'] for i in data]), total=len(data)):
             doc_bin.add(doc)
     else:
@@ -209,7 +209,11 @@ def data_formatter(docs, data, source):
     """
     all_formatted = []
     doc_num = 0
-    for doc, ex in tqdm(zip(docs, data['articles']['article']), total=len(docs), leave=False):
+    if source == "syn_cities":
+        articles = data
+    else:
+        articles = data['articles']['article']
+    for doc, ex in tqdm(zip(docs, articles), total=len(docs), leave=False):
         doc_formatted = []
         doc_tensor = np.max(np.vstack([i._.tensor for i in doc]), axis=0)
         loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
@@ -234,6 +238,9 @@ def data_formatter(docs, data, source):
                 if source == "gwn":
                     correct_geonamesid = topo['geonamesID']
                     placename = topo['extractedName']
+                elif source == "syn_cities":
+                    correct_geonamesid = topo['geonamesID']
+                    placename = topo['placename']
                 else:
                     correct_geonamesid = topo['gaztag']['@geonameid']
                     placename = topo['phrase']
@@ -244,14 +251,14 @@ def data_formatter(docs, data, source):
                                   "doc_tensor": doc_tensor,
                                   "correct_geonamesid": correct_geonamesid})
             except Exception as e:
-                pass
-                #print(e)
+                #pass
+                print(e)
                 #print(f"{doc_num}_{n}")
         all_formatted.append(doc_formatted)
         doc_num += 1
     return all_formatted
 
-def format_source(source, conn):
+def format_source(source, conn, max_results):
     fn = f"source_{source}.pkl"
     print(f"===== {source} =====")
     # did it two different ways...
@@ -277,7 +284,7 @@ def format_source(source, conn):
     esed_data = []
     print("Adding Elasticsearch data...")
     for ff in tqdm(formatted, leave=False):
-        esd = util.add_es_data_doc(ff, conn)
+        esd = util.add_es_data_doc(ff, conn, max_results)
         for e in esd:
             if e['correct_geonamesid']:
                 esed_data.append(e)
@@ -297,13 +304,14 @@ if __name__ == "__main__":
     sources = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
               "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
               "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
-              "prodigy": "../geo_annotated/loc_rank_db.jsonl"}
+              "prodigy": "../geo_annotated/loc_rank_db.jsonl",
+              "syn_cities": "synthetic_cities_short.jsonl"}
 
     #print("Reading in data...")
-    #data = read_file(sources['prodigy'])
-    #data_to_docs(data, "prodigy")
+    #data = read_file(sources['syn_cities'])
+    #data_to_docs(data, "syn_cities")
 
     for source in sources.keys():            
-        format_source(source, conn)
+        format_source(source, conn, max_results=500)
     print("Complete")
 

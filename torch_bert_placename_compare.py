@@ -93,16 +93,18 @@ class ProductionData(Dataset):
         edit_info = []
         for ex in es_data:
             min_dist = [i['min_dist'] for i in ex['es_choices'][0:self.max_choices]]
-            min_dist += [1] * (self.max_choices - len(min_dist))
+            min_dist += [99] * (self.max_choices - len(min_dist))
             max_dist = [i['max_dist'] for i in ex['es_choices'][0:self.max_choices]]
-            max_dist += [1] * (self.max_choices - len(max_dist))
+            max_dist += [99] * (self.max_choices - len(max_dist))
             avg_dist = [i['avg_dist'] for i in ex['es_choices'][0:self.max_choices]]
-            avg_dist += [1] * (self.max_choices - len(avg_dist))
+            avg_dist += [99] * (self.max_choices - len(avg_dist))
+            ascii_dist = [i['ascii_dist'] for i in ex['es_choices'][0:self.max_choices]]
+            ascii_dist += [99] * (self.max_choices - len(ascii_dist))
             adm1_overlap = [i['adm1_count'] for i in ex['es_choices'][0:self.max_choices]]
-            adm1_overlap += [1] * (self.max_choices - len(adm1_overlap))
+            adm1_overlap += [0] * (self.max_choices - len(adm1_overlap))
             country_overlap = [i['country_count'] for i in ex['es_choices'][0:self.max_choices]]
-            country_overlap += [1] * (self.max_choices - len(country_overlap))
-            ed = np.transpose(np.array([max_dist, avg_dist, min_dist, adm1_overlap, country_overlap]))
+            country_overlap += [0] * (self.max_choices - len(country_overlap))
+            ed = np.transpose(np.array([max_dist, avg_dist, min_dist, ascii_dist, adm1_overlap, country_overlap]))
             edit_info.append(ed)
         ed_stack = np.stack(edit_info)
         return ed_stack
@@ -115,6 +117,7 @@ class ProductionData(Dataset):
         country_dict["SCG"] = len(country_dict)
         country_dict["SSD"] = len(country_dict)
         country_dict["BES"] = len(country_dict)
+        country_dict["SXM"] = len(country_dict)
         country_dict["NULL"] = len(country_dict)
         country_dict["NA"] = len(country_dict)
         return country_dict
@@ -173,12 +176,12 @@ def binary_acc(y_pred, y_test):
 
 
 class embedding_compare(nn.Module):
-    def __init__(self, device, bert_size, num_feature_codes, max_choices):
+    def __init__(self, device, bert_size, num_feature_codes):
         super(embedding_compare, self).__init__()
         self.device = device
         pretrained_country = np.load("country_bert_768.npy")
         pretrained_country = torch.FloatTensor(pretrained_country)
-        logging.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
+        logger.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
         self.text_to_country = nn.Linear(bert_size, 24) 
         self.context_to_country = nn.Linear(bert_size, 24) 
         self.country_layer = nn.Linear(bert_size, 24) 
@@ -190,7 +193,8 @@ class embedding_compare(nn.Module):
         #self.country_emb.weight.data.copy_(torch.from_numpy(pretrained_country))
 
         self.sigmoid = nn.Sigmoid()
-        self.last_linear = nn.Linear(9, 1) # number of comparisons --> final
+        self.mix_linear = nn.Linear(10, 10) # number of comparisons --> number of comparisons
+        self.last_linear = nn.Linear(10, 1) # number of comparisons --> final
         self.softmax = nn.Softmax(dim=1)
         self.dropout = nn.Dropout(p=0.2) 
         self.similarity = nn.CosineSimilarity(dim=2)
@@ -207,9 +211,9 @@ class embedding_compare(nn.Module):
         gaz_info = input['gaz_info'].to(self.device)
 
         logger.debug("feature_code input shape:{}".format(feature_codes.shape))
-        x = self.text_to_country(placename_tensor)
-        x_code = self.text_to_code(placename_tensor)
-        x_other_locs = self.context_to_country(other_locs_tensor)
+        x = self.dropout(self.text_to_country(placename_tensor))
+        x_code = self.dropout(self.text_to_code(placename_tensor))
+        x_other_locs = self.dropout(self.context_to_country(other_locs_tensor))
         x_doc = self.context_to_country(doc_tensor)
         logger.debug(f"x shape: {x.shape}")
         #x = self.text2(x)
@@ -255,16 +259,20 @@ class embedding_compare(nn.Module):
         # so the new gaz_info features need to be (batch_size, choices, 3), to make 7 in the last dim.
         logger.debug(f"concat shape: {both_sim.shape}")  # (batch_size, choices, 4)
         #both_sim = self.dropout(both_sim)
-        last = torch.squeeze(self.last_linear(both_sim), dim=2)  
+        last = self.dropout(self.sigmoid(self.mix_linear(both_sim)))
+        last = self.dropout(self.sigmoid(self.mix_linear(last)))
+        last = torch.squeeze(self.last_linear(last), dim=2)  
         logger.debug(f"last shape: {last.shape}")  # (batch_size, choices)
         logger.debug(f"last max: {torch.max(last)}")
         out = self.softmax(last) 
         logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 25) 
         return out
 
+
+
 def load_data():
     with open('es_formatted_prodigy.pkl', 'rb') as f:
-        es_data = pickle.load(f)
+        es_data_prod = pickle.load(f)
     
     with open('es_formatted_tr.pkl', 'rb') as f:
         es_data_tr = pickle.load(f)
@@ -275,37 +283,55 @@ def load_data():
     with open('es_formatted_gwn.pkl', 'rb') as f:
         es_data_gwn = pickle.load(f)
     
-    train_data = es_data + es_data_tr + es_data_lgl + es_data_gwn
+    with open('es_formatted_syn_cities.pkl', 'rb') as f:
+        es_data_syn = pickle.load(f)
+
+    def split_list(data, frac=0.7):
+        split = round(frac*len(data))
+        return data[0:split], data[split:]
+
+    es_data_prod, es_data_prod_val = split_list(es_data_prod)
+    es_data_tr, es_data_tr_val = split_list(es_data_tr)
+    es_data_lgl, es_data_lgl_val = split_list(es_data_lgl)
+    es_data_gwn, es_data_gwn_val = split_list(es_data_gwn)
+    es_data_syn, es_data_syn_val = split_list(es_data_syn)
+    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn #+ es_data_syn
     random.seed(617)
-    random.shuffle(es_data)
-    return train_data, es_data_tr
+    random.shuffle(train_data)
+    return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val
 
 if __name__ == "__main__":
     wandb.init(project="mordecai3", entity="ahalt")
-    es_data, es_data_tr_eval = load_data()
-    split = round(len(es_data)*0.7)
-    logger.info(f"Total training examples: {split}")
-    train_data = TrainData(es_data[0:split])
-    val_data = TrainData(es_data[split:])
-    tr_data = TrainData(es_data_tr_eval)
 
     config = wandb.config          # Initialize config
     config.batch_size = 64         # input batch size for training (default: 64)
     config.test_batch_size = 64    # input batch size for testing (default: 1000)
-    config.epochs = 40           # number of epochs to train (default: 10)
+    config.epochs = 15           # number of epochs to train (default: 10)
     config.lr = 0.01               # learning rate (default: 0.01)
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
+    config.max_choices = 500
+
+    train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
+    logger.info(f"Total training examples: {len(train_data)}")
+    train_data = TrainData(train_data, max_choices=config.max_choices)
+    tr_data = TrainData(es_data_tr_val, max_choices=config.max_choices)
+    prod_data = TrainData(es_data_prod_val, max_choices=config.max_choices)
+    lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
+    gwn_data = TrainData(es_data_gwn_val, max_choices=config.max_choices)
+    syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
 
     train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
-    val_loader = DataLoader(dataset=val_data, batch_size=config.test_batch_size, shuffle=True)
+    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=True)
     tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=True)
+    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=True)
+    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=True)
+    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = embedding_compare(device = device,
                               bert_size = train_data.placename_tensor.shape[1],
-                              num_feature_codes=53+1, 
-                              max_choices=25)
+                              num_feature_codes=53+1)
     #model = torch.nn.DataParallel(model)
     model.to(device)
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
@@ -320,8 +346,11 @@ if __name__ == "__main__":
         epoch_loss = 0
         epoch_acc = 0
         epoch_loss_val = 0
-        epoch_acc_val = 0
+        epoch_acc_prod = 0
         epoch_acc_tr = 0
+        epoch_acc_lgl = 0
+        epoch_acc_gwn = 0
+        epoch_acc_syn = 0
 
         for label, input in train_loader:
             optimizer.zero_grad()
@@ -339,26 +368,39 @@ if __name__ == "__main__":
         # evaluate once per epoch
         with torch.no_grad():
             model.eval()
-            for label_val, input_val in val_loader:
-
+            for label_val, input_val in prod_loader:
                 pred_val = model(input_val)
                 val_acc = binary_acc(pred_val, label_val)
-                epoch_acc_val += val_acc.item()
+                epoch_acc_prod += val_acc.item()
+            for label_val, input_val in tr_loader:
+                pred = model(input_val)
+                val_acc = binary_acc(pred, label_val)
+                epoch_acc_tr += val_acc.item() 
+            for label_val, input_val in lgl_loader:
+                pred = model(input_val)
+                val_acc = binary_acc(pred, label_val)
+                epoch_acc_lgl += val_acc.item() 
+            for label_val, input_val in gwn_loader:
+                pred = model(input_val)
+                val_acc = binary_acc(pred, label_val)
+                epoch_acc_gwn += val_acc.item() 
+            for label_val, input_val in syn_loader:
+                pred = model(input_val)
+                val_acc = binary_acc(pred, label_val)
+                epoch_acc_syn += val_acc.item() 
 
-            for label_tr, input_tr in tr_loader:
-                pred_tr = model(input_tr)
-        #        val_loss = loss_func(label_val, pred_label)
-                tr_acc = binary_acc(pred_tr, label_tr)
-        #        epoch_loss_val += val_loss.item()
-                epoch_acc_tr += tr_acc.item() 
 
-        print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Val Acc: {epoch_acc_val/len(val_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f}')
+        print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Train Acc: {epoch_acc/len(train_loader):.3f} | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
 
         wandb.log({
             "Train Loss": epoch_loss/len(train_loader),
-            "Test Accuracy": epoch_acc/len(train_loader),
-            "Val Accuracy": epoch_acc_val/len(val_loader),
-            "TR Accuracy": epoch_acc_tr/len(tr_loader)})
+            "Train Accuracy": epoch_acc/len(train_loader),
+            "Prodigy Accuracy": epoch_acc_prod/len(prod_loader),
+            "TR Accuracy": epoch_acc_tr/len(tr_loader),
+            "LGL Accuracy": epoch_acc_lgl/len(lgl_loader),
+            "GWN Accuracy": epoch_acc_gwn/len(gwn_loader),
+            "Syn Accuracy": epoch_acc_syn/len(syn_loader),
+            })
     logger.info("Saving model...")
     torch.save(model.state_dict(), "mordecai2.pt")
     logger.info("Run complete.")
