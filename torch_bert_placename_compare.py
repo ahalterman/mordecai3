@@ -131,11 +131,12 @@ class ProductionData(Dataset):
 class TrainData(ProductionData):
     def __init__(self, es_data, max_choices=25, max_codes=50):
         super().__init__(es_data, max_choices, max_codes)
-        self.labels = self.create_labels(es_data)
+        self.labels, self.countries = self.create_labels(es_data)
 
     def __getitem__(self, index):
         return (self.labels[index],
-            {"placename_tensor": self.placename_tensor[index],  
+                self.countries[index],
+               {"placename_tensor": self.placename_tensor[index],  
                 "doc_tensor": self.doc_tensor[index], 
                 "other_locs_tensor": self.other_locs_tensor[index],
                 "feature_codes": self.feature_codes[index], 
@@ -145,24 +146,34 @@ class TrainData(ProductionData):
     def create_labels(self, es_data):
         """Create an array with the location of the correct geonames entry"""
         all_labels = []
+        all_countries = []
         for ex in es_data:
             labels = np.zeros(self.max_choices)
             if np.sum(ex['correct']) == 0:
-               labels[-1] = 1 
+               labels[-1] = 1
+               all_countries.append(self.country_dict["NULL"])
             else:
                 correct_num = np.where(np.array(ex['correct']))[0]
                 if correct_num[0] >= self.max_choices:
                     # TODO: make a better missing/NA prediction.
                     labels[-1] = 1
+                    all_countries.append(self.country_dict["NULL"])
                 else:
                     labels[correct_num] = 1
+                    try:
+                        cn = correct_num[0]
+                        country_code = ex['es_choices'][cn]['country_code3']
+                        all_countries.append(self.country_dict[country_code])
+
+                    except Exception as e:
+                        print(e)
+                        print("subsetting number: ", cn)
             ## HACK here: convert back to index, not one-hot
             labels = np.argmax(labels)
             all_labels.append(labels)
         all_labels = np.array(all_labels).astype(np.long)
-        return all_labels
-
-
+        all_countries = np.array(all_countries).astype(np.long)
+        return all_labels, all_countries
 
 
 
@@ -179,28 +190,39 @@ class embedding_compare(nn.Module):
     def __init__(self, device, bert_size, num_feature_codes):
         super(embedding_compare, self).__init__()
         self.device = device
+        # embeddings setup
         pretrained_country = np.load("country_bert_768.npy")
         pretrained_country = torch.FloatTensor(pretrained_country)
         logger.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
+        self.code_emb = nn.Embedding(num_feature_codes, 8)
+        self.country_emb = nn.Embedding.from_pretrained(pretrained_country, freeze=True)
+        self.country_embed_transform = nn.Linear(bert_size, 24) 
+
+        # text layers
         self.text_to_country = nn.Linear(bert_size, 24) 
         self.context_to_country = nn.Linear(bert_size, 24) 
-        self.country_layer = nn.Linear(bert_size, 24) 
-        #self.text2 = nn.Linear(64, 32)
         self.text_to_code = nn.Linear(bert_size, 8) 
-        self.code_emb = nn.Embedding(num_feature_codes, 8)
-        #self.country_emb = nn.Embedding(len(country_dict), 24)
-        self.country_emb = nn.Embedding.from_pretrained(pretrained_country, freeze=False)
-        #self.country_emb.weight.data.copy_(torch.from_numpy(pretrained_country))
 
-        self.sigmoid = nn.Sigmoid()
+        # transformation layers
         self.mix_linear = nn.Linear(10, 10) # number of comparisons --> number of comparisons
+        self.mix_linear2 = nn.Linear(10, 10) # number of comparisons --> number of comparisons
         self.last_linear = nn.Linear(10, 1) # number of comparisons --> final
+        self.mix_country = nn.Linear(pretrained_country.shape[0], pretrained_country.shape[0],
+                                    bias=False)
+        self.country_predict = nn.Linear(bert_size, pretrained_country.shape[0],
+                                    bias=False)
+        
+        # activations and similarities
+        self.sigmoid = nn.Sigmoid()
+        self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=1)
         self.dropout = nn.Dropout(p=0.2) 
         self.similarity = nn.CosineSimilarity(dim=2)
-        #nn.Linear()
+        #self.similarity_country = nn.CosineSimilarity(dim=2)
 
     def forward(self, input):
+        ## TODO: this whole forward pass can probably be done with fewer permutations and transposes.
+
         # Unpack the dictionary here. Sending the data to device within the forward
         # function isn't standard, but it makes the training loop code easier to follow.
         placename_tensor = input['placename_tensor'].to(self.device)
@@ -209,61 +231,61 @@ class embedding_compare(nn.Module):
         feature_codes = input['feature_codes'].to(self.device)
         country_codes = input['country_codes'].to(self.device)
         gaz_info = input['gaz_info'].to(self.device)
-
         logger.debug("feature_code input shape:{}".format(feature_codes.shape))
+
+        ###### Text info setup  ######
+        ### Apply linear layers to each of the inputs (placename tensor, other locs tensor,
+        ###  full document tensor)
         x = self.dropout(self.text_to_country(placename_tensor))
         x_code = self.dropout(self.text_to_code(placename_tensor))
         x_other_locs = self.dropout(self.context_to_country(other_locs_tensor))
-        x_doc = self.context_to_country(doc_tensor)
+        x_doc = self.dropout(self.context_to_country(doc_tensor))
         logger.debug(f"x shape: {x.shape}")
-        #x = self.text2(x)
-        logger.debug("x_dim: {}".format(x.shape))
-        #print("country shape: ", country.shape)
-        fc = self.code_emb(feature_codes)
-        cc = self.country_layer(self.country_emb(country_codes))
+
+        ####### Gazetteer entries setup ######
+        ### Set up all the comparisions
+        fc = self.dropout(self.code_emb(feature_codes))
+        cc = self.country_embed_transform(self.dropout(self.country_emb(country_codes)))
         # to match the stacked value below, rearrange so it's
         # (choices, batch_size, embed_size)
         fc = fc.permute(1, 0, 2)
-        fc = self.dropout(fc)
         cc = cc.permute(1, 0, 2)
-        cc = self.dropout(cc)
-        logger.debug("feature_code_emb: {}".format(fc.shape))
-        logger.debug("country_code_emb: {}".format(cc.shape))
-        #embed_stack = torch.cat((fc, cc), 2)
-        #logger.debug("stack_emb: {}".format(embed_stack.shape))
-        # turn x from (batch_size, choices) into (1, batch_size, choices)
+        logger.debug("cc shape: {}, fc shape: {}".format(cc.shape, fc.shape))
+
+        # Next, turn x from (batch_size, choices) into (1, batch_size, choices)
         # so it can be broadcast into a similarity comparison with all the ys.
-        x_stack_country = torch.unsqueeze(x, 0) #torch.stack([x, x])
-        x_stack_code = torch.unsqueeze(x_code, 0) #torch.stack([x, x])
+        x_stack_country = torch.unsqueeze(x, 0) 
+        x_stack_code = torch.unsqueeze(x_code, 0) 
         x_stack_locs = torch.unsqueeze(x_other_locs, 0)
         x_stack_doc = torch.unsqueeze(x_doc, 0)
-        logger.debug("x shape: {}".format(cc.shape))
+        logger.debug("x_stack_country shape: {}".format(x_stack_country.shape))
         # x_stack is (choices, batch_size, embed_size)
+        
+        ## Do the similiary comparisons
         cos_sim_country = self.similarity(x_stack_country, cc)
         cos_sim_code = self.similarity(x_stack_code, fc)
         cos_sim_other_locs = self.similarity(x_stack_locs, cc)
         cos_sim_doc = self.similarity(x_stack_doc, cc)
-        logger.debug("cos_sim_country: {}".format(cos_sim_country.shape))
-        logger.debug("cos_sim_code: {}".format(cos_sim_country.shape))
-        logger.debug("cos_sim_doc: {}".format(cos_sim_doc.shape))
-        # put cos_sim into (batch size, choices)  
+        logger.debug("cos_sim_country: {}, cos_sim_code: {}, cos_sim_doc: {}".format(cos_sim_country.shape, cos_sim_country.shape, cos_sim_doc.shape))
+        # put all the similarities into the shape (batch size, choices)  
         cos_sim_country = torch.unsqueeze(torch.transpose(cos_sim_country, 0, 1), 2)
         cos_sim_code = torch.unsqueeze(torch.transpose(cos_sim_code, 0, 1), 2)
         cos_sim_other_locs = torch.unsqueeze(torch.transpose(cos_sim_other_locs, 0, 1), 2)
         cos_sim_doc = torch.unsqueeze(torch.transpose(cos_sim_doc, 0, 1), 2)
         logger.debug("cos_sim_country shape: {}".format(cos_sim_country.shape))
-        logger.debug("cos_sim_code shape: {}".format(cos_sim_code.shape))
-        logger.debug("gaz_info info shape: {}".format(gaz_info.shape))
+        #logger.debug("cos_sim_code shape: {}".format(cos_sim_code.shape))
+        #logger.debug("gaz_info info shape: {}".format(gaz_info.shape))
         #both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc), 2)
         both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc, gaz_info), 2)
-        # so the new gaz_info features need to be (batch_size, choices, 3), to make 7 in the last dim.
-        logger.debug(f"concat shape: {both_sim.shape}")  # (batch_size, choices, 4)
-        #both_sim = self.dropout(both_sim)
+        # the gaz_info features are (batch_size, choices, 6), to make 10 in the last dim.
+        logger.debug(f"concat shape: {both_sim.shape}")  # (batch_size, choices, 10)
         last = self.dropout(self.sigmoid(self.mix_linear(both_sim)))
-        last = self.dropout(self.sigmoid(self.mix_linear(last)))
+        last = self.dropout(self.sigmoid(self.mix_linear2(last)))
+        # after applying last_layer, the output is dim 1 per choice. Squeeze that to produce a 
+        # final output that's (batch_size, choices).
         last = torch.squeeze(self.last_linear(last), dim=2)  
         logger.debug(f"last shape: {last.shape}")  # (batch_size, choices)
-        logger.debug(f"last max: {torch.max(last)}")
+        # softmax over the choices dimension so each location's choices will sum to 1
         out = self.softmax(last) 
         logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 25) 
         return out
@@ -304,10 +326,10 @@ if __name__ == "__main__":
     wandb.init(project="mordecai3", entity="ahalt")
 
     config = wandb.config          # Initialize config
-    config.batch_size = 64         # input batch size for training (default: 64)
+    config.batch_size = 32         # input batch size for training (default: 64)
     config.test_batch_size = 64    # input batch size for testing (default: 1000)
     config.epochs = 15           # number of epochs to train (default: 10)
-    config.lr = 0.01               # learning rate (default: 0.01)
+    config.lr = 0.01               # learning rate 
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
@@ -338,13 +360,22 @@ if __name__ == "__main__":
     loss_func=nn.CrossEntropyLoss() # single label, multi-class
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
-    wandb.watch(model)
+    from torch.optim.swa_utils import AveragedModel, SWALR
+    from torch.optim.lr_scheduler import CosineAnnealingLR
+
+    swa_model = AveragedModel(model)
+    scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)
+    swa_start = 5
+    swa_scheduler = SWALR(optimizer, swa_lr=0.05)
+
+    wandb.watch(model, log='all')
     logger.setLevel(logging.INFO)
 
     model.train()
     for e in range(1, config.epochs+1):
         epoch_loss = 0
         epoch_acc = 0
+        epoch_country_acc = 0
         epoch_loss_val = 0
         epoch_acc_prod = 0
         epoch_acc_tr = 0
@@ -352,39 +383,44 @@ if __name__ == "__main__":
         epoch_acc_gwn = 0
         epoch_acc_syn = 0
 
-        for label, input in train_loader:
+        for label, country, input in train_loader:
             optimizer.zero_grad()
             label_pred = model(input)
 
+            #logger.debug(country_pred[1])
             loss = loss_func(label_pred, label)
+            #loss_country = loss_func(country_pred, country)
+            #loss = loss_label + loss_country
             acc = binary_acc(label_pred, label)
+            #country_acc = binary_acc(country_pred, country)
 
             loss.backward()
             optimizer.step()
 
             epoch_loss += loss.item()
             epoch_acc += acc.item()
+            #epoch_country_acc += country_acc.item()
 
         # evaluate once per epoch
         with torch.no_grad():
             model.eval()
-            for label_val, input_val in prod_loader:
+            for label_val, country, input_val in prod_loader:
                 pred_val = model(input_val)
                 val_acc = binary_acc(pred_val, label_val)
                 epoch_acc_prod += val_acc.item()
-            for label_val, input_val in tr_loader:
+            for label_val, country, input_val in tr_loader:
                 pred = model(input_val)
                 val_acc = binary_acc(pred, label_val)
                 epoch_acc_tr += val_acc.item() 
-            for label_val, input_val in lgl_loader:
+            for label_val, country, input_val in lgl_loader:
                 pred = model(input_val)
                 val_acc = binary_acc(pred, label_val)
                 epoch_acc_lgl += val_acc.item() 
-            for label_val, input_val in gwn_loader:
-                pred = model(input_val)
+            for label_val, country, input_val in gwn_loader:
+                pred  = model(input_val)
                 val_acc = binary_acc(pred, label_val)
                 epoch_acc_gwn += val_acc.item() 
-            for label_val, input_val in syn_loader:
+            for label_val, country, input_val in syn_loader:
                 pred = model(input_val)
                 val_acc = binary_acc(pred, label_val)
                 epoch_acc_syn += val_acc.item() 
@@ -394,6 +430,7 @@ if __name__ == "__main__":
 
         wandb.log({
             "Train Loss": epoch_loss/len(train_loader),
+            #"Train Country Acc": country_acc,
             "Train Accuracy": epoch_acc/len(train_loader),
             "Prodigy Accuracy": epoch_acc_prod/len(prod_loader),
             "TR Accuracy": epoch_acc_tr/len(tr_loader),
