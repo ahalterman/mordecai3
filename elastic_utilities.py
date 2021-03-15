@@ -4,6 +4,7 @@ import numpy as np
 import jellyfish
 from collections import Counter
 import warnings
+import re
 
 def make_conn():
     kwargs = dict(
@@ -129,7 +130,9 @@ def add_es_data(ex, conn, max_results=50, fuzzy=True):
          "start_char": ent[0].idx,
          "end_char": ent[-1].idx + len(ent.text)}
     """
-    q = {"multi_match": {"query": ex['placename'],
+    placename = ex['placename']
+    placename = re.sub("^the", "", placename).strip()
+    q = {"multi_match": {"query": placename,
                                  "fields": ['name', 'asciiname', 'alternativenames'],
                                 "type" : "phrase"}}
     res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
