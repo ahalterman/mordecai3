@@ -76,14 +76,14 @@ def doc_to_ex_expanded(doc):
     data: list of dicts
     """
     data = []
-    doc_tensor = np.max(np.vstack([i._.tensor for i in doc]), axis=0)
+    doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
     loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'NORP']]
     for ent in doc.ents:
         if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC']:
             tensor = np.mean(np.vstack([i._.tensor for i in ent]), axis=0)
             other_locs = [i for e in loc_ents for i in e if i not in ent]
             if other_locs:
-                locs_tensor = np.max(np.vstack([i._.tensor for i in other_locs if i not in ent]), axis=0)
+                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs if i not in ent]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
             d = {"placename": ent.text,
@@ -160,10 +160,10 @@ def data_formatter_prodigy(docs, data):
         if places:
             loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
             tensor = np.mean(np.vstack([i._.tensor for i in places]), axis=0)
-            doc_tensor = np.max(np.vstack([i._.tensor for i in doc]), axis=0)
+            doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
             other_locs = [i for e in loc_ents for i in e if i not in places]
             if other_locs:
-                locs_tensor = np.max(np.vstack([i._.tensor for i in other_locs]), axis=0)
+                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
             d = {"placename": placename,
@@ -215,7 +215,7 @@ def data_formatter(docs, data, source):
         articles = data['articles']['article']
     for doc, ex in tqdm(zip(docs, articles), total=len(docs), leave=False):
         doc_formatted = []
-        doc_tensor = np.max(np.vstack([i._.tensor for i in doc]), axis=0)
+        doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
         loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
         for n, topo in enumerate(ex['toponyms']['toponym']):
             #print(topo['phrase'])
@@ -227,7 +227,7 @@ def data_formatter(docs, data, source):
                 place_tokens = [i for i in doc if i.idx >= int(topo['start']) and i.idx + len(i) <= int(topo['end'])]
                 other_locs = [i for e in loc_ents for i in e if i not in place_tokens]
                 if other_locs:
-                    locs_tensor = np.max(np.vstack([i._.tensor for i in other_locs]), axis=0)
+                    locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
                 else:
                     locs_tensor = np.zeros(len(tensor))
                 # remove NORPs?
