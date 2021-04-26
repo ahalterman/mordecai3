@@ -102,7 +102,7 @@ def data_to_docs(data, source):
     """
     print("NLPing docs...")
     doc_bin = DocBin(store_user_data=True)
-    if source in ["prodigy", "syn_cities"]:
+    if source in ["prodigy", "syn_cities", "syn_caps"]:
         for doc in tqdm(nlp.pipe([i['text'] for i in data]), total=len(data)):
             doc_bin.add(doc)
     else:
@@ -209,7 +209,7 @@ def data_formatter(docs, data, source):
     """
     all_formatted = []
     doc_num = 0
-    if source == "syn_cities":
+    if source in ["syn_cities", "syn_caps"]:
         articles = data
     else:
         articles = data['articles']['article']
@@ -238,7 +238,7 @@ def data_formatter(docs, data, source):
                 if source == "gwn":
                     correct_geonamesid = topo['geonamesID']
                     placename = topo['extractedName']
-                elif source == "syn_cities":
+                elif source in ["syn_cities", "syn_caps"]:
                     correct_geonamesid = topo['geonamesID']
                     placename = topo['placename']
                 else:
@@ -305,11 +305,12 @@ if __name__ == "__main__":
               "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
               "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
               "prodigy": "../geo_annotated/loc_rank_db.jsonl",
-              "syn_cities": "synthetic_cities_short.jsonl"}
+              "syn_cities": "synthetic_cities_short.jsonl",
+              "syn_caps": "synth_caps.jsonl"}
 
-    #print("Reading in data...")
-    #data = read_file(sources['syn_cities'])
-    #data_to_docs(data, "syn_cities")
+    print("Reading in data...")
+    #data = read_file(sources['syn_caps'])
+    #data_to_docs(data, "syn_caps")
 
     for source in sources.keys():            
         format_source(source, conn, max_results=500)
