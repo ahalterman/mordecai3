@@ -11,3 +11,4 @@ jellyfish>=0.8.2,<2.0
 tqdm>=4.56.1,<5.0
 numpy>=1.19.5,<2.0
 jsonlines>=2.0.0,<3.0
+xmltodict>=0.12.0,<1.0

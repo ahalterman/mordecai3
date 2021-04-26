@@ -24,7 +24,7 @@ formatter = logging.Formatter(
         '%(levelname)-8s %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.WARN)
 
 #import logging
 #logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -110,7 +110,7 @@ class ProductionData(Dataset):
         return ed_stack
 
     def _make_country_dict(self):
-        country = read_csv("wikipedia-iso-country-codes.txt")
+        country = read_csv("data/wikipedia-iso-country-codes.txt")
         country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
         country_dict["CUW"] = len(country_dict)
         country_dict["XKX"] = len(country_dict)
@@ -123,7 +123,7 @@ class ProductionData(Dataset):
         return country_dict
 
     def _make_feature_code_dict(self):
-        with open("feature_code_dict.json", "r") as f:
+        with open("data/feature_code_dict.json", "r") as f:
             feature_code_dict = json.load(f)
             return feature_code_dict
 
@@ -191,7 +191,7 @@ class embedding_compare(nn.Module):
         super(embedding_compare, self).__init__()
         self.device = device
         # embeddings setup
-        pretrained_country = np.load("country_bert_768.npy")
+        pretrained_country = np.load("data/country_bert_768.npy")
         pretrained_country = torch.FloatTensor(pretrained_country)
         logger.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
         self.code_emb = nn.Embedding(num_feature_codes, 8)
@@ -293,22 +293,22 @@ class embedding_compare(nn.Module):
 
 
 def load_data():
-    with open('es_formatted_prodigy.pkl', 'rb') as f:
+    with open('training/es_formatted_prodigy.pkl', 'rb') as f:
         es_data_prod = pickle.load(f)
     
-    with open('es_formatted_tr.pkl', 'rb') as f:
+    with open('training/es_formatted_tr.pkl', 'rb') as f:
         es_data_tr = pickle.load(f)
     
-    with open('es_formatted_lgl.pkl', 'rb') as f:
+    with open('training/es_formatted_lgl.pkl', 'rb') as f:
         es_data_lgl = pickle.load(f)
 
-    with open('es_formatted_gwn.pkl', 'rb') as f:
+    with open('training/es_formatted_gwn.pkl', 'rb') as f:
         es_data_gwn = pickle.load(f)
     
-    with open('es_formatted_syn_cities.pkl', 'rb') as f:
+    with open('training/es_formatted_syn_cities.pkl', 'rb') as f:
         es_data_syn = pickle.load(f)
 
-    with open('es_formatted_syn_caps.pkl', 'rb') as f:
+    with open('training/es_formatted_syn_caps.pkl', 'rb') as f:
         es_data_syn_caps = pickle.load(f)
 
     def split_list(data, frac=0.7):
@@ -447,6 +447,6 @@ if __name__ == "__main__":
             "Syn Accuracy": epoch_acc_syn/len(syn_loader),
             })
     logger.info("Saving model...")
-    torch.save(model.state_dict(), "mordecai2.pt")
+    torch.save(model.state_dict(), "data/mordecai2.pt")
     logger.info("Run complete.")
 

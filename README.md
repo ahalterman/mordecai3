@@ -15,7 +15,7 @@ Then run the following command to download the NLP model used to identify place 
 python -m spacy download en_core_web_trf
 ```
 
-The event-location linking step requires other models to be downloaded from https://huggingface.co/. These will be automatically downloaded the first time the program is run (if it's run on an internet-connected machine).
+The event-location linking step requires other models to be downloaded from https://huggingface.co/. These will be automatically downloaded the first time the program is run (if it's run on an internet-connected machine) or can be downloaded first by running `python roberta_qa.py`.
 
 ## Usage
 

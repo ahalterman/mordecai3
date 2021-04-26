@@ -66,7 +66,7 @@ try:
 except ValueError:
     pass
 
-country_info = pd.read_csv("countryInfo.txt", sep="\t")
+country_info = pd.read_csv("data/countryInfo.txt", sep="\t")
 country_dict = dict(zip(country_info['ISO3'], country_info['Country']))
 
 def setup_es():
@@ -89,7 +89,7 @@ def load_model():
     model = embedding_compare(device = device,
                                 bert_size = 768,
                                 num_feature_codes=54) 
-    model.load_state_dict(torch.load("mordecai2_good.pt"))
+    model.load_state_dict(torch.load("data/mordecai_prod.pt"))
     model.eval()
     return model
 
@@ -317,7 +317,7 @@ def main(filename: Path,
     #    event_dict = read_production(filename) 
 
     end = time.time()
-    logger.info(f"Total time elapsed (s): {str(end - start)}")
+    logger.info(f"Total time elapsed (s): {str(round(end - start, 2))}")
 
 if __name__ == "__main__":
     typer.run(main)
