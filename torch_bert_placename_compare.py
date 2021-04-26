@@ -308,6 +308,9 @@ def load_data():
     with open('es_formatted_syn_cities.pkl', 'rb') as f:
         es_data_syn = pickle.load(f)
 
+    with open('es_formatted_syn_caps.pkl', 'rb') as f:
+        es_data_syn_caps = pickle.load(f)
+
     def split_list(data, frac=0.7):
         split = round(frac*len(data))
         return data[0:split], data[split:]
@@ -317,7 +320,7 @@ def load_data():
     es_data_lgl, es_data_lgl_val = split_list(es_data_lgl)
     es_data_gwn, es_data_gwn_val = split_list(es_data_gwn)
     es_data_syn, es_data_syn_val = split_list(es_data_syn)
-    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn #+ es_data_syn
+    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn_caps
     random.seed(617)
     random.shuffle(train_data)
     return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val
@@ -372,7 +375,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.INFO)
 
     model.train()
-    for e in range(1, config.epochs+1):
+    for epoch in range(1, config.epochs+1):
         epoch_loss = 0
         epoch_acc = 0
         epoch_country_acc = 0
@@ -400,6 +403,11 @@ if __name__ == "__main__":
             epoch_loss += loss.item()
             epoch_acc += acc.item()
             #epoch_country_acc += country_acc.item()
+        if epoch > swa_start:
+            swa_model.update_parameters(model)
+            swa_scheduler.step()
+        else:
+          scheduler.step()
 
         # evaluate once per epoch
         with torch.no_grad():
@@ -426,7 +434,7 @@ if __name__ == "__main__":
                 epoch_acc_syn += val_acc.item() 
 
 
-        print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Train Acc: {epoch_acc/len(train_loader):.3f} | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
+        print(f'Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Train Acc: {epoch_acc/len(train_loader):.3f} | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
 
         wandb.log({
             "Train Loss": epoch_loss/len(train_loader),
