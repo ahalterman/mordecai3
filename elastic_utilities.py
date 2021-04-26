@@ -32,7 +32,7 @@ def make_admin1_counts(out):
     admin1s = []
     
     for n, es in enumerate(out):
-        other_adm1 = set([i['admin1_code'] for i in es['es_choices']])
+        other_adm1 = set([i['admin1_name'] for i in es['es_choices']])
         admin1s.extend(list(other_adm1))
     
     admin1_count = dict(Counter(admin1s))
@@ -87,6 +87,9 @@ def res_formatter(res, placename):
             "lon": float(lon),
             "name": i['name'],
             "admin1_code": i['admin1_code'],
+            "admin1_name": i['admin1_name'],
+            "admin2_code": i['admin2_code'],
+            "admin2_name": i['admin2_name'],
             "geonameid": i['geonameid']}
         choices.append(d)
         alt_lengths.append(len(i['alternativenames']))
@@ -109,6 +112,17 @@ def res_formatter(res, placename):
         i['ascii_dist'] = ascii_dist[n]
     return choices
 
+def _clean_placename(placename):
+    """
+    Strip out place names that might be preventing the right results
+    """
+    placename = re.sub("tribal district", "", placename).strip()
+    placename = re.sub("[Cc]ity", "", placename).strip()
+    placename = re.sub("[Dd]istrict", "", placename).strip()
+    placename = re.sub("[Mm]etropolis", "", placename).strip()
+    placename = re.sub("[Cc]ounty", "", placename).strip()
+    placename = re.sub("[Rr]egion", "", placename).strip()
+    return placename
 
 def add_es_data(ex, conn, max_results=50, fuzzy=True):
     """
@@ -138,7 +152,8 @@ def add_es_data(ex, conn, max_results=50, fuzzy=True):
     res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     choices = res_formatter(res, ex['placename'])
     if fuzzy and not choices:
-        q = {"multi_match": {"query": ex['placename'],
+        placename = _clean_placename(placename)
+        q = {"multi_match": {"query": placename,
                              "fields": ['name', 'alternativenames', 'asciiname'],
                              "fuzziness" : 1,
                             }}
@@ -166,7 +181,7 @@ def add_es_data_doc(doc_ex, conn, max_results=50):
 
     for i in doc_es:
         for e in i['es_choices']:
-            e['adm1_count'] = admin1_count[e['admin1_code']]
+            e['adm1_count'] = admin1_count[e['admin1_name']]
             e['country_count'] = country_count[e['country_code3']]
     return doc_es
 
