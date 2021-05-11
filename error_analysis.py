@@ -5,6 +5,8 @@ from collections import Counter
 import numpy as np
 from rich.console import Console
 from rich.table import Table
+import typer
+from pathlib import Path
 
 from error_utils import evaluate_results, make_wandb_dict
 
@@ -37,40 +39,9 @@ test_batch_size = 64
 
 import wandb
 
-config = wandb.config          # Initialize config
-config.batch_size = 32         # input batch size for training (default: 64)
-config.test_batch_size = 64    # input batch size for testing (default: 1000)
-config.epochs = 15           # number of epochs to train (default: 10)
-config.lr = 0.01               # learning rate 
-config.seed = 42               # random seed (default: 42)
-config.log_interval = 10     # how many batches to wait before logging training status
-config.max_choices = 500
-config.avg_params = False
-
-es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
-
-logger.info(f"Total training examples: {len(es_train_data)}")
-
-train_data = TrainData(es_train_data, max_choices=max_choices)
-tr_data = TrainData(es_data_tr_val, max_choices=max_choices)
-prod_data = TrainData(es_data_prod_val, max_choices=max_choices)
-lgl_data = TrainData(es_data_lgl_val, max_choices=max_choices)
-gwn_data = TrainData(es_data_gwn_val, max_choices=max_choices)
-syn_data = TrainData(es_data_syn_val, max_choices=max_choices)
 
 
-train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
-prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=True)
-tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=True)
-lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=True)
-gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=True)
-syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=True)
-
-datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
-data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
-names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
-
-def make_missing_table(cutoff):
+def make_missing_table(cutoff, names, datasets):
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Dataset")
     table.add_column(f"Percentage Missing at {cutoff}", justify="right")
@@ -104,7 +75,7 @@ def load_model(path="data/mordecai2.pt"):
     return model
 
 
-def make_table():
+def make_table(names, datasets, data_loaders, model):
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Dataset")
     table.add_column(f"Exact match", justify="right")
@@ -132,10 +103,46 @@ def make_table():
 # │ Synth          │       64.0% │           70.3% │                71.7% │        69.5% │
 # └────────────────┴─────────────┴─────────────────┴──────────────────────┴──────────────┘
 
-if __name__ == "__main__":
-    make_missing_table(500)
-    make_missing_table(50)
-    model = load_model('data/mordecai_prod.pt')
-    make_table()
+def main(path: Path):
+    config = wandb.config          # Initialize config
+    config.batch_size = 32         # input batch size for training (default: 64)
+    config.test_batch_size = 64    # input batch size for testing (default: 1000)
+    config.epochs = 15           # number of epochs to train (default: 10)
+    config.lr = 0.01               # learning rate 
+    config.seed = 42               # random seed (default: 42)
+    config.log_interval = 10     # how many batches to wait before logging training status
+    config.max_choices = 500
+    config.avg_params = False
+
+    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
+
+    logger.info(f"Total training examples: {len(es_train_data)}")
+
+    train_data = TrainData(es_train_data, max_choices=max_choices)
+    tr_data = TrainData(es_data_tr_val, max_choices=max_choices)
+    prod_data = TrainData(es_data_prod_val, max_choices=max_choices)
+    lgl_data = TrainData(es_data_lgl_val, max_choices=max_choices)
+    gwn_data = TrainData(es_data_gwn_val, max_choices=max_choices)
+    syn_data = TrainData(es_data_syn_val, max_choices=max_choices)
+
+
+    train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
+    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=True)
+    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=True)
+    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=True)
+    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=True)
+    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=True)
+
+    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
+    data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
+    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
+
+    make_missing_table(500, names, datasets)
+    make_missing_table(50, names, datasets)
+    model = load_model(path)
+    make_table(names, datasets, data_loaders, model)
     t = make_wandb_dict(names, datasets, data_loaders, model)
     print(t)
+
+if __name__ == "__main__":
+    typer.run(main)
