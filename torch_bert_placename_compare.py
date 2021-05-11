@@ -322,7 +322,7 @@ def load_data():
     es_data_lgl, es_data_lgl_val = split_list(es_data_lgl)
     es_data_gwn, es_data_gwn_val = split_list(es_data_gwn)
     es_data_syn, es_data_syn_val = split_list(es_data_syn)
-    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn_caps
+    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn
     random.seed(617)
     random.shuffle(train_data)
     return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val
@@ -338,7 +338,7 @@ if __name__ == "__main__":
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
-    config.avg_params = True
+    config.avg_params = False
 
     es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
     logger.info(f"Total training examples: {len(es_train_data)}")
@@ -351,14 +351,15 @@ if __name__ == "__main__":
     syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
 
     train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
-    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=True)
-    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=True)
-    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=True)
-    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=True)
-    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=True)
+    train_val_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
+    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=False)
+    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=False)
+    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=False)
+    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=False)
+    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=False)
 
     datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
-    data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
+    data_loaders = [train_val_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
     names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -390,13 +391,6 @@ if __name__ == "__main__":
     for epoch in range(1, config.epochs+1):
         epoch_loss = 0
         epoch_acc = 0
-        epoch_country_acc = 0
-        epoch_loss_val = 0
-        epoch_acc_prod = 0
-        epoch_acc_tr = 0
-        epoch_acc_lgl = 0
-        epoch_acc_gwn = 0
-        epoch_acc_syn = 0
 
         for label, country, input in train_loader:
             optimizer.zero_grad()

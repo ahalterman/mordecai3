@@ -126,12 +126,12 @@ def main(path: Path):
     syn_data = TrainData(es_data_syn_val, max_choices=max_choices)
 
 
-    train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
-    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=True)
-    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=True)
-    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=True)
-    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=True)
-    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=True)
+    train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
+    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=False)
+    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=False)
+    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=False)
+    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=False)
+    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=False)
 
     datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
     data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
