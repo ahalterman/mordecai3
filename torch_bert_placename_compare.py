@@ -13,6 +13,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 
+from error_utils import make_wandb_dict, evaluate_results
+
 import pickle
 import json
 from pandas import read_csv
@@ -86,7 +88,7 @@ class ProductionData(Dataset):
 
     def create_gaz_features(self, es_data):
         """
-        Format all non-query/gazetteer-only feautures.
+        Format all non-query/gazetteer-only features.
 
         Specifically, this includes edit distance features and adm1 and country overlap
         """
@@ -336,10 +338,12 @@ if __name__ == "__main__":
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
+    config.avg_params = True
 
-    train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
-    logger.info(f"Total training examples: {len(train_data)}")
-    train_data = TrainData(train_data, max_choices=config.max_choices)
+    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
+    logger.info(f"Total training examples: {len(es_train_data)}")
+    
+    train_data = TrainData(es_train_data, max_choices=config.max_choices)
     tr_data = TrainData(es_data_tr_val, max_choices=config.max_choices)
     prod_data = TrainData(es_data_prod_val, max_choices=config.max_choices)
     lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
@@ -353,6 +357,10 @@ if __name__ == "__main__":
     gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=True)
     syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=True)
 
+    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
+    data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
+    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = embedding_compare(device = device,
                               bert_size = train_data.placename_tensor.shape[1],
@@ -363,13 +371,17 @@ if __name__ == "__main__":
     loss_func=nn.CrossEntropyLoss() # single label, multi-class
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
 
-    from torch.optim.swa_utils import AveragedModel, SWALR
-    from torch.optim.lr_scheduler import CosineAnnealingLR
+    if config.avg_params:
+        from torch.optim.swa_utils import AveragedModel, SWALR
+        from torch.optim.lr_scheduler import CosineAnnealingLR
 
-    swa_model = AveragedModel(model)
-    scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)
-    swa_start = 5
-    swa_scheduler = SWALR(optimizer, swa_lr=0.05)
+        swa_model = AveragedModel(model)
+        scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)
+        swa_start = 5
+        swa_scheduler = SWALR(optimizer, swa_lr=0.05)
+    #else:
+    #    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs+1)
+
 
     wandb.watch(model, log='all')
     logger.setLevel(logging.INFO)
@@ -402,50 +414,20 @@ if __name__ == "__main__":
 
             epoch_loss += loss.item()
             epoch_acc += acc.item()
-            #epoch_country_acc += country_acc.item()
-        if epoch > swa_start:
-            swa_model.update_parameters(model)
-            swa_scheduler.step()
-        else:
-          scheduler.step()
 
-        # evaluate once per epoch
-        with torch.no_grad():
-            model.eval()
-            for label_val, country, input_val in prod_loader:
-                pred_val = model(input_val)
-                val_acc = binary_acc(pred_val, label_val)
-                epoch_acc_prod += val_acc.item()
-            for label_val, country, input_val in tr_loader:
-                pred = model(input_val)
-                val_acc = binary_acc(pred, label_val)
-                epoch_acc_tr += val_acc.item() 
-            for label_val, country, input_val in lgl_loader:
-                pred = model(input_val)
-                val_acc = binary_acc(pred, label_val)
-                epoch_acc_lgl += val_acc.item() 
-            for label_val, country, input_val in gwn_loader:
-                pred  = model(input_val)
-                val_acc = binary_acc(pred, label_val)
-                epoch_acc_gwn += val_acc.item() 
-            for label_val, country, input_val in syn_loader:
-                pred = model(input_val)
-                val_acc = binary_acc(pred, label_val)
-                epoch_acc_syn += val_acc.item() 
+        if config.avg_params:
+            if epoch > swa_start:
+                swa_model.update_parameters(model)
+                swa_scheduler.step()
+            else:
+                scheduler.step()
 
+        wandb_dict = make_wandb_dict(names, datasets, data_loaders, model)
+        wandb_dict['loss'] = epoch_loss/len(train_loader)
 
-        print(f'Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Train Acc: {epoch_acc/len(train_loader):.3f} | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
+        print(f"Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Exact Match: {wandb_dict['exact_match_avg']:.3f} | Country Match: {wandb_dict['country_avg']:.3f}")  # | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
+        wandb.log(wandb_dict)
 
-        wandb.log({
-            "Train Loss": epoch_loss/len(train_loader),
-            #"Train Country Acc": country_acc,
-            "Train Accuracy": epoch_acc/len(train_loader),
-            "Prodigy Accuracy": epoch_acc_prod/len(prod_loader),
-            "TR Accuracy": epoch_acc_tr/len(tr_loader),
-            "LGL Accuracy": epoch_acc_lgl/len(lgl_loader),
-            "GWN Accuracy": epoch_acc_gwn/len(gwn_loader),
-            "Syn Accuracy": epoch_acc_syn/len(syn_loader),
-            })
     logger.info("Saving model...")
     torch.save(model.state_dict(), "data/mordecai2.pt")
     logger.info("Run complete.")
