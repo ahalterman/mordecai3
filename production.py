@@ -122,22 +122,23 @@ The evacuees of Pagalungan (1,900 families) and Datu Montawal towns (400) – or
 text = st.text_area("Text to geoparse", default_text)    
 doc = nlp(text)
 ex = doc_to_ex_expanded(doc)
-es_data = []
-for e in ex:
-    d = add_es_data(e, conn)
-    es_data.append(d)
+if ex:
+    es_data = []
+    for e in ex:
+        d = add_es_data(e, conn)
+        es_data.append(d)
 
-dataset = ProductionData(es_data)
-data_loader = DataLoader(dataset=dataset, batch_size=64)
-with torch.no_grad():
-    model.eval()
-    for X_val, code_val, doc_val, loc_val, country_val in data_loader:
-        X_val = X_val.to(device)
-        code_val = code_val.to(device)
-        loc_val = loc_val.to(device)
-        country_val = country_val.to(device)
+    dataset = ProductionData(es_data)
+    data_loader = DataLoader(dataset=dataset, batch_size=64)
+    with torch.no_grad():
+        model.eval()
+        for X_val, code_val, doc_val, loc_val, country_val in data_loader:
+            X_val = X_val.to(device)
+            code_val = code_val.to(device)
+            loc_val = loc_val.to(device)
+            country_val = country_val.to(device)
 
-        pred_val = model(X_val, code_val, country_val, loc_val)
+            pred_val = model(X_val, code_val, country_val, loc_val)
 
 labels = ["GPE", "LOC"]
 html = spacy.displacy.render(doc, style="ent", options={"ents": labels})
