@@ -124,7 +124,7 @@ def _clean_placename(placename):
     placename = re.sub("[Rr]egion", "", placename).strip()
     return placename
 
-def add_es_data(ex, conn, max_results=50, fuzzy=True):
+def add_es_data(ex, conn, max_results=50, fuzzy=True, limit_types=False):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
 
@@ -146,10 +146,20 @@ def add_es_data(ex, conn, max_results=50, fuzzy=True):
     """
     placename = ex['placename']
     placename = re.sub("^the", "", placename).strip()
-    q = {"multi_match": {"query": placename,
+    if limit_types:
+        q = {"multi_match": {"query": placename,
+                             "fields": ['name', 'asciiname', 'alternativenames'],
+                             "type" : "phrase"}}
+        p_filter = Q("term", feature_class="P")
+        a_filter = Q("term", feature_class="A")
+        combined_filter = p_filter | a_filter
+        res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+    else:
+        q = {"multi_match": {"query": placename,
                                  "fields": ['name', 'asciiname', 'alternativenames'],
                                 "type" : "phrase"}}
-    res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+        res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+    
     choices = res_formatter(res, ex['placename'])
     if fuzzy and not choices:
         placename = _clean_placename(placename)
