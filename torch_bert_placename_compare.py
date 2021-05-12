@@ -294,23 +294,27 @@ class embedding_compare(nn.Module):
 
 
 
-def load_data():
-    with open('training/es_formatted_prodigy.pkl', 'rb') as f:
+def load_data(limit_es_results):
+    if limit_es_results:
+        path_mod = "pa_only"
+    else:
+        path_mod = "all_loc_types"
+    with open(f'training/{path_mod}/es_formatted_prodigy.pkl', 'rb') as f:
         es_data_prod = pickle.load(f)
     
-    with open('training/es_formatted_tr.pkl', 'rb') as f:
+    with open(f'training/{path_mod}/es_formatted_tr.pkl', 'rb') as f:
         es_data_tr = pickle.load(f)
     
-    with open('training/es_formatted_lgl.pkl', 'rb') as f:
+    with open(f'training/{path_mod}/es_formatted_lgl.pkl', 'rb') as f:
         es_data_lgl = pickle.load(f)
 
-    with open('training/es_formatted_gwn.pkl', 'rb') as f:
+    with open(f'training/{path_mod}/es_formatted_gwn.pkl', 'rb') as f:
         es_data_gwn = pickle.load(f)
     
-    with open('training/es_formatted_syn_cities.pkl', 'rb') as f:
+    with open(f'training/{path_mod}/es_formatted_syn_cities.pkl', 'rb') as f:
         es_data_syn = pickle.load(f)
 
-    with open('training/es_formatted_syn_caps.pkl', 'rb') as f:
+    with open(f'training/{path_mod}/es_formatted_syn_caps.pkl', 'rb') as f:
         es_data_syn_caps = pickle.load(f)
 
     def split_list(data, frac=0.7):
@@ -331,16 +335,17 @@ if __name__ == "__main__":
     wandb.init(project="mordecai3", entity="ahalt")
 
     config = wandb.config          # Initialize config
-    config.batch_size = 32         # input batch size for training (default: 64)
-    config.test_batch_size = 64    # input batch size for testing (default: 1000)
-    config.epochs = 15           # number of epochs to train (default: 10)
+    config.batch_size = 32         # input batch size for training 
+    config.test_batch_size = 64    # input batch size for testing 
+    config.epochs = 25           # number of epochs to train 
     config.lr = 0.01               # learning rate 
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
-    config.avg_params = False
+    config.avg_params = True
+    config.limit_es_results = False
 
-    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
+    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(config.limit_es_results)
     logger.info(f"Total training examples: {len(es_train_data)}")
     
     train_data = TrainData(es_train_data, max_choices=config.max_choices)

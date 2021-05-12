@@ -258,7 +258,8 @@ def data_formatter(docs, data, source):
         doc_num += 1
     return all_formatted
 
-def format_source(source, conn, max_results):
+def format_source(source, conn, max_results, limit_types):
+    print(f"limit types: {limit_types}")
     fn = f"source_{source}.pkl"
     print(f"===== {source} =====")
     # did it two different ways...
@@ -284,7 +285,7 @@ def format_source(source, conn, max_results):
     esed_data = []
     print("Adding Elasticsearch data...")
     for ff in tqdm(formatted, leave=False):
-        esd = util.add_es_data_doc(ff, conn, max_results)
+        esd = util.add_es_data_doc(ff, conn, max_results, limit_types)
         for e in esd:
             if e['correct_geonamesid']:
                 esed_data.append(e)
@@ -313,6 +314,6 @@ if __name__ == "__main__":
     #data_to_docs(data, "syn_caps")
 
     for source in sources.keys():            
-        format_source(source, conn, max_results=500)
+        format_source(source, conn, max_results=500, limit_types=True)
     print("Complete")
 

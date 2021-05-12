@@ -175,12 +175,12 @@ def add_es_data(ex, conn, max_results=50, fuzzy=True, limit_types=False):
         ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
     return ex
 
-def add_es_data_doc(doc_ex, conn, max_results=50):
+def add_es_data_doc(doc_ex, conn, max_results=50, limit_types=False):
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
             try:
-                es = add_es_data(ex, conn, max_results)
+                es = add_es_data(ex, conn, max_results, limit_types)
                 doc_es.append(es)
             except Warning:
                 continue
