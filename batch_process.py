@@ -64,6 +64,7 @@ try:
                 d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
         return doc
 except ValueError:
+    logger.debug("Tried to add spaCy tensor attribute but already present. Continuing...")
     pass
 
 country_info = pd.read_csv("data/countryInfo.txt", sep="\t")
@@ -109,18 +110,18 @@ def pick_event_loc(d):
     geo = [i for i in d['geo'] if i]
     loc_ents = [i for i in geo if i['start_char'] in range(loc_start, loc_end+1)]
     if not loc_ents:
-        if len(d['geo']) == 0:
+        if len(geo) == 0:
             d['event_loc'] = None
             d['event_loc_reason'] = "No locations found"
-        elif len(d['geo']) > 1:
-            if len(set([i['placename'] for i in d['geo']])) == 1:
-                d['event_loc'] = d['geo'][0]
+        elif len(geo) > 1:
+            if len(set([i['placename'] for i in geo])) == 1:
+                d['event_loc'] = geo[0]
                 d['event_loc_reason'] = "No location identified in event location model, but only one (unique) location in text"
             else:
                 d['event_loc'] = None
                 d['event_loc_reason'] = "Multiple locations, but none identified as the event location"
         else:
-            d['event_loc'] = d['geo'][0]
+            d['event_loc'] = geo[0]
             d['event_loc_reason'] = "No location identified in event location model, but only one location in text"
     else:
         if len(loc_ents) == 1:
@@ -172,6 +173,46 @@ def main(filename: Path,
         qa_batch_size: int=50,
         input_format: str="production",
         limit: int=-1):
+    """
+    Geoparse a set of news stories with event information. 
+
+    This is a batch process script for (1) identifying locations in text
+    (2) resolving them to their geographic coordinates, and (3) assigning
+    events in the text to their reported locations.
+
+    For additional speedup, you can parallelize the process over chunks of an 
+    input file using GNU parallell. e.g.:
+
+    sed 1d events.20210301073501.Release507.csv | parallel -j4 --pipe --block 1M "cat > {#}; python batch_process.py {#} --input_format=icews"
+
+    Inputs
+    ------
+    filename: Path
+      The files of text and events to read in and process
+    qa_batch_size: int
+      Tuning parameter for how many documents the event-location linking model
+      will process in a single step. If running on a GPU, this may need to be
+      smaller. Conversely, if running on CPU, this could be larger if the available
+      RAM will support it.
+    input_format: str
+      One of "production" or "icews". If using the script in a production setting,
+      set to "production". The "icews" option will read in a final formatted ICEWS
+      CSV and perform a second round of geolocation. This is only used for comparisions
+      with the existing geoparsing system.
+    limit: int
+      For testing use only: limit the number of events to be processed. Defaults
+      to all events in the file.
+
+    Returns
+    -------
+    None
+      Writes an output file to "mordecai_geo_results_{filename}.csv" where
+      `filename` is the input file.
+
+    Example
+    ------
+    python batch_process.py storiesWithEvents-3.json
+    """
     logger.info("Loading spaCy model...")
     nlp = spacy.load("en_core_web_trf", exclude=["tagger", "lemmatizer"])
     nlp.add_pipe("token_tensors")
@@ -222,6 +263,7 @@ def main(filename: Path,
 
     # Use the original text as a key
     doc_dict = {i[1]: i[0] for i in docs}
+    # free up memory
     del docs
 
     for n, i in enumerate(doc_info):
@@ -263,9 +305,11 @@ def main(filename: Path,
                     "country_code3": results['country_code3'],
                     "feature_code": results['feature_code'],
                     "lon": results['lon'],
+                    "geonameid": results['geonameid'],
                     "start_char": ent['start_char'],
                     "end_char": ent['end_char']}
             except Exception as e:
+                logger.debug(e, d)
                 r = None
             resolved_entities.append(r)
         d['geo'] = resolved_entities
@@ -300,11 +344,13 @@ def main(filename: Path,
                 country_name = country_dict[d['event_loc']['country_code3']]
             except KeyError:
                 country_name = d['event_loc']['country_code3']
+            event_dict[n]['mordecai_district'] = d['event_loc']['admin2_name']
+            event_dict[n]['mordecai_province'] = d['event_loc']['admin1_name']
             event_dict[n]['mordecai_country'] = country_name
-            event_dict[n]['mordecai_adm1'] = d['event_loc']['admin1_name']
             event_dict[n]['mordecai_lat'] = d['event_loc']['lat']
             event_dict[n]['mordecai_lon'] = d['event_loc']['lon']
-            event_dict[n]['mordecai_reason'] = d['event_loc_reason']
+            event_dict[n]['mordecai_geonameid'] = d['event_loc']['geonameid']
+            event_dict[n]['mordecai_event_loc_reason'] = d['event_loc_reason']
         else:
             event_dict[n]['mordecai_reason'] = d['event_loc_reason']
 
