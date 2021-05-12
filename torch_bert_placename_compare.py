@@ -337,7 +337,7 @@ if __name__ == "__main__":
     config = wandb.config          # Initialize config
     config.batch_size = 32         # input batch size for training 
     config.test_batch_size = 64    # input batch size for testing 
-    config.epochs = 25           # number of epochs to train 
+    config.epochs = 12          # number of epochs to train 
     config.lr = 0.01               # learning rate 
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
