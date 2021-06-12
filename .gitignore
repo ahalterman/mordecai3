@@ -1,0 +1,12 @@
+*.pkl
+.DS_Store
+scratch/*
+*.npy
+storiesWithEvents*
+*.spacy
+old_data/
+old_models/
+*.ipynb
+mordecai_geo_results*
+ner/*
+_*
