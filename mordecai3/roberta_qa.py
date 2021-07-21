@@ -14,7 +14,6 @@ def add_event_loc(orig_doc, res):
     new_doc = orig_doc
 
     loc_ent = Span(new_doc, loc_start, loc_end+1, label="EVENT_LOC") # create a Span for the new entity
-    print(loc_ent)
     
     loc_i = set([i.i for i in loc_ent])
     new_ents = []
