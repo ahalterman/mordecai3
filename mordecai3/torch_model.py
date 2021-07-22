@@ -2,21 +2,13 @@
 ## and predict the country using pytorch
 import numpy as np
 import random
-import wandb
+import json
+import pickle
+import os
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-
-from sklearn.preprocessing import StandardScaler    
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, classification_report
-
-from error_utils import make_wandb_dict, evaluate_results
-
-import pickle
-import json
+from torch.utils.data import Dataset
 from pandas import read_csv
 
 import logging
@@ -27,9 +19,6 @@ formatter = logging.Formatter(
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.WARN)
-
-#import logging
-#logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 
 class ProductionData(Dataset):
@@ -112,7 +101,9 @@ class ProductionData(Dataset):
         return ed_stack
 
     def _make_country_dict(self):
-        country = read_csv("data/wikipedia-iso-country-codes.txt")
+        pt = os.path.dirname(os.path.realpath(__file__))
+        fn = os.path.join(pt, "assets", "wikipedia-iso-country-codes.txt")
+        country = read_csv(fn)
         country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
         country_dict["CUW"] = len(country_dict)
         country_dict["XKX"] = len(country_dict)
@@ -125,7 +116,9 @@ class ProductionData(Dataset):
         return country_dict
 
     def _make_feature_code_dict(self):
-        with open("data/feature_code_dict.json", "r") as f:
+        pt = os.path.dirname(os.path.realpath(__file__))
+        fn = os.path.join(pt, "assets", "feature_code_dict.json")
+        with open(fn, "r") as f:
             feature_code_dict = json.load(f)
             return feature_code_dict
 
@@ -179,21 +172,14 @@ class TrainData(ProductionData):
 
 
 
-def binary_acc(y_pred, y_test):
-    y_pred_tag = torch.argmax(y_pred, axis=1)
-    #y_test_cat = torch.argmax(y_test, axis=1) 
-    correct_results_sum = (y_pred_tag == y_test).sum().float()
-    acc = correct_results_sum/y_pred.shape[0]
-    acc = torch.round(acc * 100)
-    return acc
-
-
-class embedding_compare(nn.Module):
+class geoparse_model(nn.Module):
     def __init__(self, device, bert_size, num_feature_codes):
-        super(embedding_compare, self).__init__()
+        super(geoparse_model, self).__init__()
         self.device = device
         # embeddings setup
-        pretrained_country = np.load("data/country_bert_768.npy")
+        pt = os.path.dirname(os.path.realpath(__file__))
+        fn = os.path.join(pt, "assets", "country_bert_768.npy")
+        pretrained_country = np.load(fn)
         pretrained_country = torch.FloatTensor(pretrained_country)
         logger.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
         self.code_emb = nn.Embedding(num_feature_codes, 8)
@@ -293,141 +279,4 @@ class embedding_compare(nn.Module):
         return out
 
 
-
-def load_data(limit_es_results):
-    if limit_es_results:
-        path_mod = "pa_only"
-    else:
-        path_mod = "all_loc_types"
-    with open(f'training/{path_mod}/es_formatted_prodigy.pkl', 'rb') as f:
-        es_data_prod = pickle.load(f)
-    
-    with open(f'training/{path_mod}/es_formatted_tr.pkl', 'rb') as f:
-        es_data_tr = pickle.load(f)
-    
-    with open(f'training/{path_mod}/es_formatted_lgl.pkl', 'rb') as f:
-        es_data_lgl = pickle.load(f)
-
-    with open(f'training/{path_mod}/es_formatted_gwn.pkl', 'rb') as f:
-        es_data_gwn = pickle.load(f)
-    
-    with open(f'training/{path_mod}/es_formatted_syn_cities.pkl', 'rb') as f:
-        es_data_syn = pickle.load(f)
-
-    with open(f'training/{path_mod}/es_formatted_syn_caps.pkl', 'rb') as f:
-        es_data_syn_caps = pickle.load(f)
-
-    def split_list(data, frac=0.7):
-        split = round(frac*len(data))
-        return data[0:split], data[split:]
-
-    es_data_prod, es_data_prod_val = split_list(es_data_prod)
-    es_data_tr, es_data_tr_val = split_list(es_data_tr)
-    es_data_lgl, es_data_lgl_val = split_list(es_data_lgl)
-    es_data_gwn, es_data_gwn_val = split_list(es_data_gwn)
-    es_data_syn, es_data_syn_val = split_list(es_data_syn)
-    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn
-    random.seed(617)
-    random.shuffle(train_data)
-    return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val
-
-if __name__ == "__main__":
-    wandb.init(project="mordecai3", entity="ahalt")
-
-    config = wandb.config          # Initialize config
-    config.batch_size = 32         # input batch size for training 
-    config.test_batch_size = 64    # input batch size for testing 
-    config.epochs = 12          # number of epochs to train 
-    config.lr = 0.01               # learning rate 
-    config.seed = 42               # random seed (default: 42)
-    config.log_interval = 10     # how many batches to wait before logging training status
-    config.max_choices = 500
-    config.avg_params = True
-    config.limit_es_results = False
-
-    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(config.limit_es_results)
-    logger.info(f"Total training examples: {len(es_train_data)}")
-    
-    train_data = TrainData(es_train_data, max_choices=config.max_choices)
-    tr_data = TrainData(es_data_tr_val, max_choices=config.max_choices)
-    prod_data = TrainData(es_data_prod_val, max_choices=config.max_choices)
-    lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
-    gwn_data = TrainData(es_data_gwn_val, max_choices=config.max_choices)
-    syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
-
-    train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
-    train_val_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
-    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=False)
-    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=False)
-    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=False)
-    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=False)
-    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=False)
-
-    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
-    data_loaders = [train_val_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
-    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
-
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = embedding_compare(device = device,
-                              bert_size = train_data.placename_tensor.shape[1],
-                              num_feature_codes=53+1)
-    #model = torch.nn.DataParallel(model)
-    model.to(device)
-    # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
-    loss_func=nn.CrossEntropyLoss() # single label, multi-class
-    optimizer = optim.Adam(model.parameters(), lr=config.lr)
-
-    if config.avg_params:
-        from torch.optim.swa_utils import AveragedModel, SWALR
-        from torch.optim.lr_scheduler import CosineAnnealingLR
-
-        swa_model = AveragedModel(model)
-        scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)
-        swa_start = 5
-        swa_scheduler = SWALR(optimizer, swa_lr=0.05)
-    #else:
-    #    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs+1)
-
-
-    wandb.watch(model, log='all')
-    logger.setLevel(logging.INFO)
-
-    model.train()
-    for epoch in range(1, config.epochs+1):
-        epoch_loss = 0
-        epoch_acc = 0
-
-        for label, country, input in train_loader:
-            optimizer.zero_grad()
-            label_pred = model(input)
-
-            #logger.debug(country_pred[1])
-            loss = loss_func(label_pred, label)
-            #loss_country = loss_func(country_pred, country)
-            #loss = loss_label + loss_country
-            acc = binary_acc(label_pred, label)
-            #country_acc = binary_acc(country_pred, country)
-
-            loss.backward()
-            optimizer.step()
-
-            epoch_loss += loss.item()
-            epoch_acc += acc.item()
-
-        if config.avg_params:
-            if epoch > swa_start:
-                swa_model.update_parameters(model)
-                swa_scheduler.step()
-            else:
-                scheduler.step()
-
-        wandb_dict = make_wandb_dict(names, datasets, data_loaders, model)
-        wandb_dict['loss'] = epoch_loss/len(train_loader)
-
-        print(f"Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Exact Match: {wandb_dict['exact_match_avg']:.3f} | Country Match: {wandb_dict['country_avg']:.3f}")  # | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
-        wandb.log(wandb_dict)
-
-    logger.info("Saving model...")
-    torch.save(model.state_dict(), "data/mordecai2.pt")
-    logger.info("Run complete.")
 
