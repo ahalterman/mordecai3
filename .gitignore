@@ -10,3 +10,5 @@ old_models/
 mordecai_geo_results*
 ner/*
 _*
+.vscode/
+tmp/

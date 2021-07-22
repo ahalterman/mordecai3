@@ -1,4 +1,4 @@
-from torch_bert_placename_compare import TrainData, ProductionData, load_data, embedding_compare
+from mordecai3.torch_bert_placename_compare import TrainData, load_data, embedding_compare
 from torch.utils.data import Dataset, DataLoader
 import torch
 from collections import Counter
@@ -65,7 +65,7 @@ def make_missing_table(cutoff, names, datasets):
 
 
 
-def load_model(path="data/mordecai2.pt"):
+def load_model(path="assets/mordecai2.pt"):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = embedding_compare(device = device,
                                 bert_size = 768,
@@ -103,7 +103,8 @@ def make_table(names, datasets, data_loaders, model):
 # │ Synth          │       64.0% │           70.3% │                71.7% │        69.5% │
 # └────────────────┴─────────────┴─────────────────┴──────────────────────┴──────────────┘
 
-def main(path: Path):
+def main(data_dir: Path,
+        path: Path):
     config = wandb.config          # Initialize config
     config.batch_size = 32         # input batch size for training (default: 64)
     config.test_batch_size = 64    # input batch size for testing (default: 1000)
@@ -114,7 +115,7 @@ def main(path: Path):
     config.max_choices = 500
     config.avg_params = False
 
-    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data()
+    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(data_dir)
 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
@@ -142,7 +143,7 @@ def main(path: Path):
     model = load_model(path)
     make_table(names, datasets, data_loaders, model)
     t = make_wandb_dict(names, datasets, data_loaders, model)
-    print(t)
+    #print(t)
 
 if __name__ == "__main__":
     typer.run(main)

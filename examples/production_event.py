@@ -1,23 +1,26 @@
+
+import jsonlines
+from tqdm import tqdm
+import re
+
+import streamlit as st
+import torch
+import pandas as pd
+from elasticsearch import Elasticsearch, helpers
+from elasticsearch_dsl import Search, Q
 import spacy
 from spacy.language import Language
 from spacy.tokens import Token, Doc
 from spacy.pipeline import Pipe
 import numpy as np
-import jsonlines
-from tqdm import tqdm
-import re
-import streamlit as st
-import torch
-import pandas as pd
-
 from torch.utils.data import Dataset, DataLoader
-import elastic_utilities as es_util
-from format_geoparsing_data import doc_to_ex_expanded
-from torch_bert_placename_compare import ProductionData, embedding_compare
-from roberta_qa import setup_qa, add_event_loc
 
-from elasticsearch import Elasticsearch, helpers
-from elasticsearch_dsl import Search, Q
+import mordecai3.elastic_utilities as es_util
+from mordecai3.format_geoparsing_data import doc_to_ex_expanded
+from mordecai3.torch_bert_placename_compare import ProductionData, embedding_compare
+from mordecai3.roberta_qa import setup_qa, add_event_loc
+
+
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
 
@@ -76,7 +79,7 @@ def load_model():
     model = embedding_compare(device = device,
                                 bert_size = 768,
                                 num_feature_codes=54) 
-    model.load_state_dict(torch.load("mordecai2.pt"))
+    model.load_state_dict(torch.load("../mordecai3/assets/mordecai2.pt"))
     model.eval()
     return model
 
