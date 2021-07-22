@@ -116,12 +116,18 @@ def _clean_placename(placename):
     """
     Strip out place names that might be preventing the right results
     """
+    placename = re.sub("^the", "", placename).strip()
     placename = re.sub("tribal district", "", placename).strip()
     placename = re.sub("[Cc]ity", "", placename).strip()
     placename = re.sub("[Dd]istrict", "", placename).strip()
     placename = re.sub("[Mm]etropolis", "", placename).strip()
     placename = re.sub("[Cc]ounty", "", placename).strip()
     placename = re.sub("[Rr]egion", "", placename).strip()
+    placename = re.sub("[Rr]egion", "", placename).strip()
+    placename = re.sub("'s$", "", placename).strip()
+    # super hacky!! This one is the most egregous
+    if placename == "US":
+        placename = "United States"
     return placename
 
 def add_es_data(ex, conn, max_results=50, fuzzy=True, limit_types=False):
@@ -146,6 +152,7 @@ def add_es_data(ex, conn, max_results=50, fuzzy=True, limit_types=False):
     """
     placename = ex['placename']
     placename = re.sub("^the", "", placename).strip()
+    placename = _clean_placename(placename)
     if limit_types:
         q = {"multi_match": {"query": placename,
                              "fields": ['name', 'asciiname', 'alternativenames'],

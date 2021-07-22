@@ -20,6 +20,7 @@ from spacy.pipeline import Pipe
 
 from torch_model import geoparse_model
 import elastic_utilities as es_util
+from utilities import spacy_doc_setup
 from torch_model import TrainData, ProductionData
 from error_utils import make_wandb_dict, evaluate_results
 
@@ -31,6 +32,8 @@ formatter = logging.Formatter(
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.WARN)
+
+spacy_doc_setup()
 
 def binary_acc(y_pred, y_test):
     y_pred_tag = torch.argmax(y_pred, axis=1)
@@ -177,7 +180,7 @@ def data_formatter_prodigy(docs, data):
         doc_num += 1
     return all_formatted
 
-def data_to_docs(data, source):
+def data_to_docs(data, source, nlp):
     """
     NLP the training data and save the docs to disk
     """
@@ -306,6 +309,7 @@ def format_source(base_dir, source, conn, max_results, limit_types, source_dict,
     with open(fn, 'wb') as f:
         pickle.dump(esed_data, f)
 
+##################################
 
 app = typer.Typer()
 
@@ -328,7 +332,7 @@ def nlp_docs(base_dir, sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'sy
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
                   "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
-                  "prodigy": "orig_mordecai/geo_annotated/loc_rank_db.jsonl",
+                  "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl"}
     for k, v in source_dict.items():
@@ -337,7 +341,7 @@ def nlp_docs(base_dir, sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'sy
     print("Reading in data...")
     for s in sources:
         data = read_file(source_dict[s])
-        data_to_docs(data, s)
+        data_to_docs(data, s, nlp)
 
 @app.command()
 def add_es(base_dir, 
