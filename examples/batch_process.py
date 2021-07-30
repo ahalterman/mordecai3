@@ -1,8 +1,9 @@
-import pandas as pd 
 from collections import Counter
-import typer
 from pathlib import Path
+import time
 
+import typer
+import pandas as pd 
 import spacy
 from spacy.language import Language
 from spacy.tokens import Token, Doc
@@ -13,14 +14,13 @@ from tqdm import tqdm
 import re
 import torch
 import pandas as pd
-import time
-import jsonlines
 
 from torch.utils.data import Dataset, DataLoader
-import elastic_utilities as es_util
-from format_geoparsing_data import doc_to_ex_expanded
-from torch_bert_placename_compare import ProductionData, embedding_compare
-from roberta_qa import setup_qa, add_event_loc
+import mordecai3.elastic_utilities as es_util
+from mordecai3.geoparse import doc_to_ex_expanded
+from mordecai3.torch_model import ProductionData, geoparse_model
+from mordecai3.roberta_qa import setup_qa 
+from utilities import spacy_doc_setup
 
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch_dsl import Search, Q
@@ -32,65 +32,22 @@ formatter = logging.Formatter(
         '%(levelname)-8s %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
 logging.getLogger("elasticsearch").setLevel(logging.WARN)
 
-try:
-    Token.set_extension('tensor', default=False)
-except ValueError:
-    pass
+spacy_doc_setup()
 
-try:
-    @Language.component("token_tensors")
-    def token_tensors(doc):
-        chunk_len = len(doc._.trf_data.tensors[0][0])
-        token_tensors = [[]]*len(doc)
-        
-        for n, i in enumerate(doc):
-            wordpiece_num = doc._.trf_data.align[n]
-            for d in wordpiece_num.dataXd:
-                which_chunk = int(np.floor(d[0] / chunk_len))
-                which_token = d[0] % chunk_len
-                ## You can uncomment this to see that spaCy tokens are being aligned with the correct 
-                ## wordpieces.
-                #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
-                #print(n, i, wordpiece)
-                token_tensors[n] = token_tensors[n] + [doc._.trf_data.tensors[0][which_chunk][which_token]]
-        for n, d in enumerate(doc):
-            if token_tensors[n]:
-                d._.set('tensor', np.mean(np.vstack(token_tensors[n]), axis=0))
-            else:
-                d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
-        return doc
-except ValueError:
-    logger.debug("Tried to add spaCy tensor attribute but already present. Continuing...")
-    pass
-
-country_info = pd.read_csv("data/countryInfo.txt", sep="\t")
+country_info = pd.read_csv("../mordecai3/assets/countryInfo.txt", sep="\t")
 country_dict = dict(zip(country_info['ISO3'], country_info['Country']))
 
-def setup_es():
-    kwargs = dict(
-        hosts=['localhost'],
-        port=9200,
-        use_ssl=False,
-    )
-    CLIENT = Elasticsearch(**kwargs)
-    try:
-        CLIENT.ping()
-        logger.info("Successfully connected to Elasticsearch.")
-    except:
-        ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
-    conn = Search(using=CLIENT, index="geonames")
-    return conn
+
 
 def load_model():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = embedding_compare(device = device,
+    model = geoparse_model(device = device,
                                 bert_size = 768,
                                 num_feature_codes=54) 
-    model.load_state_dict(torch.load("data/mordecai_prod.pt"))
+    model.load_state_dict(torch.load("../mordecai3/assets/mordecai_prod.pt"))
     model.eval()
     return model
 
@@ -151,6 +108,7 @@ def read_icews(filename):
     event_dict = events.to_dict('records')
     return event_dict
 
+
 def read_production(filename):
     """
     Read in a production event file. Use this one in production.
@@ -169,6 +127,7 @@ def read_production(filename):
             expanded_events.append(d)
     return expanded_events
 
+
 def main(filename: Path,
         qa_batch_size: int=50,
         input_format: str="production",
@@ -180,7 +139,8 @@ def main(filename: Path,
     (2) resolving them to their geographic coordinates, and (3) assigning
     events in the text to their reported locations.
 
-    For additional speedup, you can parallelize the process over chunks of an 
+    For additional speedup, if you're processing ICEWS formatted data (not production)
+    you can parallelize the process over chunks of an 
     input file using GNU parallell. e.g.:
 
     sed 1d events.20210301073501.Release507.csv | parallel -j4 --pipe --block 1M "cat > {#}; python batch_process.py {#} --input_format=icews"
@@ -190,7 +150,7 @@ def main(filename: Path,
     filename: Path
       The files of text and events to read in and process
     qa_batch_size: int
-      Tuning parameter for how many documents the event-location linking model
+      Parameter for how many documents the event-location linking model
       will process in a single step. If running on a GPU, this may need to be
       smaller. Conversely, if running on CPU, this could be larger if the available
       RAM will support it.
@@ -213,11 +173,12 @@ def main(filename: Path,
     ------
     python batch_process.py storiesWithEvents-3.json
     """
+    logger.setLevel(logging.INFO)
     logger.info("Loading spaCy model...")
     nlp = spacy.load("en_core_web_trf", exclude=["tagger", "lemmatizer"])
     nlp.add_pipe("token_tensors")
 
-    conn = setup_es()
+    conn = es_util.setup_es()
     logger.info("Loading geoparsing model...")
     model = load_model()
     logger.info("Loading event-location linking model...")
@@ -318,11 +279,30 @@ def main(filename: Path,
     for d in tqdm(doc_info):
         d = resolve_entities(d)
 
-    chunks = (len(doc_info) - 1) // qa_batch_size + 1
+    logger.debug(f"qa_batch_size: {qa_batch_size}")
+    #chunks = (len(doc_info) - 1) // qa_batch_size + 1
+
+    # it doesn't do well with single document batches. If one is going
+    # to be produced, increase the batch size by 1 to avoid
+    if len(doc_info) % qa_batch_size == 1:
+        qa_batch_size = qa_batch_size + 1
+    chunks = int(np.ceil(float(len(doc_info)) / qa_batch_size))
+    
     
     logger.info("Running event-location linking model...")
+    logger.debug(f"Doc info length: {len(doc_info)}")
+    logger.debug(f"Batch size: {qa_batch_size}")
+    logger.debug(f"Chunk number: {chunks}")
     for c in tqdm(range(chunks)):
-        batch = doc_info[c*qa_batch_size:(c+1)*qa_batch_size]
+        start = c*qa_batch_size
+        end = (c+1)*qa_batch_size
+        if end > len(doc_info):
+            end = len(doc_info) + 1
+        logger.debug(f"Batch start: {start}. Batch end: {end}")
+        batch = doc_info[start:end]
+        logger.debug(f"Actual batch length: {len(batch)}")
+        if len(batch) == 0:
+            continue
         batch_QA_input = []
         for d in batch:
             q = {"question": f"Where did {d['event_text'].lower()} happen?",
