@@ -16,6 +16,21 @@ def make_conn():
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
+def setup_es():
+    kwargs = dict(
+        hosts=['localhost'],
+        port=9200,
+        use_ssl=False,
+    )
+    CLIENT = Elasticsearch(**kwargs)
+    try:
+        CLIENT.ping()
+        logger.info("Successfully connected to Elasticsearch.")
+    except:
+        ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
+    conn = Search(using=CLIENT, index="geonames")
+    return conn
+
 def normalize(ll: list) -> np.array:    
     """Normalize an array to [0, 1]"""
     ll = np.array(ll)
@@ -28,9 +43,10 @@ def normalize(ll: list) -> np.array:
 
 
 def make_admin1_counts(out):
-    """Take in a document's worth of examples and return the count of adm1s"""
+    """Take in a document's worth of examples and return the (normalized) count of adm1s"""
     admin1s = []
-    
+
+    # for each entity, get the unique ADM1s from the search results 
     for n, es in enumerate(out):
         other_adm1 = set([i['admin1_name'] for i in es['es_choices']])
         admin1s.extend(list(other_adm1))
@@ -123,7 +139,8 @@ def _clean_placename(placename):
     placename = re.sub("[Mm]etropolis", "", placename).strip()
     placename = re.sub("[Cc]ounty", "", placename).strip()
     placename = re.sub("[Rr]egion", "", placename).strip()
-    placename = re.sub("[Rr]egion", "", placename).strip()
+    placename = re.sub("[Pp]rovince", "", placename).strip()
+    placename = re.sub("[Tt]territory", "", placename).strip()
     placename = re.sub("'s$", "", placename).strip()
     # super hacky!! This one is the most egregous
     if placename == "US":
@@ -202,4 +219,41 @@ def add_es_data_doc(doc_ex, conn, max_results=50, limit_types=False):
             e['country_count'] = country_count[e['country_code3']]
     return doc_es
 
+def _format_country_results(res):
+    results = res['hits']['hits'][0].to_dict()['_source']
+    lat, lon = results['coordinates'].split(",") 
+    results['lon'] = float(lon)
+    results['lat'] = float(lat)
+    r = {"extracted_name": "",
+         "placename": results['name'],
+         "lat": lat,
+         "lon": lon,
+         "admin1_name": results['admin1_name'],
+         "admin2_name": results['admin2_name'],
+         "country_code3": results['country_code3'],
+         "feature_code": results['feature_code'],
+         "geonameid": results['geonameid'],
+         "start_char": "",
+         "end_char": ""}
+    return r
 
+def get_country_entry(iso3c: str, conn):
+    """Return the Geonames result for a country given its three letter country code"""
+    name_filter = Q("term", country_code3=iso3c) 
+    type_filter = Q("term", feature_code="PCLI") 
+    res = conn.filter(type_filter).filter(name_filter).execute()
+    r = _format_country_results(res)
+    return r
+
+def get_adm1_country_entry(adm1: str, iso3c: str, conn):
+    """Return the Geonames result for an ADM1 code + country"""
+    country_filter = Q("term", country_code3=iso3c) 
+    type_filter = Q("term", feature_code="ADM1") 
+    q = {"multi_match": {"query": adm1,
+                             "fields": ['name', 'asciiname', 'alternativenames'],
+                             "type" : "phrase"}}
+    res = conn.query(q).filter(type_filter).filter(country_filter).execute()
+    r = _format_country_results(res)
+    return r
+
+#get_adm1_country_entry("Kaduna", "NGA", conn)
