@@ -1,59 +1,36 @@
-
-import jsonlines
-from tqdm import tqdm
-import re
+import json
 
 import streamlit as st
 import torch
 import pandas as pd
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search, Q
 import spacy
-from spacy.language import Language
 from spacy.tokens import Token, Doc
 from spacy.pipeline import Pipe
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 import mordecai3.elastic_utilities as es_util
-from mordecai3.format_geoparsing_data import doc_to_ex_expanded
-from mordecai3.torch_bert_placename_compare import ProductionData, embedding_compare
+from mordecai3.geoparse import doc_to_ex_expanded
+from mordecai3.torch_model import ProductionData, geoparse_model
 from mordecai3.roberta_qa import setup_qa, add_event_loc
+from mordecai3.utilities import spacy_doc_setup
+
+# for dumping raw output to JSON
+# https://stackoverflow.com/a/52604722
+def default(obj):
+    if type(obj).__module__ == np.__name__:
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return obj.item()
+    raise TypeError('Unknown type:', type(obj))
 
 
+spacy_doc_setup()
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
-
-try:
-    Token.set_extension('tensor', default=False)
-except ValueError:
-    pass
-
-try:
-    @Language.component("token_tensors")
-    def token_tensors(doc):
-        chunk_len = len(doc._.trf_data.tensors[0][0])
-        token_tensors = [[]]*len(doc)
-        
-        for n, i in enumerate(doc):
-            wordpiece_num = doc._.trf_data.align[n]
-            for d in wordpiece_num.dataXd:
-                which_chunk = int(np.floor(d[0] / chunk_len))
-                which_token = d[0] % chunk_len
-                ## You can uncomment this to see that spaCy tokens are being aligned with the correct 
-                ## wordpieces.
-                #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
-                #print(n, i, wordpiece)
-                token_tensors[n] = token_tensors[n] + [doc._.trf_data.tensors[0][which_chunk][which_token]]
-        for n, d in enumerate(doc):
-            if token_tensors[n]:
-                d._.set('tensor', np.mean(np.vstack(token_tensors[n]), axis=0))
-            else:
-                d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
-        return doc
-except ValueError:
-    pass
-
 
 
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
@@ -76,7 +53,7 @@ def setup_es():
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def load_model():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = embedding_compare(device = device,
+    model = geoparse_model(device = device,
                                 bert_size = 768,
                                 num_feature_codes=54) 
     model.load_state_dict(torch.load("../mordecai3/assets/mordecai2.pt"))
@@ -99,7 +76,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
 icews_cat = st.sidebar.text_input(label='CAMEO/ICEWS event description (e.g. "Use conventional military force")',
-value="")
+                                  value="")
+freeform_qa = st.sidebar.text_input(label='Advanced option: write a complete question here.")',
+                                   value="")
 
 #= "Afghanistan's major population centers are all government-held, with capital city Kabul especially well-fortified, though none are immune to occasional attacks by Taliban operatives. And though the conflict sometimes seems to engulf the whole country, the provinces of Panjshir, Bamyan, and Nimroz stand out as being mostly free of Taliban influence."
 #default_text = 'A "scorched earth"-type policy was used in the city of New York City and the north-western governorate of Idleb.'
@@ -121,8 +100,16 @@ if doc_ex:
         for input in data_loader:
             pred_val = model(input)
 
-if icews_cat:
-    question = f"Where did {icews_cat.lower()} happen?"
+if freeform_qa:
+    QA_input = {
+            'question': freeform_qa,
+            'context':text
+        }
+    res = trf(QA_input)
+    event_doc = add_event_loc(doc, res)
+elif icews_cat:
+    #question = f"Where did {icews_cat.lower()} happen?"
+    question = f"Which place did {icews_cat.lower()} happen?"
     QA_input = {
             'question': question,
             'context':text
@@ -150,7 +137,7 @@ else:
         print(len(ent['es_choices']))
         for n, score in enumerate(pred):
             if n < len(ent['es_choices']):
-                ent['es_choices'][n]['score'] = score
+                ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
         results = [e for e in ent['es_choices'] if 'score' in e.keys()]
         if not results:
             st.text("(no results)")
@@ -163,18 +150,21 @@ else:
 
             for n, i in enumerate(results):
                 if n == 0:
-                    st.text(f"✔️ {i['name']} ({i['feature_code']}), {i['country_code3']}: {i['score']}")
+                    st.text(f"✔️ {i['name']} ({i['feature_code']}), {i['admin1_name']}, {i['country_code3']} ({i['geonameid']}): {i['score']}")
                     if len(results) > 1:
                         st.text("Other choices: ")
                 else:
-                    st.text(f"* {i['name']} ({i['feature_code']}), {i['country_code3']}: {i['score']}")
+                    st.text(f"* {i['name']} ({i['feature_code']}), {i['admin1_name']}, {i['country_code3']} ({i['geonameid']}): {i['score']}")
 
-    map = st.checkbox("Show map", value = False) 
+    map = st.sidebar.checkbox("Show map", value = False) 
     if map:
         st.subheader("Map")
         df = pd.DataFrame(pretty)
         st.map(df)
-    #st.subheader("Raw JSON result")
-    #st.json(output)
+    show_raw = st.sidebar.checkbox("Show raw output", value = False) 
+    if show_raw:
+        st.subheader("Raw JSON result")
+        #dumped = json.dumps(es_data, default=default)
+        st.json(es_data)
 #except NameError:
 #    st.text("No entities found.")
