@@ -28,3 +28,7 @@ To batch-process a JSONL file of ICEWS events, run the following command:
 ```
 python batch_process.py storiesWithEvents-3.json
 ```
+
+## Acknowledgements
+
+This work was sponsored by the Political Instability Task Force (PITF). The PITF is funded by the Central Intelligence Agency. The views expressed in this codebook are the authors' alone and do not represent the views of the US Government.
