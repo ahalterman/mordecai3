@@ -43,14 +43,29 @@ def normalize(ll: list) -> np.array:
 
 
 def make_admin1_counts(out):
-    """Take in a document's worth of examples and return the (normalized) count of adm1s"""
+    """
+    Take in a document's worth of examples and return the (normalized) count of adm1s
+    
+    Parameters
+    ---------
+    out: list of dicts
+      List of place names from the document with candidate geolocations
+      from ES/Geonames
+
+    Returns
+    -------
+    admin1_count: dict
+      A dictionary {adm1: count}, where count is the proportion of place names in the
+      document that have at least one candidate entry from this adm1.
+    """
     admin1s = []
 
     # for each entity, get the unique ADM1s from the search results 
-    for n, es in enumerate(out):
+    for es in out:
         other_adm1 = set([i['admin1_name'] for i in es['es_choices']])
         admin1s.extend(list(other_adm1))
     
+    # TODO: handle the "" admins here.
     admin1_count = dict(Counter(admin1s))
     for k, v in admin1_count.items():
         admin1_count[k] = v / len(out)
@@ -109,7 +124,6 @@ def res_formatter(res, placename):
             "geonameid": i['geonameid']}
         choices.append(d)
         alt_lengths.append(len(i['alternativenames']))
-        dists = [jellyfish.levenshtein_distance(placename, j) for j in names]
         min_dist.append(np.min(dists))
         max_dist.append(np.max(dists))
         avg_dist.append(np.mean(dists))
@@ -141,8 +155,9 @@ def _clean_placename(placename):
     placename = re.sub("[Rr]egion", "", placename).strip()
     placename = re.sub("[Pp]rovince", "", placename).strip()
     placename = re.sub("[Tt]territory", "", placename).strip()
+    placename = re.sub("[Bb]ranch", "", placename).strip()
     placename = re.sub("'s$", "", placename).strip()
-    # super hacky!! This one is the most egregous
+    # super hacky!! This one is the most egregious 
     if placename == "US":
         placename = "United States"
     return placename
