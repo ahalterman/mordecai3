@@ -1,5 +1,6 @@
-from mordecai3.torch_bert_placename_compare import TrainData, load_data, embedding_compare
-from torch.utils.data import Dataset, DataLoader
+from mordecai3.torch_model import TrainData, geoparse_model
+from mordecai3.train import load_data
+from torch.utils.data import DataLoader
 import torch
 from collections import Counter
 import numpy as np
@@ -21,7 +22,6 @@ logger.setLevel(logging.INFO)
 
 console = Console()
 
-max_choices = 50
 test_batch_size = 64
 
 
@@ -46,7 +46,7 @@ def make_missing_table(cutoff, names, datasets):
     table.add_column("Dataset")
     table.add_column(f"Percentage Missing at {cutoff}", justify="right")
 
-    for nn, data in zip(names, datasets): 
+    for nn, data in zip(names, datasets):
         c = Counter([np.sum(i['correct'][:cutoff]) == 0 for i in data])
         frac_missing = str(round(100 * c[True] / len(data), 1)) + "%"
         table.add_row(nn, frac_missing)
@@ -67,9 +67,9 @@ def make_missing_table(cutoff, names, datasets):
 
 def load_model(path="assets/mordecai2.pt"):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = embedding_compare(device = device,
+    model = geoparse_model(device = device,
                                 bert_size = 768,
-                                num_feature_codes=54) 
+                                num_feature_codes=54)
     model.load_state_dict(torch.load(path))
     model.eval()
     return model
@@ -78,18 +78,23 @@ def load_model(path="assets/mordecai2.pt"):
 def make_table(names, datasets, data_loaders, model):
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Dataset")
+    table.add_column("Eval N", justify="right")
     table.add_column(f"Exact match", justify="right")
+    table.add_column(f"Mean Error", justify="right")
     table.add_column(f"Correct Country", justify="right")
     table.add_column(f"Correct Feature Code", justify="right")
     table.add_column(f"Correct ADM1", justify="right")
+    table.add_column(f"Acc @161km", justify="right")
 
-    for nn, data, loader in zip(names, datasets, data_loaders): 
-        c_country, c_code, c_adm1, c_geoid = evaluate_results(data, loader, model)
-        country_perc = str(round(100 * c_country, 1)) + "%"
-        geoid_perc = str(round(100 * c_geoid, 1)) + "%"
-        code_perc = str(round(100 * c_code, 1)) + "%"
-        adm1_perc = str(round(100 * c_adm1, 1)) + "%"
-        table.add_row(nn, geoid_perc, country_perc, code_perc, adm1_perc)
+    for nn, data, loader in zip(names, datasets, data_loaders):
+        correct_avg = evaluate_results(data, loader, model)
+        country_perc = str(round(100 * correct_avg['correct_country'], 1)) + "%"
+        geoid_perc = str(round(100 * correct_avg['exact_match'], 1)) + "%"
+        code_perc = str(round(100 * correct_avg['correct_code'], 1)) + "%"
+        adm1_perc = str(round(100 * correct_avg['correct_adm1'], 1)) + "%"
+        avg_dist = str(round(correct_avg['avg_dist'], 1))
+        correct_161 = str(round(100 * correct_avg['acc_at_161'], 1))
+        table.add_row(nn, str(len(data)), geoid_perc, avg_dist, country_perc, code_perc, adm1_perc, correct_161)
     console.print(table)
 
 # ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
@@ -109,22 +114,23 @@ def main(data_dir: Path,
     config.batch_size = 32         # input batch size for training (default: 64)
     config.test_batch_size = 64    # input batch size for testing (default: 1000)
     config.epochs = 15           # number of epochs to train (default: 10)
-    config.lr = 0.01               # learning rate 
+    config.lr = 0.01               # learning rate
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
     config.avg_params = False
 
+    logger.info("Loading data...")
     es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(data_dir)
 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
-    train_data = TrainData(es_train_data, max_choices=max_choices)
-    tr_data = TrainData(es_data_tr_val, max_choices=max_choices)
-    prod_data = TrainData(es_data_prod_val, max_choices=max_choices)
-    lgl_data = TrainData(es_data_lgl_val, max_choices=max_choices)
-    gwn_data = TrainData(es_data_gwn_val, max_choices=max_choices)
-    syn_data = TrainData(es_data_syn_val, max_choices=max_choices)
+    train_data = TrainData(es_train_data, max_choices=config.max_choices)
+    tr_data = TrainData(es_data_tr_val, max_choices=config.max_choices)
+    prod_data = TrainData(es_data_prod_val, max_choices=config.max_choices)
+    lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
+    gwn_data = TrainData(es_data_gwn_val, max_choices=config.max_choices)
+    syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
 
 
     train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
@@ -147,3 +153,4 @@ def main(data_dir: Path,
 
 if __name__ == "__main__":
     typer.run(main)
+

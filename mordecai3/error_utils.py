@@ -1,5 +1,10 @@
 import torch
 import numpy as np
+import haversine as hs
+
+#es_data = datasets[2]
+#loader = data_loaders[2]
+#model = geo.model
 
 def evaluate_results(es_data, loader, model):
     pred_val_list = []
@@ -14,6 +19,7 @@ def evaluate_results(es_data, loader, model):
     correct_code = []
     correct_adm1 = []
     correct_geoid = []
+    dists = []
     for ent, pred in zip(es_data, pred_array):
         for n, score in enumerate(pred):
             #score = i[0] # accounting for country prediction
@@ -29,16 +35,29 @@ def evaluate_results(es_data, loader, model):
         gold_country = ent['es_choices'][correct_position[0]]['country_code3']
         gold_code = ent['es_choices'][correct_position[0]]['feature_code']
         gold_adm1 = ent['es_choices'][correct_position[0]]['admin1_code']
+        gold_lat = ent['es_choices'][correct_position[0]]['lat']
+        gold_lon = ent['es_choices'][correct_position[0]]['lon']
         predicted_position = np.argmax([i['score'] for i in ent['es_choices'] if 'score' in i.keys()])
         predicted_country = ent['es_choices'][predicted_position]['country_code3']
         predicted_code = ent['es_choices'][predicted_position]['feature_code']
         predicted_adm1 = ent['es_choices'][predicted_position]['admin1_code']
         predicted_geoid = ent['es_choices'][predicted_position]['geonameid']
+        predicted_lat = ent['es_choices'][predicted_position]['lat']
+        predicted_lon = ent['es_choices'][predicted_position]['lon']
         correct_country.append(gold_country == predicted_country)
         correct_code.append(gold_code == predicted_code)
         correct_adm1.append(gold_adm1 == predicted_adm1)
         correct_geoid.append(ent['correct_geonamesid'] == predicted_geoid)
-    return np.mean(correct_country), np.mean(correct_code), np.mean(correct_adm1), np.mean(correct_geoid)
+        dist = hs.haversine((gold_lat, gold_lon), (predicted_lat, predicted_lon))
+        dists.append(dist)
+    correct_avg = {"correct_country": np.mean(correct_country), 
+              "correct_code": np.mean(correct_code),
+              "correct_adm1": np.mean(correct_adm1), 
+              "exact_match": np.mean(correct_geoid),
+              "avg_dist": np.mean(dists),
+              "acc_at_161": np.mean([i <= 161 for i in dists])
+    }
+    return correct_avg
 
 def make_wandb_dict(names, datasets, data_loaders, model):
     results = {}
@@ -46,20 +65,28 @@ def make_wandb_dict(names, datasets, data_loaders, model):
     feature_code_avg = 0
     adm1_avg = 0
     exact_match_avg = 0
+    dist_avg = 0
+    acc_at_161 = 0
 
     for nn, data, loader in zip(names, datasets, data_loaders): 
-        c_country, c_code, c_adm1, c_geoid = evaluate_results(data, loader, model)
-        results[f"{nn}_country_acc"] = c_country
-        country_avg += c_country
-        results[f"{nn}_feature_code"] = c_code
-        feature_code_avg += c_code
-        results[f"{nn}_adm1"] = c_adm1
-        adm1_avg += c_adm1
-        results[f"{nn}_exact_match"] = c_geoid
-        exact_match_avg += c_geoid
+        correct_avg = evaluate_results(data, loader, model)
+        results[f"{nn}_country_acc"] = correct_avg['correct_country'] 
+        country_avg += correct_avg['correct_country']  
+        results[f"{nn}_feature_code"] = correct_avg['correct_code'] 
+        feature_code_avg += correct_avg['correct_code']
+        results[f"{nn}_adm1"] = correct_avg['correct_adm1']
+        adm1_avg += correct_avg['correct_adm1']
+        results[f"{nn}_exact_match"] = correct_avg['exact_match']
+        exact_match_avg += correct_avg['exact_match']
+        results[f"{nn}_avg_dist"] = correct_avg['avg_dist']
+        dist_avg += correct_avg['avg_dist']
+        results[f"{nn}_acc_at_161"] = correct_avg['acc_at_161']
+        acc_at_161 += correct_avg['acc_at_161']
 
     results['country_avg'] = country_avg / len(names)
     results['feature_code_avg'] = feature_code_avg / len(names)
     results['adm1_avg'] = adm1_avg / len(names)
     results['exact_match_avg'] = exact_match_avg / len(names)
+    results['dist_avg'] = dist_avg / len(names)
+    results['acc_at_161'] = acc_at_161 / len(names)
     return results
