@@ -9,20 +9,19 @@ from tqdm import tqdm
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import  DataLoader
 import xmltodict
 import wandb
 import typer
 import click_spinner
 import spacy
 from spacy.tokens import DocBin
-from spacy.pipeline import Pipe
 
 from torch_model import geoparse_model
 import elastic_utilities as es_util
 from utilities import spacy_doc_setup
-from torch_model import TrainData, ProductionData
-from error_utils import make_wandb_dict, evaluate_results
+from torch_model import TrainData
+from error_utils import make_wandb_dict
 
 import logging
 logger = logging.getLogger()
@@ -74,7 +73,7 @@ def load_data(data_dir, limit_es_results=False):
     if limit_es_results:
         path_mod = "pa_only"
     else:
-        path_mod = "all_loc_types"
+        path_mod = "pickled_es"
     with open(f'{data_dir}/{path_mod}/es_formatted_prodigy.pkl', 'rb') as f:
         es_data_prod = pickle.load(f)
     
@@ -92,6 +91,11 @@ def load_data(data_dir, limit_es_results=False):
 
     with open(f'{data_dir}/{path_mod}/es_formatted_syn_caps.pkl', 'rb') as f:
         es_data_syn_caps = pickle.load(f)
+
+    random.seed(617)
+    random.shuffle(es_data_syn)
+
+    es_data_syn = es_data_syn[0:500] + es_data_syn_caps
 
     def split_list(data, frac=0.7):
         split = round(frac*len(data))
@@ -180,7 +184,7 @@ def data_formatter_prodigy(docs, data):
         doc_num += 1
     return all_formatted
 
-def data_to_docs(data, source, nlp):
+def data_to_docs(data, source, base_dir, nlp):
     """
     NLP the training data and save the docs to disk
     """
@@ -192,10 +196,11 @@ def data_to_docs(data, source, nlp):
     else:
         for doc in tqdm(nlp.pipe([i['text'] for i in data['articles']['article']]), total=len(data['articles']['article'])):
             doc_bin.add(doc)
-    fn = f"source_{source}.spacy"
+    fn = f"{base_dir}/spacyed/source_{source}.spacy"
     with open(fn, "wb") as f:
         doc_bin.to_disk(fn)
     print(f"Wrote NLPed docs out to {fn}")
+
 
 def data_formatter(docs, data, source):
     """
@@ -272,18 +277,19 @@ def data_formatter(docs, data, source):
 
 def format_source(base_dir, source, conn, max_results, limit_types, source_dict, nlp):
     print(f"limit types: {limit_types}")
-    fn = f"source_{source}.pkl"
-    fn = os.path.join(base_dir, fn)
+    #fn = f"source_{source}.pkl"
+    fn = f"source_{source}.spacy"
+    fn = os.path.join(base_dir, "spacyed", fn)
     print(f"===== {source} =====")
     # did it two different ways...
-    try:
-        with open(fn, "rb") as f:
-            doc_bin = pickle.load(f)
+    #try:
+    #    with open(fn, "rb") as f:
+    #        doc_bin = pickle.load(f)
 
-    except FileNotFoundError:
-        fn = f"source_{source}.spacy"
-        with open(fn, "rb") as f:
-            doc_bin = DocBin().from_disk(fn)
+    #except FileNotFoundError:
+    #    fn = f"source_{source}.spacy"
+    with open(fn, "rb") as f:
+        doc_bin = DocBin().from_disk(fn)
     print(f"Converting back to spaCy docs...")
 
     docs = list(doc_bin.get_docs(nlp.vocab))
@@ -305,8 +311,9 @@ def format_source(base_dir, source, conn, max_results, limit_types, source_dict,
 
     print(f"Total place names in {source}: {len(esed_data)}")
     fn = f"es_formatted_{source}.pkl"
-    print(f"Writing to {fn}...")
-    with open(fn, 'wb') as f:
+    out_file = os.path.join(base_dir, "pickled_es", fn)
+    print(f"Writing to {out_file}...")
+    with open(out_file, 'wb') as f:
         pickle.dump(esed_data, f)
 
 ##################################
@@ -372,14 +379,16 @@ def add_es(base_dir,
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
                   "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
-                  "prodigy": "orig_mordecai/geo_annotated/loc_rank_db.jsonl",
+                  "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
-    for source in sources:            
+    for source in sources:   
+        #base_dir = os.path.join(base_dir, "spacyed")
         format_source(base_dir, source, conn, max_results=max_results, limit_types=limit_types, source_dict=source_dict, nlp=nlp)
     print("Complete")
+
 
 @app.command()
 def train():
@@ -392,12 +401,13 @@ def train():
     config = wandb.config          # Initialize config
     config.batch_size = 32         # input batch size for training 
     config.test_batch_size = 64    # input batch size for testing 
-    config.epochs = 12          # number of epochs to train 
+    config.epochs = 25          # number of epochs to train 
     config.lr = 0.01               # learning rate 
     config.seed = 42               # random seed (default: 42)
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
-    config.avg_params = True
+    config.dropout = 0.3
+    config.avg_params = False
     config.limit_es_results = False
     data_dir = "../raw_data"
 
@@ -425,7 +435,8 @@ def train():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = geoparse_model(device = device,
                               bert_size = train_data.placename_tensor.shape[1],
-                              num_feature_codes=53+1)
+                              num_feature_codes=53+1,
+                              dropout = config.dropout)
     #model = torch.nn.DataParallel(model)
     model.to(device)
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
