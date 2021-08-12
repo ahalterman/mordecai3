@@ -153,7 +153,7 @@ class Geoparser:
                     best["end_char"] = ent['end_char']
                 best_list.append(best)
         output = {"doc_text": doc.text,
-                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]),
+                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
                  "geolocated_ents": best_list}
         return output
 

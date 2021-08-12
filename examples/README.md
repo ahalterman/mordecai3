@@ -66,4 +66,4 @@ For debugging and demo purposes, it can be useful to have an interactive version
 streamlit run production_event.py --logger.level=INFO
 ```
 
-The dashboard includes text geoparsing and will show which phrase was identified by the QA model as the event location. Not that this will differ somewhat from the production version, which uses a set of rules to tweak the event geolocation. 
+The dashboard includes text geoparsing and will show which phrase was identified by the QA model as the event location. Not that this will differ somewhat from the production version, which uses a set of rules to tweak the event geolocation.x 

@@ -1,9 +1,7 @@
 ## Read in the BERT embedding for each place name
 ## and predict the country using pytorch
 import numpy as np
-import random
 import json
-import pickle
 import os
 
 import torch
@@ -12,10 +10,10 @@ from torch.utils.data import Dataset
 from pandas import read_csv
 
 import logging
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(
-        '%(levelname)-8s %(message)s')
+        '%(levelname)-8s %(name)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.WARN)
@@ -173,7 +171,7 @@ class TrainData(ProductionData):
 
 
 class geoparse_model(nn.Module):
-    def __init__(self, device, bert_size, num_feature_codes):
+    def __init__(self, device, bert_size, num_feature_codes, dropout=0.2):
         super(geoparse_model, self).__init__()
         self.device = device
         # embeddings setup
@@ -204,7 +202,7 @@ class geoparse_model(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=1)
-        self.dropout = nn.Dropout(p=0.2) 
+        self.dropout = nn.Dropout(p=dropout) 
         self.similarity = nn.CosineSimilarity(dim=2)
         #self.similarity_country = nn.CosineSimilarity(dim=2)
 

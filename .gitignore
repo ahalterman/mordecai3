@@ -1,7 +1,6 @@
 *.pkl
 .DS_Store
 scratch/*
-*.npy
 storiesWithEvents*
 *.spacy
 old_data/
