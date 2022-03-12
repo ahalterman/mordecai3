@@ -11,7 +11,10 @@ def evaluate_results(es_data, loader, model):
     with torch.no_grad():
         model.eval()
         for label, country, input in loader:
-            pred_val = model(input)
+            if model.country_pred:
+                pred_val, country_pred = model(input)
+            else:
+                pred_val = model(input)
             pred_val_list.append(pred_val)
     pred_array = np.vstack(pred_val_list)
 

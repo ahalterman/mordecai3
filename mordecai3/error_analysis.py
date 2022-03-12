@@ -119,9 +119,12 @@ def main(data_dir: Path,
     config.log_interval = 10     # how many batches to wait before logging training status
     config.max_choices = 500
     config.avg_params = False
-
+    config.fuzzy=0
+    config.limit_es_results = "all_loc_types"
+    print(config.__dict__)
+    
     logger.info("Loading data...")
-    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(data_dir)
+    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(data_dir, max_results=config.max_choices, fuzzy=config.fuzzy, limit_types=config.limit_es_results)
 
     logger.info(f"Total training examples: {len(es_train_data)}")
 

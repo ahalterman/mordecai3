@@ -10,8 +10,8 @@ import streamlit as st
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-from elastic_utilities import res_formatter, doc_to_ex_expanded, add_es_data
-from torch_bert_placename_compare import ProductionData, embedding_compare
+from mordecai.elastic_utilities import res_formatter, doc_to_ex_expanded, add_es_data
+from mordecai.torch_model import ProductionData, geoparse_model
 
 from elasticsearch import Elasticsearch, helpers
 from elasticsearch_dsl import Search, Q
@@ -28,13 +28,13 @@ except ValueError:
 def token_tensors(doc):
     chunk_len = len(doc._.trf_data.tensors[0][0])
     token_tensors = [[]]*len(doc)
-    
+
     for n, i in enumerate(doc):
         wordpiece_num = doc._.trf_data.align[n]
         for d in wordpiece_num.dataXd:
             which_chunk = int(np.floor(d[0] / chunk_len))
             which_token = d[0] % chunk_len
-            ## You can uncomment this to see that spaCy tokens are being aligned with the correct 
+            ## You can uncomment this to see that spaCy tokens are being aligned with the correct
             ## wordpieces.
             #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
             #print(n, i, wordpiece)
@@ -70,8 +70,8 @@ def setup_es():
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def load_model():
     model = embedding_compare(bert_size = 768,
-                                num_feature_codes=54, 
-                                max_choices=25) 
+                                num_feature_codes=54,
+                                max_choices=25)
     model.load_state_dict(torch.load("mordecai2.pt"))
     model.eval()
     return model
@@ -119,7 +119,7 @@ Hataman will lead Tuesday the ARMM relief and medical missions to various towns 
 The Humanitarian Emergency Action and Response Team (HEART), the region’s relief arm, reported that as of evening of March 2, 8,139 families or 41,720 individuals had been displaced by the “all-out offensive” against the BIFF.
 
 The evacuees of Pagalungan (1,900 families) and Datu Montawal towns (400) – or about 12,650 persons who fled their homes during the skirmishes between the BIFF and the Moro Islamic Liberation Front (MILF) were supposed to return home but opted to stay on following Catapang’s “all-out offensive.”   (Ferdinandh B. Cabrera / MindaNews)"""
-text = st.text_area("Text to geoparse", default_text)    
+text = st.text_area("Text to geoparse", default_text)
 doc = nlp(text)
 ex = doc_to_ex_expanded(doc)
 if ex:
@@ -154,7 +154,7 @@ try:
             if n < len(ent['es_choices']):
                 ent['es_choices'][n]['score'] = i
         results = [e for e in ent['es_choices'] if 'score' in e.keys()]
-        results = sorted(results, key=lambda k: -k['score']) 
+        results = sorted(results, key=lambda k: -k['score'])
         results = results[:3]
         print(ent)
         for i in results:

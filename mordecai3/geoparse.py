@@ -7,7 +7,7 @@ import torch
 import pandas as pd
 import spacy
 from spacy.language import Language
-from spacy.tokens import Token, Doc
+from spacy.tokens import Token, Span, Doc
 from spacy.pipeline import Pipe
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -15,7 +15,16 @@ from torch.utils.data import Dataset, DataLoader
 import elastic_utilities as es_util
 from torch_model import ProductionData, geoparse_model
 from roberta_qa import setup_qa, add_event_loc
-from utilities import spacy_doc_setup
+from mordecai_utilities import spacy_doc_setup
+
+import logging
+logger = logging.getLogger()
+handler = logging.StreamHandler() 
+formatter = logging.Formatter(
+        '%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 spacy_doc_setup()
 
@@ -26,9 +35,9 @@ def load_nlp():
 
 def load_model(model_path):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = geoparse_model(device = device,
-                                bert_size = 768,
-                                num_feature_codes=54) 
+    model = geoparse_model(device=device,
+                           bert_size=768,
+                           num_feature_codes=54) 
     model.load_state_dict(torch.load(model_path))
     model.eval()
     return model
@@ -36,6 +45,47 @@ def load_model(model_path):
 def load_trf():
     trf = setup_qa()
     return trf
+
+
+def guess_in_rel(ent):
+    """
+    A quick rule-based system to detect common "in" relations, such as 
+    "Berlin, Germany" or "Aleppo in Syria".
+
+    It tries to skip series of places and respects sentence boundaries.
+
+    This uses some slightly clunky notation to handle the case in training data
+    where we don't have a real span, just tokens. 
+    """
+    if type(ent) is list:
+        ent = ent[0].doc[ent[0].i:ent[-1].i+1]
+    next_ent = [e for e in ent.doc.ents if e.start > ent.end]
+    # if it's the last ent in the DOC, assume no "in" relation:
+    if not next_ent:
+        return ""
+    next_ent = next_ent[0]
+    # if it's the last ent in the SENT, assume no "in" relation:
+    if ent.sent != next_ent.sent:
+        return ""
+    # If the next entity isn't a place, assume no "in" relation
+    if next_ent.label_ not in ['GPE', "LOC", 'EVENT_LOC', 'FAC']:
+        return ""
+    # there's a following entity, separeted only by "in"
+    diff = ent.doc[ent.end:next_ent.start]
+    diff_text = [i.text for i in diff]
+    if len(diff) <= 2 and "in" in diff_text and "and" not in diff_text:
+        return next_ent.text
+    # There's a comma relation
+    if "," in diff_text:
+        # skip if there's a ", and":
+        if "and" in diff_text:
+            return ""
+        # skip if the following ent is followed by a comma
+        if ent.doc[next_ent.end].text in [",", "and"]:
+            return ""
+        return next_ent.text
+    else:
+        return ""
 
 
 def doc_to_ex_expanded(doc):
@@ -62,15 +112,18 @@ def doc_to_ex_expanded(doc):
         if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']:
             tensor = np.mean(np.vstack([i._.tensor for i in ent]), axis=0)
             other_locs = [i for e in loc_ents for i in e if i not in ent]
+            in_rel = guess_in_rel(ent)
+            #print("detected relation: ", ent.text, "-->", in_rel)
             if other_locs:
                 locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs if i not in ent]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
-            d = {"placename": ent.text,
+            d = {"search_name": ent.text,
                  "tensor": tensor,
                  "doc_tensor": doc_tensor,
                  "locs_tensor": locs_tensor,
                  "sent": ent.sent.text,
+                 "in_rel": in_rel,
                 "start_char": ent[0].idx,
                 "end_char": ent[-1].idx + len(ent.text)}
             data.append(d)
@@ -79,83 +132,25 @@ def doc_to_ex_expanded(doc):
 class Geoparser:
     def __init__(self, 
                  model_path="assets/mordecai2.pt", 
-                 nlp=None):
+                 nlp=None,
+                 event_geoparse=True,
+                 debug=None,
+                 trim=None):
+        self.debug = debug
+        self.trim = trim
         if not nlp:
             self.nlp = load_nlp()
         else:
             self.nlp = nlp
         self.conn = es_util.make_conn()
         self.model = load_model(model_path)
-        self.trf = load_trf()
+        self.event_geoparse = event_geoparse
+        if event_geoparse:
+            self.trf = load_trf()
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
 
-    def geoparse_doc(self, text, icews_cat=None):
-        """
-        text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
-        icews_cat = "Make statement"
-        """
-        doc = self.nlp(text)
 
-        print("Doc ents: ", doc.ents)
-        doc_ex = doc_to_ex_expanded(doc)
-        if doc_ex:
-            es_data = es_util.add_es_data_doc(doc_ex, self.conn, max_results=500)
-
-            dataset = ProductionData(es_data, max_choices=500)
-            data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
-            with torch.no_grad():
-                self.model.eval()
-                for input in data_loader:
-                    pred_val = self.model(input)
-
-        if icews_cat:
-            question = f"Where did {icews_cat.lower()} happen?"
-            QA_input = {
-                    'question': question,
-                    'context':text
-                }
-            res = self.trf(QA_input)
-            event_doc = add_event_loc(doc, res)
-        else:
-            event_doc = doc
-
-        #labels = ["GPE", "LOC", "FAC", "EVENT_LOC"]
-
-        best_list = []
-        output = {"doc_text": doc.text,
-                 "event_location": '',
-                 "geolocated_ents": []}
-        if len(doc_ex) == 0:
-            return output
-        elif len(es_data) == 0:
-            return output
-        else:
-            for (ent, pred) in zip(es_data, pred_val):
-                #print("**Place name**: {}".format(ent['placename']))
-                #print(len(ent['es_choices']))
-                for n, score in enumerate(pred):
-                    if n < len(ent['es_choices']):
-                        ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
-                results = [e for e in ent['es_choices'] if 'score' in e.keys()]
-                if not results:
-                    print("(no results)")
-                best = {"placename": ent['placename'],
-                        "start_char": ent['start_char'],
-                        "end_char": ent['end_char']}
-
-                if results:
-                    results = sorted(results, key=lambda k: -k['score'])
-                    results = [i for i in results if i['score'] > 0.01]
-                    best = results[0]
-                    best["placename"] = ent['placename']
-                    best["start_char"] = ent['start_char']
-                    best["end_char"] = ent['end_char']
-                best_list.append(best)
-        output = {"doc_text": doc.text,
-                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
-                 "geolocated_ents": best_list}
-        return output
 
     def pick_event_loc(self, d):
         """
@@ -199,7 +194,7 @@ class Geoparser:
                 if soft_loc and re.search(",|in", d['partial_doc'][loc_end:soft_loc['start_char']]):
                         d['event_loc'] = soft_loc
                         d['event_loc_reason'] = "No event location identified, picking the following comma sep'ed location"
-                elif len(set([i['placename'] for i in geo])) == 1:
+                elif len(set([i['search_name'] for i in geo])) == 1:
                     # note: cities and states could have the same place name
                     d['event_loc'] = geo[0]
                     d['event_loc_reason'] = "No event location identified, but only one (unique) location in text"
@@ -238,10 +233,129 @@ class Geoparser:
             d['event_loc_reason'] = "CHECK THIS! Missed the conditionals."
         return d
 
+
+    def geoparse_doc(self, text, plover_cat=None, debug=False, trim=False):
+        """
+        text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
+        plover_cat = "Make statement"
+
+        If debug=True, return the top 4 candidate locations rather than the best.
+
+        If trim=True, remove the extra fields that help with the model resolution.
+        """
+        if type(text) is str:   
+            doc = self.nlp(text)
+        elif type(text) is spacy.tokens.doc.Doc:
+            doc = text
+        else:
+            raise ValueError("Text must be either of type 'str' or 'spacy.tokens.doc.Doc'.")
+
+        if plover_cat and not self.event_geoparse:
+            raise Warning("A PLOVER category was provided but event geoparsing is disabled. Skipping event geolocation!")
+
+        logger.debug("Doc ents: ", doc.ents)
+        doc_ex = doc_to_ex_expanded(doc)
+        if doc_ex:
+            es_data = es_util.add_es_data_doc(doc_ex, self.conn, max_results=500)
+
+            dataset = ProductionData(es_data, max_choices=500)
+            data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
+            with torch.no_grad():
+                self.model.eval()
+                for input in data_loader:
+                    pred_val = self.model(input)
+
+        if plover_cat and self.event_geoparse:
+            question = f"Where did {plover_cat.lower()} happen?"
+            QA_input = {
+                    'question': question,
+                    'context':text
+                }
+            res = self.trf(QA_input)
+            event_doc = add_event_loc(doc, res)
+        else:
+            event_doc = doc
+
+        best_list = []
+        output = {"doc_text": doc.text,
+                 "event_location": '',
+                 "geolocated_ents": []}
+        if len(doc_ex) == 0:
+            return output
+        elif len(es_data) == 0:
+            return output
+        else:
+            for (ent, pred) in zip(es_data, pred_val):
+                logger.debug("**Place name**: {}".format(ent['search_name']))
+                #print(len(ent['es_choices']))
+                for n, score in enumerate(pred):
+                    if n < len(ent['es_choices']):
+                        ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
+                results = [e for e in ent['es_choices'] if 'score' in e.keys()]
+                # this is what the elements of "results" look like
+             #   {'feature_code': 'PPL',
+             #   'feature_class': 'P',
+             #   'country_code3': 'BRA',
+             #   'lat': -22.99835,
+             #   'lon': -43.36545,
+             #   'name': 'Barra da Tijuca',
+             #   'admin1_code': '21',
+             #   'admin1_name': 'Rio de Janeiro',
+             #   'admin2_code': '3304557',
+             #   'admin2_name': 'Rio de Janeiro',
+             #   'geonameid': '7290718',
+             #   'score': 1.0,
+             #   'search_name': 'Barra da Tijuca',
+             #   'start_char': 557,
+             #   'end_char': 581
+            #}
+                if not results:
+                    logger.debug("(no results)")
+                best = {"search_name": ent['search_name'],
+                        "start_char": ent['start_char'],
+                        "end_char": ent['end_char']}
+
+                #results = [i for i in results if i['score'] > 0.001]
+                results = sorted(results, key=lambda k: -k['score'])
+                if results and debug==False:
+                    logger.debug("Picking top predicted result for each location")
+                    best = results[0]
+                    best["search_name"] = ent['search_name']
+                    best["start_char"] = ent['start_char']
+                    best["end_char"] = ent['end_char']
+                    best["name"] = None
+                if results and debug==True:
+                    logger.debug("Returning top 4 predicted results for each location")
+                    best = results[0:4]
+                    for b in best:
+                        b["search_name"] = ent['search_name']
+                        b["start_char"] = ent['start_char']
+                        b["end_char"] = ent['end_char']
+                best_list.append(best)
+
+            
+        if (self.trim or trim) and best_list:
+            trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
+                        'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
+            for i in best_list:
+                i = [i.pop(key) for key in trim_keys if key in i.keys()]
+            output = {"doc_text": doc.text,
+                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
+                 "geolocated_ents": best_list} 
+        else:
+            output = {"doc_text": doc.text,
+                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
+                 "geolocated_ents": best_list}
+        return output
+
             
 if __name__ == "__main__":
-    geo = Geoparser()
+    geo = Geoparser("mordecai_new.pt")
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
-    icews_cat = "fight"
-    out = geo.geoparse_doc(text, icews_cat) 
+    plover_cat = "fight"
+    out = geo.geoparse_doc(text, plover_cat) 
     print(out)
+
+    geo = Geoparser("mordecai_new.pt", event_geoparse=False)
+    doc = geo.nlp("Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo.")
+    out = geo.geoparse_doc(doc, trim=True)

@@ -25,7 +25,11 @@ def add_event_loc(orig_doc, res):
     new_doc.ents = list(new_ents) + [loc_ent]
     return new_doc
 
+
+
 if __name__ == "__main__":
+    trf = setup_qa()
+
     QA_input = {
         'question': 'Where was the meeting?',
         'context': 'German Chancellor Merkel and President Obama attended a summit in Berlin to discuss the protest in the Damascus suburb of Abya.'

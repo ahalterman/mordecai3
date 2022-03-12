@@ -240,7 +240,7 @@ def main(input_file: Path, config_file: Path):
                 country_name = country_dict[d['event_loc']['country_code3']]
             except KeyError:
                 country_name = d['event_loc']['country_code3']
-            c['mordecai_extracted_place'] = d['event_loc']['extracted_name']
+            c['extracted_name'] = d['event_loc']['extracted_name']
             c['mordecai_resolved_place'] = d['event_loc']['placename']
             c['mordecai_district'] = d['event_loc']['admin2_name']
             c['mordecai_province'] = d['event_loc']['admin1_name']

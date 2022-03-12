@@ -93,7 +93,12 @@ class ProductionData(Dataset):
             adm1_overlap += [0] * (self.max_choices - len(adm1_overlap))
             country_overlap = [i['country_count'] for i in ex['es_choices'][0:self.max_choices]]
             country_overlap += [0] * (self.max_choices - len(country_overlap))
-            ed = np.transpose(np.array([max_dist, avg_dist, min_dist, ascii_dist, adm1_overlap, country_overlap]))
+            in_adm1 = [i['admin1_parent_match'] for i in ex['es_choices'][0:self.max_choices]]
+            in_adm1 += [0] * (self.max_choices - len(in_adm1))
+            in_country = [i['country_code_parent_match'] for i in ex['es_choices'][0:self.max_choices]]
+            in_country += [0] * (self.max_choices - len(in_country))
+            ed = np.transpose(np.array([max_dist, avg_dist, min_dist, ascii_dist, adm1_overlap, 
+                                        country_overlap, in_adm1, in_country]))
             edit_info.append(ed)
         ed_stack = np.stack(edit_info)
         return ed_stack
@@ -171,31 +176,43 @@ class TrainData(ProductionData):
 
 
 class geoparse_model(nn.Module):
-    def __init__(self, device, bert_size, num_feature_codes, dropout=0.2):
+    def __init__(self, device, 
+                bert_size, 
+                num_feature_codes, 
+                country_size=24, 
+                code_size=8, 
+                dropout=0.2,
+                mix_dim=24,
+                country_pred=False):
         super(geoparse_model, self).__init__()
         self.device = device
+        self.country_pred = country_pred
         # embeddings setup
-        pt = os.path.dirname(os.path.realpath(__file__))
-        fn = os.path.join(pt, "assets", "country_bert_768.npy")
+        try:
+            pt = os.path.dirname(os.path.realpath(__file__))
+            fn = os.path.join(pt, "assets", "country_bert_768.npy")
+        except NameError:
+            fn = os.path.join("assets", "country_bert_768.npy")
         pretrained_country = np.load(fn)
         pretrained_country = torch.FloatTensor(pretrained_country)
         logger.debug("Pretrained country embedding dim: {}".format(pretrained_country.shape))
-        self.code_emb = nn.Embedding(num_feature_codes, 8)
+        self.code_emb = nn.Embedding(num_feature_codes, code_size)
         self.country_emb = nn.Embedding.from_pretrained(pretrained_country, freeze=True)
-        self.country_embed_transform = nn.Linear(bert_size, 24) 
+        self.country_embed_transform = nn.Linear(bert_size, country_size) 
 
         # text layers
-        self.text_to_country = nn.Linear(bert_size, 24) 
-        self.context_to_country = nn.Linear(bert_size, 24) 
-        self.text_to_code = nn.Linear(bert_size, 8) 
+        self.text_to_country = nn.Linear(bert_size, country_size) 
+        self.context_to_country = nn.Linear(bert_size, country_size) 
+        self.text_to_code = nn.Linear(bert_size, code_size) 
 
         # transformation layers
-        self.mix_linear = nn.Linear(10, 10) # number of comparisons --> number of comparisons
-        self.mix_linear2 = nn.Linear(10, 10) # number of comparisons --> number of comparisons
-        self.last_linear = nn.Linear(10, 1) # number of comparisons --> final
+        gaz_feature_count = 12
+        self.mix_linear = nn.Linear(gaz_feature_count, mix_dim) # number of comparisons --> mix 
+        self.mix_linear2 = nn.Linear(mix_dim, mix_dim) # mix --> mix
+        self.last_linear = nn.Linear(mix_dim, 1) # mix --> final
         self.mix_country = nn.Linear(pretrained_country.shape[0], pretrained_country.shape[0],
                                     bias=False)
-        self.country_predict = nn.Linear(bert_size, pretrained_country.shape[0],
+        self.country_predict = nn.Linear(country_size, pretrained_country.shape[0],
                                     bias=False)
         
         # activations and similarities
@@ -274,7 +291,12 @@ class geoparse_model(nn.Module):
         # softmax over the choices dimension so each location's choices will sum to 1
         out = self.softmax(last) 
         logger.debug("out shape: {}".format(out.shape))  # should be (batch_size, choices)  (44, 25) 
-        return out
+        # try the country prediction again...
+        if self.country_pred:
+            country_pred = self.softmax(self.country_predict(self.sigmoid(x)))
+            return out, country_pred
+        else:
+            return out
 
 
 

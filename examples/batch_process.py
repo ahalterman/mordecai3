@@ -71,7 +71,7 @@ def pick_event_loc(d):
             d['event_loc'] = None
             d['event_loc_reason'] = "No locations found"
         elif len(geo) > 1:
-            if len(set([i['placename'] for i in geo])) == 1:
+            if len(set([i['name'] for i in geo])) == 1:
                 d['event_loc'] = geo[0]
                 d['event_loc_reason'] = "No location identified in event location model, but only one (unique) location in text"
             else:
@@ -253,13 +253,13 @@ def main(filename: Path,
                     ent['es_choices'][n]['score'] = score
             results = [e for e in ent['es_choices'] if 'score' in e.keys()]
             if len(results) == 0:
-                logger.debug(f"no locations found for {ent['placename']}")
+                logger.debug(f"no locations found for {ent['search_name']}")
             results = sorted(results, key=lambda k: -k['score'])
             results = [i for i in results if i['score'] > 0.01]
             try:
                 results = results[0]
-                r = {"extracted_name": ent['placename'],
-                    "placename": results['name'],
+                r = {"extracted_name": ent['search_name'],
+                    "name": results['name'],
                     "lat": results['lat'],
                     "admin1_name": results['admin1_name'],
                     "admin2_name": results['admin2_name'],
@@ -319,7 +319,7 @@ def main(filename: Path,
     for n, d in enumerate(doc_info):
         if d['event_loc']:
             event_dict[n]['mordecai_extracted_place'] = d['event_loc']['extracted_name']
-            event_dict[n]['mordecai_resolved_place'] = d['event_loc']['placename']
+            event_dict[n]['mordecai_resolved_place'] = d['event_loc']['name']
             try:
                 country_name = country_dict[d['event_loc']['country_code3']]
             except KeyError:

@@ -84,22 +84,33 @@ def make_country_counts(out):
         
     return country_count
 
-def res_formatter(res, placename):
+#search_name = "Marat"
+#q = {"multi_match": {"query": search_name,
+#                             "fields": ['name', 'asciiname', 'alternativenames'],
+#                             "type" : "phrase"}}
+#res = conn.query(q).execute()
+#parent = get_country_by_name("Morocco", conn)
+#res_formatter(res, search_name, parent)
+
+def res_formatter(res, search_name, parent=None):
     """
     Helper function to format the ES/Geonames results into a format for the ML model, including
-    edit distance statistics.
+    edit distance statistics and parent matches.
 
     Parameters
     ----------
     res: Elasticsearch/Geonames output
-    placename: str
+    search_name: str
       The original search term
+    parent: dict
+      Geonames/ES entry for the inferred parent 
 
     Returns
     -------
     choices: list
       List of formatted Geonames results, including edit distance statistics
     """
+    #print(f"Using this as parent for {placename}:", parent)
     choices = []
     alt_lengths = []
     min_dist = []
@@ -109,7 +120,7 @@ def res_formatter(res, placename):
     for i in res['hits']['hits']:
         i = i.to_dict()['_source']
         names = [i['name']] + i['alternativenames'] 
-        dists = [jellyfish.levenshtein_distance(placename, j) for j in names]
+        dists = [jellyfish.levenshtein_distance(search_name, j) for j in names]
         lat, lon = i['coordinates'].split(",")
         d = {"feature_code": i['feature_code'],
             "feature_class": i['feature_class'],
@@ -122,12 +133,30 @@ def res_formatter(res, placename):
             "admin2_code": i['admin2_code'],
             "admin2_name": i['admin2_name'],
             "geonameid": i['geonameid']}
+        if parent: 
+            if parent['admin1_name'] == "":
+                d['admin1_parent_match'] = 0
+            elif parent['admin1_name'] == i['admin1_name']:
+                d['admin1_parent_match'] = 1
+            else:
+                d['admin1_parent_match'] = -1
+
+            if parent['country_code3'] == "":
+                d['country_code_parent_match'] = 0
+            elif parent['country_code3'] == i['country_code3']:
+                d['country_code_parent_match'] = 1
+            else:
+                d['country_code_parent_match'] = -1
+        else:
+            d['admin1_parent_match'] = 0
+            d['country_code_parent_match'] = 0
+
         choices.append(d)
         alt_lengths.append(len(i['alternativenames']))
         min_dist.append(np.min(dists))
         max_dist.append(np.max(dists))
         avg_dist.append(np.mean(dists))
-        ascii_dist.append(jellyfish.levenshtein_distance(placename, i['asciiname']))
+        ascii_dist.append(jellyfish.levenshtein_distance(search_name, i['asciiname']))
     alt_lengths = normalize(alt_lengths)
     min_dist = normalize(min_dist)
     max_dist = normalize(max_dist)
@@ -142,84 +171,115 @@ def res_formatter(res, placename):
         i['ascii_dist'] = ascii_dist[n]
     return choices
 
-def _clean_placename(placename):
+def _clean_search_name(search_name):
     """
     Strip out place names that might be preventing the right results
     """
-    placename = re.sub("^the", "", placename).strip()
-    placename = re.sub("tribal district", "", placename).strip()
-    placename = re.sub("[Cc]ity", "", placename).strip()
-    placename = re.sub("[Dd]istrict", "", placename).strip()
-    placename = re.sub("[Mm]etropolis", "", placename).strip()
-    placename = re.sub("[Cc]ounty", "", placename).strip()
-    placename = re.sub("[Rr]egion", "", placename).strip()
-    placename = re.sub("[Pp]rovince", "", placename).strip()
-    placename = re.sub("[Tt]territory", "", placename).strip()
-    placename = re.sub("[Bb]ranch", "", placename).strip()
-    placename = re.sub("'s$", "", placename).strip()
+    search_name = re.sub("^the", "", search_name).strip()
+    search_name = re.sub("tribal district", "", search_name).strip()
+    search_name = re.sub("[Cc]ity", "", search_name).strip()
+    search_name = re.sub("[Dd]istrict", "", search_name).strip()
+    search_name = re.sub("[Mm]etropolis", "", search_name).strip()
+    search_name = re.sub("[Cc]ounty", "", search_name).strip()
+    search_name = re.sub("[Rr]egion", "", search_name).strip()
+    search_name = re.sub("[Pp]rovince", "", search_name).strip()
+    search_name = re.sub("[Tt]territory", "", search_name).strip()
+    search_name = re.sub("[Bb]ranch", "", search_name).strip()
+    search_name = re.sub("'s$", "", search_name).strip()
     # super hacky!! This one is the most egregious 
-    if placename == "US":
-        placename = "United States"
-    return placename
+    if search_name == "US":
+        search_name = "United States"
+    return search_name
 
-def add_es_data(ex, conn, max_results=50, fuzzy=True, limit_types=False):
+def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
+    to the object.
 
     Parameters
     ---------
     ex: dict
       output of doc_to_ex_expanded
     conn: elasticsearch connection
+    max_results: int
+      Maximum results to bring back from ES
+    fuzzy: int
+      Allow fuzzy results? 0=exact matches. Higher numbers will
+      increase the fuzziness of the search. 
 
     Examples
     --------
-    d = {"placename": ent.text,
+    d = {"search_name": ent.text,
          "tensor": tensor,
          "doc_tensor": doc_tensor,
          "locs_tensor": locs_tensor,
          "sent": ent.sent.text,
+         "in_rel": in_rel,
          "start_char": ent[0].idx,
          "end_char": ent[-1].idx + len(ent.text)}
+    d_es = add_es_data(d)
+    # d_es now has a "es_choices" key. 
     """
-    placename = ex['placename']
-    placename = re.sub("^the", "", placename).strip()
-    placename = _clean_placename(placename)
+    search_name = ex['search_name']
+    #print("placename in_rel:", ex['in_rel'])
+    search_name = _clean_search_name(search_name)
+    if 'in_rel' in ex.keys():
+        if ex['in_rel']:
+            parent_place = get_country_by_name(ex['in_rel'], conn)
+            if not parent_place:
+                parent_place = get_adm1_country_entry(ex['in_rel'], None, conn)
+        else:
+            parent_place = None 
+    else:
+        parent_place = None 
+    if fuzzy:
+        q = {"multi_match": {"query": search_name,
+                             "fields": ['name', 'alternativenames', 'asciiname'],
+                             "fuzziness" : fuzzy,
+                            }}
+    else:
+        q = {"multi_match": {"query": search_name,
+                                 "fields": ['name', 'asciiname', 'alternativenames'],
+                                "type" : "phrase"}}
+
     if limit_types:
-        q = {"multi_match": {"query": placename,
-                             "fields": ['name', 'asciiname', 'alternativenames'],
-                             "type" : "phrase"}}
         p_filter = Q("term", feature_class="P")
         a_filter = Q("term", feature_class="A")
         combined_filter = p_filter | a_filter
         res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     else:
-        q = {"multi_match": {"query": placename,
-                                 "fields": ['name', 'asciiname', 'alternativenames'],
-                                "type" : "phrase"}}
         res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     
-    choices = res_formatter(res, ex['placename'])
-    if fuzzy and not choices:
-        placename = _clean_placename(placename)
-        q = {"multi_match": {"query": placename,
+    choices = res_formatter(res, search_name, parent_place)
+
+    if not choices:
+        # always do a fuzzy step if nothing came up the first time
+        q = {"multi_match": {"query": search_name,
                              "fields": ['name', 'alternativenames', 'asciiname'],
-                             "fuzziness" : 1,
+                             "fuzziness" : fuzzy+1,
                             }}
-        res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-        choices = res_formatter(res, ex['placename'])
+        if limit_types:
+            p_filter = Q("term", feature_class="P")
+            a_filter = Q("term", feature_class="A")
+            combined_filter = p_filter | a_filter
+            res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+        else:
+            res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+    
+        choices = res_formatter(res, ex['search_name'], parent_place)
 
     ex['es_choices'] = choices
     if 'correct_geonamesid' in ex.keys():
         ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
     return ex
 
-def add_es_data_doc(doc_ex, conn, max_results=50, limit_types=False):
+
+def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False):
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
             try:
-                es = add_es_data(ex, conn, max_results, limit_types)
+                es = add_es_data(ex, conn, max_results, fuzzy, limit_types)
                 doc_es.append(es)
             except Warning:
                 continue
@@ -235,12 +295,14 @@ def add_es_data_doc(doc_ex, conn, max_results=50, limit_types=False):
     return doc_es
 
 def _format_country_results(res):
+    if not res:
+        return None
     results = res['hits']['hits'][0].to_dict()['_source']
     lat, lon = results['coordinates'].split(",") 
     results['lon'] = float(lon)
     results['lat'] = float(lat)
     r = {"extracted_name": "",
-         "placename": results['name'],
+         "name": results['name'],
          "lat": lat,
          "lon": lon,
          "admin1_name": results['admin1_name'],
@@ -260,14 +322,31 @@ def get_country_entry(iso3c: str, conn):
     r = _format_country_results(res)
     return r
 
+def get_country_by_name(country_name: str, conn):
+    """Return the Geonames result for a country given its three letter country code"""
+    type_filter = Q("term", feature_code="PCLI") 
+    q = {"multi_match": {"query": country_name,
+                         "fields": ['name', 'asciiname', 'alternativenames'],
+                         "type" : "phrase"}}
+    res = conn.query(q).filter(type_filter).execute()
+    r = _format_country_results(res)
+    return r
+
 def get_adm1_country_entry(adm1: str, iso3c: str, conn):
-    """Return the Geonames result for an ADM1 code + country"""
-    country_filter = Q("term", country_code3=iso3c) 
+    """
+    Return the Geonames result for an ADM1 code.
+    
+    iso3c can be None if the country isn't known.
+    """
     type_filter = Q("term", feature_code="ADM1") 
     q = {"multi_match": {"query": adm1,
                              "fields": ['name', 'asciiname', 'alternativenames'],
                              "type" : "phrase"}}
-    res = conn.query(q).filter(type_filter).filter(country_filter).execute()
+    if iso3c:
+        country_filter = Q("term", country_code3=iso3c) 
+        res = conn.query(q).filter(type_filter).filter(country_filter).execute()
+    else:
+        res = conn.query(q).filter(type_filter).execute()
     r = _format_country_results(res)
     return r
 

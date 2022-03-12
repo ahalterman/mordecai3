@@ -3,6 +3,7 @@ import pickle
 import re
 import os
 import jsonlines
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 import numpy as np
 from tqdm import tqdm
@@ -22,6 +23,8 @@ import elastic_utilities as es_util
 from utilities import spacy_doc_setup
 from torch_model import TrainData
 from error_utils import make_wandb_dict
+from geoparse import guess_in_rel
+import elasticsearch
 
 import logging
 logger = logging.getLogger()
@@ -30,7 +33,10 @@ formatter = logging.Formatter(
         '%(levelname)-8s %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.WARN)
+logger.setLevel(logging.INFO)
+
+es_logger = elasticsearch.logger
+es_logger.setLevel(elasticsearch.logging.WARNING)
 
 spacy_doc_setup()
 
@@ -55,47 +61,54 @@ def read_file(fn):
     return data 
 
 
-def load_data(data_dir, limit_es_results=False):
+def load_data(data_dir, max_results, limit_types, fuzzy):
     """
     Load formatted training data with Elasticsearch results
 
     Parameters
     --------
-    limit_es_results: bool
-      If True, use the training that only has populated place and area features,
-      not other geographic features. Defaults to False
+    data_dir: Path
+      location of pickled data with Elasticsearch info
+    max_results: int
+      read in the data with the right number of results
+    limit_types: str 
+      Either 'all_loc_types' to allow all types of features or 'pa_only' to limit to cities
+      and administrative units (that is, excluding geographic features)
+    fuzzy: int
+      Fuzzy ES search? 0=none, 1=some, etc
 
     Returns
     -------
     list
       a list of formatted, shuffled training data
     """
-    if limit_es_results:
-        path_mod = "pa_only"
-    else:
-        path_mod = "pickled_es"
-    with open(f'{data_dir}/{path_mod}/es_formatted_prodigy.pkl', 'rb') as f:
+    with open(f'{data_dir}/pickled_es/es_formatted_prodigy_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
         es_data_prod = pickle.load(f)
     
-    with open(f'{data_dir}/{path_mod}/es_formatted_tr.pkl', 'rb') as f:
+    with open(f'{data_dir}/pickled_es/es_formatted_tr_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
         es_data_tr = pickle.load(f)
     
-    with open(f'{data_dir}/{path_mod}/es_formatted_lgl.pkl', 'rb') as f:
+    with open(f'{data_dir}/pickled_es/es_formatted_lgl_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
         es_data_lgl = pickle.load(f)
 
-    with open(f'{data_dir}/{path_mod}/es_formatted_gwn.pkl', 'rb') as f:
+    with open(f'{data_dir}/pickled_es/es_formatted_gwn_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
         es_data_gwn = pickle.load(f)
     
-    with open(f'{data_dir}/{path_mod}/es_formatted_syn_cities.pkl', 'rb') as f:
+    with open(f'{data_dir}/pickled_es/es_formatted_syn_cities_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
         es_data_syn = pickle.load(f)
 
-    with open(f'{data_dir}/{path_mod}/es_formatted_syn_caps.pkl', 'rb') as f:
+    with open(f'{data_dir}/pickled_es/es_formatted_syn_caps_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
         es_data_syn_caps = pickle.load(f)
+
+    with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+        es_data_wiki = pickle.load(f)
 
     random.seed(617)
     random.shuffle(es_data_syn)
+    random.shuffle(es_data_wiki)
 
     es_data_syn = es_data_syn[0:500] + es_data_syn_caps
+    es_data_wiki = es_data_wiki[0:2000]
 
     def split_list(data, frac=0.7):
         split = round(frac*len(data))
@@ -106,10 +119,11 @@ def load_data(data_dir, limit_es_results=False):
     es_data_lgl, es_data_lgl_val = split_list(es_data_lgl)
     es_data_gwn, es_data_gwn_val = split_list(es_data_gwn)
     es_data_syn, es_data_syn_val = split_list(es_data_syn)
-    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn
+    es_data_wiki, es_data_wiki_val = split_list(es_data_wiki)
+    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn + es_data_wiki
     random.seed(617)
     random.shuffle(train_data)
-    return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val
+    return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val
 
 
 def data_formatter_prodigy(docs, data):
@@ -118,7 +132,7 @@ def data_formatter_prodigy(docs, data):
     
     Returns a list of lists, with one list for each document, consisting of each entity
     within the document. This round of training only annotated one location per
-    "document"/sentence, so non-annotated entitys have None as their value for
+    "document"/sentence, so non-annotated entities have None as their value for
     correct_geonamesid. These will be discarded later.
 
     Parameters
@@ -152,7 +166,7 @@ def data_formatter_prodigy(docs, data):
             continue
         # get the tokens matching what the annotator saw
         places = [i for i in doc if i.idx >= ex['spans'][0]['start'] and i.idx + len(i) <= ex['spans'][0]['end']]
-        placename = ''.join([i.text_with_ws for i in places])
+        search_name = ''.join([i.text_with_ws for i in places]).strip()
         # get the tensor for those tokens
         if places:
             loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
@@ -163,10 +177,12 @@ def data_formatter_prodigy(docs, data):
                 locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
-            d = {"placename": placename,
+            in_rel = guess_in_rel(places)
+            d = {"search_name": search_name,
                "tensor": tensor,
                 "locs_tensor": locs_tensor,
                 "doc_tensor": doc_tensor,
+                "in_rel": in_rel,
                "correct_geonamesid": correct_id}
             doc_formatted.append(d)
             # Only one place name is annotated in each example, but we still want to know
@@ -174,10 +190,81 @@ def data_formatter_prodigy(docs, data):
             # features. We'll throw these away later, so we can set the other values
             # to None. 
             for loc in other_locs:
-                d = {"placename": loc.text,
+                d = {"search_name": loc.text,
                      "tensor": None,
                      "locs_tensor": None,
                      "doc_tensor": None,
+                     "in_rel": None,
+                     "correct_geonamesid": None}
+                doc_formatted.append(d)
+            all_formatted.append(doc_formatted)
+        doc_num += 1
+    return all_formatted
+
+
+def data_formatter_wiki(docs, data):
+    """
+    Format scraped Wikipedia location data into a format for training.
+    
+    Returns a list of lists, with one list for each document, consisting of each entity
+    within the document. This round of training only annotated one location per
+    "document"/sentence, so non-annotated entities have None as their value for
+    correct_geonamesid. These will be discarded later.
+
+    Parameters
+    ---------
+    docs: list of spaCy docs
+    data: list of dicts
+      Data from Gritta et al, converted from XML to dict
+    source: the short name of the source used
+
+    Returns
+    -------
+    all_formatted: list of lists
+      The list is of length docs, which each element a list of all the place 
+      names within the document.
+    """
+    all_formatted = []
+    doc_num = 0
+    for doc, ex in tqdm(zip(docs, data), total=len(docs), leave=False): 
+        doc_formatted = []
+        correct_id = ex['correct_geonamesid']
+        # we might lose some examples here if the tokenization ever changes, but
+        # it should be extremely rare
+        orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char'] and ent.start_char < ex['end_char']]
+        # get the tensor for those tokens
+        if orig_places:
+            places = [i for i in orig_places[0]]
+            search_name = ''.join([i.text_with_ws for i in places]).strip()
+            try:
+                tensor = np.mean(np.vstack([i._.tensor for i in places]), axis=0)
+                loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
+                doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
+                other_locs = [i for e in loc_ents for i in e if i not in places]
+                if other_locs:
+                    locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
+                else:
+                    locs_tensor = np.zeros(len(tensor))
+                in_rel = guess_in_rel(places)
+                d = {"search_name": search_name,
+                   "tensor": tensor,
+                    "locs_tensor": locs_tensor,
+                    "doc_tensor": doc_tensor,
+                    "in_rel": in_rel,
+                   "correct_geonamesid": correct_id}
+                doc_formatted.append(d)
+            except Exception as e:
+                logger.info(f"Exception {e}: {ex}")
+            # Only one place name is annotated in each example, but we still want to know
+            # the other place names that were extracted to calculate Geonames overlap
+            # features. We'll throw these away later, so we can set the other values
+            # to None. 
+            for loc in other_locs:
+                d = {"search_name": loc.text,
+                     "tensor": None,
+                     "locs_tensor": None,
+                     "doc_tensor": None,
+                     "in_rel": None,
                      "correct_geonamesid": None}
                 doc_formatted.append(d)
             all_formatted.append(doc_formatted)
@@ -186,11 +273,11 @@ def data_formatter_prodigy(docs, data):
 
 def data_to_docs(data, source, base_dir, nlp):
     """
-    NLP the training data and save the docs to disk
+    NLP the training data and save the docs to disk. No Elasticsearch data is involved yet.
     """
     print("NLPing docs...")
     doc_bin = DocBin(store_user_data=True)
-    if source in ["prodigy", "syn_cities", "syn_caps"]:
+    if source in ["prodigy", "syn_cities", "syn_caps", "wiki"]:
         for doc in tqdm(nlp.pipe([i['text'] for i in data]), total=len(data)):
             doc_bin.add(doc)
     else:
@@ -224,7 +311,7 @@ def data_formatter(docs, data, source):
     """
     all_formatted = []
     doc_num = 0
-    if source in ["syn_cities", "syn_caps"]:
+    if source in ["syn_cities", "syn_caps", "wiki"]:
         articles = data
     else:
         articles = data['articles']['article']
@@ -252,42 +339,35 @@ def data_formatter(docs, data, source):
                 tensor = np.mean(np.vstack([i._.tensor for i in place_tokens]), axis=0)
                 if source == "gwn":
                     correct_geonamesid = topo['geonamesID']
-                    placename = topo['extractedName']
+                    search_name = topo['extractedName']
                 elif source in ["syn_cities", "syn_caps"]:
                     correct_geonamesid = topo['geonamesID']
-                    placename = topo['placename']
+                    search_name = topo['placename']
                 else:
                     correct_geonamesid = topo['gaztag']['@geonameid']
-                    placename = topo['phrase']
-
-                doc_formatted.append({"placename": placename,
+                    search_name = topo['phrase']
+                in_rel = guess_in_rel(place_tokens)
+                doc_formatted.append({"search_name": search_name,
                                   "tensor": tensor,
                                   "locs_tensor": locs_tensor,
                                   "doc_tensor": doc_tensor,
+                                  "in_rel": in_rel,
                                   "correct_geonamesid": correct_geonamesid})
             except Exception as e:
-                #pass
-                print(e)
-                #print(f"{doc_num}_{n}")
+                print(f"e: {doc_num}_{n}")
         all_formatted.append(doc_formatted)
         doc_num += 1
     return all_formatted
 
 
 
-def format_source(base_dir, source, conn, max_results, limit_types, source_dict, nlp):
+def format_source(base_dir, source, conn, max_results, fuzzy, 
+                 limit_types, source_dict, nlp):
     print(f"limit types: {limit_types}")
-    #fn = f"source_{source}.pkl"
     fn = f"source_{source}.spacy"
     fn = os.path.join(base_dir, "spacyed", fn)
     print(f"===== {source} =====")
-    # did it two different ways...
-    #try:
-    #    with open(fn, "rb") as f:
-    #        doc_bin = pickle.load(f)
 
-    #except FileNotFoundError:
-    #    fn = f"source_{source}.spacy"
     with open(fn, "rb") as f:
         doc_bin = DocBin().from_disk(fn)
     print(f"Converting back to spaCy docs...")
@@ -297,6 +377,8 @@ def format_source(base_dir, source, conn, max_results, limit_types, source_dict,
 
     if source == "prodigy":
         formatted = data_formatter_prodigy(docs, data)
+    elif source == "wiki":
+        formatted = data_formatter_wiki(docs, data)
     else:
         formatted = data_formatter(docs, data, source)
     # formatted is a list of lists. We want the final data to be a flat list.
@@ -304,13 +386,17 @@ def format_source(base_dir, source, conn, max_results, limit_types, source_dict,
     esed_data = []
     print("Adding Elasticsearch data...")
     for ff in tqdm(formatted, leave=False):
-        esd = es_util.add_es_data_doc(ff, conn, max_results, limit_types)
+        esd = es_util.add_es_data_doc(ff, conn, max_results, fuzzy, limit_types)
         for e in esd:
             if e['correct_geonamesid']:
                 esed_data.append(e)
 
+    if limit_types:
+        limit_type_str = "pa_only"
+    else:
+        limit_type_str = "all_loc_types"
     print(f"Total place names in {source}: {len(esed_data)}")
-    fn = f"es_formatted_{source}.pkl"
+    fn = f"es_formatted_{source}_{max_results}_{limit_type_str}_fuzzy_{fuzzy}.pkl"
     out_file = os.path.join(base_dir, "pickled_es", fn)
     print(f"Writing to {out_file}...")
     with open(out_file, 'wb') as f:
@@ -318,10 +404,13 @@ def format_source(base_dir, source, conn, max_results, limit_types, source_dict,
 
 ##################################
 
-app = typer.Typer()
+app = typer.Typer(add_completion=True)
+
 
 @app.command()
-def nlp_docs(base_dir, sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'syn_caps']):
+def nlp_docs(base_dir, 
+            sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'syn_caps',
+            'wiki']):
     """
     Run spaCy over a list of training data sources and save the output.
 
@@ -341,20 +430,28 @@ def nlp_docs(base_dir, sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'sy
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
-                  "syn_caps": "synth_raw/synth_caps.jsonl"}
+                  "syn_caps": "synth_raw/synth_caps.jsonl",
+                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
 
     print("Reading in data...")
+    if type(sources) is str:
+        sources = [i.strip() for i in sources.split(",")]
     for s in sources:
         data = read_file(source_dict[s])
-        data_to_docs(data, s, nlp)
+        if s == "wiki":
+            random.seed(617)
+            random.shuffle(data)
+            data = data[0:1000]
+        data_to_docs(data, s, base_dir, nlp)
 
 @app.command()
 def add_es(base_dir, 
-          max_results=500, 
+          max_results=500,
+          fuzzy=0, 
           limit_types = False,
-          sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'syn_caps']):
+          sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'syn_caps', 'wiki']):
     """
     Process spaCy outputs to add candidate entity data from Geonames/Elasticsearch.
 
@@ -373,7 +470,7 @@ def add_es(base_dir,
       Which sources to process?
     """
     conn = es_util.make_conn()
-    with click_spinner.spinner():
+    with click_spinner.spinner("Loading spaCy model..."):
         nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
@@ -381,37 +478,83 @@ def add_es(base_dir,
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
-                  "syn_caps": "synth_raw/synth_caps.jsonl"}
+                  "syn_caps": "synth_raw/synth_caps.jsonl",
+                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
+    if type(sources) is str:
+        sources = sources.split(",")
     for source in sources:   
-        #base_dir = os.path.join(base_dir, "spacyed")
-        format_source(base_dir, source, conn, max_results=max_results, limit_types=limit_types, source_dict=source_dict, nlp=nlp)
+        format_source(base_dir, 
+                      source, 
+                      conn, 
+                      max_results=max_results, 
+                      limit_types=limit_types, 
+                      fuzzy=fuzzy,
+                      source_dict=source_dict, 
+                      nlp=nlp)
     print("Complete")
 
+#(batch_size: int = typer.Option(32, min=1),         # input batch size for training 
+#          test_batch_size: int = typer.Option(64),    # input batch size for testing 
+#          epochs: int = typer.Option(20, min=0),          # number of epochs to train 
+#          lr: float = typer.Option(0.01),             # learning rate 
+#          max_choices: int = typer.Option(500),
+#          dropout: float = typer.Option(0.3),
+#          avg_params: str = typer.Option("False"),
+#          limit_es_results: str = typer.Option("all_loc_types"),
+#          country_size: int = typer.Option(24, min=1),
+#          code_size: int = typer.Option(8),
+#          country_pred: str = typer.Option("True"),
+#          mix_dim: int = typer.Option(12),
+#          fuzzy: int = typer.Option(0)
 
 @app.command()
-def train():
+def train(batch_size: int = typer.Option(32, "--batch_size"),         # input batch size for training 
+          test_batch_size: int= typer.Option(64, "--test_batch_size"),    # input batch size for testing 
+          epochs: int = typer.Option(20, "--epochs"),         # number of epochs to train 
+          lr: float = typer.Option(0.01, "--lr"),            # learning rate 
+          max_choices: int = typer.Option(500, "--max_choices"),
+          dropout: float = typer.Option(0.3, "--dropout"),
+          avg_params: str = typer.Option("False", "--avg_params"),
+          limit_es_results: str = typer.Option("all_loc_types", "--limit_es_results"),
+          country_size: int = typer.Option(24, "--country_size"),
+          code_size: int = typer.Option(8, "--code_size"),
+          country_pred: str = typer.Option("True", "--country_pred"),
+          mix_dim: int = typer.Option(12, "--mix_dim"),
+          fuzzy: int = typer.Option(0, "--fuzzy")
+):
     """
     Train the pytorch model from formatted training data.
     """
-    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
+    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"]
     wandb.init(project="mordecai3", entity="ahalt")
 
     config = wandb.config          # Initialize config
-    config.batch_size = 32         # input batch size for training 
-    config.test_batch_size = 64    # input batch size for testing 
-    config.epochs = 25          # number of epochs to train 
-    config.lr = 0.01               # learning rate 
-    config.seed = 42               # random seed (default: 42)
-    config.log_interval = 10     # how many batches to wait before logging training status
-    config.max_choices = 500
-    config.dropout = 0.3
-    config.avg_params = False
-    config.limit_es_results = False
-    data_dir = "../raw_data"
+    config.batch_size = batch_size
+    config.test_batch_size = test_batch_size 
+    config.epochs = epochs 
+    config.lr = lr
+    config.seed = 42          
+    config.log_interval = 10
+    config.max_choices = max_choices
+    config.dropout = dropout 
+    config.avg_params = avg_params=="True"
+    config.limit_es_results = limit_es_results 
+    config.country_size=country_size
+    config.code_size=code_size
+    config.country_pred=country_pred=="True"
+    config.mix_dim=mix_dim
+    config.fuzzy=fuzzy
 
-    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(data_dir, config.limit_es_results)
+    data_dir = "../raw_data"
+    print(config.__dict__)
+
+    es_train_data, es_data_prod_val, es_data_tr_val, \
+        es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val = load_data(data_dir, 
+                                                                      config.max_choices, 
+                                                                      config.limit_es_results,
+                                                                      config.fuzzy)
     logger.info(f"Total training examples: {len(es_train_data)}")
     
     train_data = TrainData(es_train_data, max_choices=config.max_choices)
@@ -420,6 +563,7 @@ def train():
     lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
     gwn_data = TrainData(es_data_gwn_val, max_choices=config.max_choices)
     syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
+    wiki_data = TrainData(es_data_wiki_val, max_choices=config.max_choices)
 
     train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
     train_val_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
@@ -428,15 +572,19 @@ def train():
     lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=False)
     gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=False)
     syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=False)
+    wiki_loader = DataLoader(dataset=wiki_data, batch_size=config.test_batch_size, shuffle=False)
 
-    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
-    data_loaders = [train_val_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
+    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val]
+    data_loaders = [train_val_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader, wiki_loader]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = geoparse_model(device = device,
                               bert_size = train_data.placename_tensor.shape[1],
                               num_feature_codes=53+1,
-                              dropout = config.dropout)
+                              dropout = config.dropout,
+                              country_size=config.country_size,
+                              code_size=config.code_size, 
+                              country_pred=config.country_pred)
     #model = torch.nn.DataParallel(model)
     model.to(device)
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
@@ -463,10 +611,16 @@ def train():
 
         for label, country, input in train_loader:
             optimizer.zero_grad()
-            label_pred = model(input)
+            if config.country_pred:
+                label_pred, country_pred = model(input)
+                loss_1 = loss_func(label_pred, label)
+                loss_country = loss_func(country_pred, country)
+                loss = 0.8*loss_1 + 0.2*loss_country
+            else:
+                label_pred = model(input)
+                loss = loss_func(label_pred, label)
 
             #logger.debug(country_pred[1])
-            loss = loss_func(label_pred, label)
             #loss_country = loss_func(country_pred, country)
             #loss = loss_label + loss_country
             acc = binary_acc(label_pred, label)
