@@ -81,7 +81,11 @@ def guess_in_rel(ent):
         if "and" in diff_text:
             return ""
         # skip if the following ent is followed by a comma
-        if ent.doc[next_ent.end].text in [",", "and"]:
+        try:
+            if ent.doc[next_ent.end].text in [",", "and"]:
+                return ""
+        except IndexError:
+            logger.warning("Error getting 'next_ent'.")
             return ""
         return next_ent.text
     else:
@@ -323,7 +327,7 @@ class Geoparser:
                     best["search_name"] = ent['search_name']
                     best["start_char"] = ent['start_char']
                     best["end_char"] = ent['end_char']
-                    best["name"] = None
+                    #best["name"] = None
                 if results and debug==True:
                     logger.debug("Returning top 4 predicted results for each location")
                     best = results[0:4]
