@@ -309,6 +309,7 @@ def _format_country_results(res):
          "admin2_name": results['admin2_name'],
          "country_code3": results['country_code3'],
          "feature_code": results['feature_code'],
+         "feature_class": results['feature_class'],
          "geonameid": results['geonameid'],
          "start_char": "",
          "end_char": ""}
@@ -329,6 +330,13 @@ def get_country_by_name(country_name: str, conn):
                          "fields": ['name', 'asciiname', 'alternativenames'],
                          "type" : "phrase"}}
     res = conn.query(q).filter(type_filter).execute()
+    r = _format_country_results(res)
+    return r
+
+def get_entry_by_id(geonameid: str, conn):
+    """Return the Geonames result for a country given its three letter country code"""
+    id_filter = Q("term", geonameid=geonameid) 
+    res = conn.filter(id_filter).execute()
     r = _format_country_results(res)
     return r
 

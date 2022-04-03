@@ -1,4 +1,3 @@
-
 import jsonlines
 from tqdm import tqdm
 import re
@@ -133,6 +132,20 @@ def doc_to_ex_expanded(doc):
             data.append(d)
     return data
 
+def load_hierarchy():
+    with open("mordecai3/assets/hierarchy.txt", "r") as f:
+        hierarchy = f.read()
+    hierarchy = hierarchy.split("\n")
+    hier_dict = {}
+    for h in hierarchy:
+        h_split = h.split("\t")
+        try:
+            hier_dict.update({h_split[1]: h_split[0]})
+        except IndexError:
+            continue
+    return hier_dict
+            
+
 class Geoparser:
     def __init__(self, 
                  model_path="assets/mordecai2.pt", 
@@ -148,11 +161,37 @@ class Geoparser:
             self.nlp = nlp
         self.conn = es_util.make_conn()
         self.model = load_model(model_path)
+        self.hierarchy = load_hierarchy()
         self.event_geoparse = event_geoparse
         if event_geoparse:
             self.trf = load_trf()
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
+
+    def lookup_city(self, entry):
+        city_id = ""
+        city_name = ""
+        if entry['feature_code'] == 'PPLX':
+            parent_id = self.hierarchy[entry['geonameid']]
+            parent_res = es_util.get_entry_by_id(parent_id, self.conn)
+            if parent_res['feature_class'] == "P":
+                city_id = parent_id
+                city_name = parent_res['name']
+        elif entry['feature_class'] == 'S':
+            parent_id = self.hierarchy[entry['geonameid']]
+            parent_res = es_util.get_entry_by_id(parent_id, self.conn)
+            if parent_res['feature_class'] == "P":
+                city_id = parent_id
+                city_name = parent_res['name']
+        elif re.search("PPL", entry['feature_code']):
+            # all other cities, just return self
+            city_name = entry['name']
+            city_id = entry['geonameid']
+        else:
+            # if it's something else, there is no city
+            city_id = ""
+            city_name = ""
+        return city_id, city_name
 
 
 
@@ -327,7 +366,8 @@ class Geoparser:
                     best["search_name"] = ent['search_name']
                     best["start_char"] = ent['start_char']
                     best["end_char"] = ent['end_char']
-                    #best["name"] = None
+                    ## Add in city info here
+                    best['city_id'], best['city_name'] = self.lookup_city(best)
                 if results and debug==True:
                     logger.debug("Returning top 4 predicted results for each location")
                     best = results[0:4]
@@ -335,6 +375,7 @@ class Geoparser:
                         b["search_name"] = ent['search_name']
                         b["start_char"] = ent['start_char']
                         b["end_char"] = ent['end_char']
+                        b['city_id'], b['city_name'] = self.lookup_city(b)
                 best_list.append(best)
 
             
