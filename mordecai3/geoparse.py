@@ -1,6 +1,7 @@
 import jsonlines
 from tqdm import tqdm
 import re
+import os
 
 import torch
 import pandas as pd
@@ -132,8 +133,9 @@ def doc_to_ex_expanded(doc):
             data.append(d)
     return data
 
-def load_hierarchy():
-    with open("mordecai3/assets/hierarchy.txt", "r") as f:
+def load_hierarchy(asset_path):
+    fn = os.path.join(asset_path, "hierarchy.txt")
+    with open(fn, "r") as f:
         hierarchy = f.read()
     hierarchy = hierarchy.split("\n")
     hier_dict = {}
@@ -161,7 +163,7 @@ class Geoparser:
             self.nlp = nlp
         self.conn = es_util.make_conn()
         self.model = load_model(model_path)
-        self.hierarchy = load_hierarchy()
+        self.hierarchy = load_hierarchy("assets/")
         self.event_geoparse = event_geoparse
         if event_geoparse:
             self.trf = load_trf()
