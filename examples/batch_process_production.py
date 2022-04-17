@@ -147,13 +147,13 @@ def main(input_file: Path, config_file: Path):
                     ent['es_choices'][n]['score'] = score
             results = [e for e in ent['es_choices'] if 'score' in e.keys()]
             if len(results) == 0:
-                logger.debug(f"no locations found for {ent['placename']}")
+                logger.debug(f"no locations found for {ent['search_name']}")
             results = sorted(results, key=lambda k: -k['score'])
             results = [i for i in results if i['score'] > 0.01]
             try:
                 results = results[0]
-                r = {"extracted_name": ent['placename'],
-                    "placename": results['name'],
+                r = {"extracted_name": ent['search_name'],
+                    "name": results['name'],
                     "lat": results['lat'],
                     "admin1_name": results['admin1_name'],
                     "admin2_name": results['admin2_name'],
@@ -241,7 +241,7 @@ def main(input_file: Path, config_file: Path):
             except KeyError:
                 country_name = d['event_loc']['country_code3']
             c['extracted_name'] = d['event_loc']['extracted_name']
-            c['mordecai_resolved_place'] = d['event_loc']['placename']
+            c['mordecai_resolved_place'] = d['event_loc']['name']
             c['mordecai_district'] = d['event_loc']['admin2_name']
             c['mordecai_province'] = d['event_loc']['admin1_name']
             c['mordecai_country'] = country_name

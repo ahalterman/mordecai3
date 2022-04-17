@@ -6,6 +6,10 @@ from collections import Counter
 import warnings
 import re
 
+import logging
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
+
 def make_conn():
     kwargs = dict(
         hosts=['localhost'],
