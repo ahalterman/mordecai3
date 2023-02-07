@@ -31,7 +31,7 @@ class ProductionData(Dataset):
         self.feature_codes = self.create_feature_codes(es_data)
         self.country_codes = self.create_country_codes(es_data)
         self.gaz_info = self.create_gaz_features(es_data).astype(np.float32)
-
+        #self.gaz_info[n][-1] = np.array([0] * 9)
         
     def __getitem__(self, index):
         return {"placename_tensor": self.placename_tensor[index],  
@@ -41,6 +41,7 @@ class ProductionData(Dataset):
                 "country_codes": self.country_codes[index],
                 "gaz_info": self.gaz_info[index]}
         
+    
     def __len__ (self):
         return len(self.placename_tensor)
 
@@ -99,8 +100,18 @@ class ProductionData(Dataset):
             in_adm1 += [0] * (self.max_choices - len(in_adm1))
             in_country = [i['country_code_parent_match'] for i in ex['es_choices'][0:self.max_choices]]
             in_country += [0] * (self.max_choices - len(in_country))
-            ed = np.transpose(np.array([alt_name_length, max_dist, avg_dist, min_dist, ascii_dist, adm1_overlap, 
-                                        country_overlap, in_adm1, in_country]))
+            #es_position = normalize(es_position)
+            alt_name_length[-1] = -1 
+            max_dist[-1] = -1
+            avg_dist[-1] = -1 
+            min_dist[-1] = -1 
+            ascii_dist[-1] = -1 
+            adm1_overlap[-1] = -1 
+            country_overlap[-1] = -1
+            in_adm1[-1] = -1
+            in_country[-1] = -1
+            ed = np.transpose(np.array([alt_name_length, max_dist, avg_dist, min_dist, 
+                                        ascii_dist, adm1_overlap, country_overlap, in_adm1, in_country]))
             edit_info.append(ed)
         ed_stack = np.stack(edit_info)
         return ed_stack
@@ -147,27 +158,23 @@ class TrainData(ProductionData):
         """Create an array with the location of the correct geonames entry"""
         all_labels = []
         all_countries = []
-        for ex in es_data:
+        for n, ex in enumerate(es_data):
             labels = np.zeros(self.max_choices)
             if np.sum(ex['correct']) == 0:
                labels[-1] = 1
                all_countries.append(self.country_dict["NULL"])
+               # make an array of 0s of length 9 for gaz_info
             else:
                 correct_num = np.where(np.array(ex['correct']))[0]
-                if correct_num[0] >= self.max_choices:
-                    # TODO: make a better missing/NA prediction.
-                    labels[-1] = 1
-                    all_countries.append(self.country_dict["NULL"])
-                else:
-                    labels[correct_num] = 1
-                    try:
-                        cn = correct_num[0]
-                        country_code = ex['es_choices'][cn]['country_code3']
-                        all_countries.append(self.country_dict[country_code])
+                labels[correct_num] = 1
+                try:
+                    cn = correct_num[0]
+                    country_code = ex['es_choices'][cn]['country_code3']
+                    all_countries.append(self.country_dict[country_code])
 
-                    except Exception as e:
-                        print(e)
-                        print("subsetting number: ", cn)
+                except Exception as e:
+                    print(e)
+                    print("subsetting number: ", cn)
             ## HACK here: convert back to index, not one-hot
             labels = np.argmax(labels)
             all_labels.append(labels)

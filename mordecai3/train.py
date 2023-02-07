@@ -412,8 +412,7 @@ def format_source(base_dir, source, conn, max_results, fuzzy,
     for ff in tqdm(formatted, leave=False):
         esd = es_util.add_es_data_doc(ff, conn, max_results, fuzzy, limit_types)
         for e in esd:
-            if e['correct_geonamesid']:
-                esed_data.append(e)
+            esed_data.append(e)
 
     if limit_types:
         limit_type_str = "pa_only"
@@ -623,8 +622,8 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
         scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)
         swa_start = 5
         swa_scheduler = SWALR(optimizer, swa_lr=0.05)
-    #else:
-    #    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs+1)
+    else:
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs+1)
 
     wandb.watch(model, log='all')
 

@@ -337,6 +337,7 @@ class Geoparser:
                     if n < len(ent['es_choices']):
                         ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
                 results = [e for e in ent['es_choices'] if 'score' in e.keys()]
+
                 # this is what the elements of "results" look like
              #   {'feature_code': 'PPL',
              #   'feature_class': 'P',
@@ -359,7 +360,9 @@ class Geoparser:
                 best = {"search_name": ent['search_name'],
                         "start_char": ent['start_char'],
                         "end_char": ent['end_char']}
-
+                scores = np.array([r['score'] for r in results])
+                if np.argmax(scores) == len(scores) - 1:
+                    return best
                 #results = [i for i in results if i['score'] > 0.001]
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:
