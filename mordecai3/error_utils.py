@@ -58,6 +58,7 @@ def evaluate_results(es_data, loader, model):
               "correct_adm1": np.mean(correct_adm1), 
               "exact_match": np.mean(correct_geoid),
               "avg_dist": np.mean(dists),
+              "median_dist": np.median(dists),
               "acc_at_161": np.mean([i <= 161 for i in dists])
     }
     return correct_avg
