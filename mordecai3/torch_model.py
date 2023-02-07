@@ -81,6 +81,8 @@ class ProductionData(Dataset):
         """
         edit_info = []
         for ex in es_data:
+            alt_name_length = [i['alt_name_length'] for i in ex['es_choices'][0:self.max_choices]]
+            alt_name_length += [99] * (self.max_choices - len(alt_name_length))
             min_dist = [i['min_dist'] for i in ex['es_choices'][0:self.max_choices]]
             min_dist += [99] * (self.max_choices - len(min_dist))
             max_dist = [i['max_dist'] for i in ex['es_choices'][0:self.max_choices]]
@@ -97,7 +99,7 @@ class ProductionData(Dataset):
             in_adm1 += [0] * (self.max_choices - len(in_adm1))
             in_country = [i['country_code_parent_match'] for i in ex['es_choices'][0:self.max_choices]]
             in_country += [0] * (self.max_choices - len(in_country))
-            ed = np.transpose(np.array([max_dist, avg_dist, min_dist, ascii_dist, adm1_overlap, 
+            ed = np.transpose(np.array([alt_name_length, max_dist, avg_dist, min_dist, ascii_dist, adm1_overlap, 
                                         country_overlap, in_adm1, in_country]))
             edit_info.append(ed)
         ed_stack = np.stack(edit_info)
@@ -206,7 +208,7 @@ class geoparse_model(nn.Module):
         self.text_to_code = nn.Linear(bert_size, code_size) 
 
         # transformation layers
-        gaz_feature_count = 12
+        gaz_feature_count = 13
         self.mix_linear = nn.Linear(gaz_feature_count, mix_dim) # number of comparisons --> mix 
         self.mix_linear2 = nn.Linear(mix_dim, mix_dim) # mix --> mix
         self.last_linear = nn.Linear(mix_dim, 1) # mix --> final
@@ -276,9 +278,6 @@ class geoparse_model(nn.Module):
         cos_sim_other_locs = torch.unsqueeze(torch.transpose(cos_sim_other_locs, 0, 1), 2)
         cos_sim_doc = torch.unsqueeze(torch.transpose(cos_sim_doc, 0, 1), 2)
         logger.debug("cos_sim_country shape: {}".format(cos_sim_country.shape))
-        #logger.debug("cos_sim_code shape: {}".format(cos_sim_code.shape))
-        #logger.debug("gaz_info info shape: {}".format(gaz_info.shape))
-        #both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc), 2)
         both_sim = torch.cat((cos_sim_country, cos_sim_code, cos_sim_other_locs, cos_sim_doc, gaz_info), 2)
         # the gaz_info features are (batch_size, choices, 6), to make 10 in the last dim.
         logger.debug(f"concat shape: {both_sim.shape}")  # (batch_size, choices, 10)
