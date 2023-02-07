@@ -14,13 +14,16 @@ from torch.utils.data import  DataLoader
 import xmltodict
 import wandb
 import typer
-import click_spinner
 import spacy
 from spacy.tokens import DocBin
+import datetime
 
 from torch_model import geoparse_model
 import elastic_utilities as es_util
-from utilities import spacy_doc_setup
+# Currently getting this error: ImportError: attempted relative import with no known parent package
+# when I run the line below.
+# from .mordecai_utilities import spacy_doc_setup
+from mordecai_utilities import spacy_doc_setup
 from torch_model import TrainData
 from error_utils import make_wandb_dict
 from geoparse import guess_in_rel
@@ -33,10 +36,12 @@ formatter = logging.Formatter(
         '%(levelname)-8s %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 es_logger = elasticsearch.logger
 es_logger.setLevel(elasticsearch.logging.WARNING)
+es_logger2 = logging.getLogger('elasticsearch')
+es_logger2.setLevel(logging.WARNING)
 
 spacy_doc_setup()
 
@@ -60,8 +65,17 @@ def read_file(fn):
         raise NotImplementedError("Don't know how to handle this filetype")
     return data 
 
+def split_list(data, frac=0.7):
+    split = round(frac*len(data))
+    return data[0:split], data[split:]
 
-def load_data(data_dir, max_results, limit_types, fuzzy):
+def load_data(data_dir, 
+             max_results, 
+             limit_types, 
+             fuzzy,
+             batch_size,
+             test_batch_size,
+             data_sources=["Prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"]):
     """
     Load formatted training data with Elasticsearch results
 
@@ -82,48 +96,58 @@ def load_data(data_dir, max_results, limit_types, fuzzy):
     list
       a list of formatted, shuffled training data
     """
-    with open(f'{data_dir}/pickled_es/es_formatted_prodigy_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_prod = pickle.load(f)
-    
-    with open(f'{data_dir}/pickled_es/es_formatted_tr_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_tr = pickle.load(f)
-    
-    with open(f'{data_dir}/pickled_es/es_formatted_lgl_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_lgl = pickle.load(f)
+    es_train_data = [] 
+    data_loaders = []
+    datasets = []
 
-    with open(f'{data_dir}/pickled_es/es_formatted_gwn_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_gwn = pickle.load(f)
-    
-    with open(f'{data_dir}/pickled_es/es_formatted_syn_cities_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_syn = pickle.load(f)
+    for source in data_sources:
+        logger.info(f"Loading data for {source}")
+        if source == 'Prodigy':
+            with open(f'{data_dir}/pickled_es/es_formatted_prodigy_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data = pickle.load(f)
+        elif source == "TR":
+            with open(f'{data_dir}/pickled_es/es_formatted_tr_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data = pickle.load(f)
+        elif source == "LGL":
+            with open(f'{data_dir}/pickled_es/es_formatted_lgl_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data = pickle.load(f)
+        elif source == "GWN":
+            with open(f'{data_dir}/pickled_es/es_formatted_gwn_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data = pickle.load(f)
+        elif source == "Synth":
+            # this one's a little different bc there are two files
+            with open(f'{data_dir}/pickled_es/es_formatted_syn_cities_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data_syn1 = pickle.load(f)
+            with open(f'{data_dir}/pickled_es/es_formatted_syn_caps_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data_syn_caps= pickle.load(f)
+            random.seed(617)
+            random.shuffle(es_data_syn1)
+            random.shuffle(es_data_syn_caps)
+            # combine both syn datasets and split
+            es_data = es_data_syn1[0:500] + es_data_syn_caps[0:500]
+        elif source == "Wiki":
+            with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+                es_data = pickle.load(f)
+                logger.debug(f"Total wiki results: {len(es_data)}")
+            random.seed(617)
+            random.shuffle(es_data)
+            es_data = es_data[0:1000]
 
-    with open(f'{data_dir}/pickled_es/es_formatted_syn_caps_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_syn_caps = pickle.load(f)
+        es_data, es_data_val = split_list(es_data)
+        logger.debug(f"Training examples from {source}: {len(es_data)}")
+        es_train_data.extend(es_data)
+        datasets.append(es_data_val)
+        dataset = TrainData(es_data_val, max_choices=max_results)
+        loader = DataLoader(dataset=dataset, batch_size=test_batch_size, shuffle=False)
+        data_loaders.append(loader)
 
-    with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
-        es_data_wiki = pickle.load(f)
-
+    # now make one loader for all training data
     random.seed(617)
-    random.shuffle(es_data_syn)
-    random.shuffle(es_data_wiki)
+    random.shuffle(es_train_data)
+    train_data = TrainData(es_train_data, max_choices=max_results)
+    train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
 
-    es_data_syn = es_data_syn[0:500] + es_data_syn_caps
-    es_data_wiki = es_data_wiki[0:2000]
-
-    def split_list(data, frac=0.7):
-        split = round(frac*len(data))
-        return data[0:split], data[split:]
-
-    es_data_prod, es_data_prod_val = split_list(es_data_prod)
-    es_data_tr, es_data_tr_val = split_list(es_data_tr)
-    es_data_lgl, es_data_lgl_val = split_list(es_data_lgl)
-    es_data_gwn, es_data_gwn_val = split_list(es_data_gwn)
-    es_data_syn, es_data_syn_val = split_list(es_data_syn)
-    es_data_wiki, es_data_wiki_val = split_list(es_data_wiki)
-    train_data = es_data_prod + es_data_tr + es_data_lgl + es_data_gwn + es_data_syn + es_data_wiki
-    random.seed(617)
-    random.shuffle(train_data)
-    return train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val
+    return train_loader, es_train_data, data_loaders, datasets
 
 
 def data_formatter_prodigy(docs, data):
@@ -231,7 +255,7 @@ def data_formatter_wiki(docs, data):
         correct_id = ex['correct_geonamesid']
         # we might lose some examples here if the tokenization ever changes, but
         # it should be extremely rare
-        orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char'] and ent.start_char < ex['end_char']]
+        orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char_sent'] and ent.start_char < ex['end_char_sent']]
         # get the tensor for those tokens
         if orig_places:
             places = [i for i in orig_places[0]]
@@ -422,8 +446,7 @@ def nlp_docs(base_dir,
       
     """
     print("Loading NLP stuff...")
-    with click_spinner.spinner():
-        nlp = spacy.load("en_core_web_trf")
+    nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
                   "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
@@ -439,11 +462,28 @@ def nlp_docs(base_dir,
     if type(sources) is str:
         sources = [i.strip() for i in sources.split(",")]
     for s in sources:
+        print(source_dict[s])
         data = read_file(source_dict[s])
         if s == "wiki":
             random.seed(617)
             random.shuffle(data)
+            placename_count = {}
+            sampled_data = []
+            for i in data:
+                if i['ent_text'] not in placename_count.keys():
+                    placename_count[i['ent_text']] = 1
+                    sampled_data.append(i)
+                else:
+                    # under-sample locations that have already been added to the training data
+                    count = placename_count[i['ent_text']]
+                    sample_prob = 1 - (np.log(2*count) / (1 + np.log(count*2)))
+                    sample_bin = np.random.binomial(1, sample_prob)
+                    if sample_bin:
+                        sampled_data.append(i)
+                        placename_count[i['ent_text']] += 1
+            print(placename_count)
             data = data[0:1000]
+            print(len(data))
         data_to_docs(data, s, base_dir, nlp)
 
 @app.command()
@@ -470,8 +510,8 @@ def add_es(base_dir,
       Which sources to process?
     """
     conn = es_util.make_conn()
-    with click_spinner.spinner("Loading spaCy model..."):
-        nlp = spacy.load("en_core_web_trf")
+    print("Loading spacy model...")
+    nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
                   "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
@@ -527,7 +567,6 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     """
     Train the pytorch model from formatted training data.
     """
-    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"]
     wandb.init(project="mordecai3", entity="ahalt")
 
     config = wandb.config          # Initialize config
@@ -546,40 +585,26 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     config.country_pred=country_pred=="True"
     config.mix_dim=mix_dim
     config.fuzzy=fuzzy
+    config.names = ["Prodigy", "TR", "LGL", "GWN", "Synth"]
+    #config.names = ["Wiki"]
+
 
     data_dir = "../raw_data"
     print(config.__dict__)
 
-    es_train_data, es_data_prod_val, es_data_tr_val, \
-        es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val = load_data(data_dir, 
-                                                                      config.max_choices, 
-                                                                      config.limit_es_results,
-                                                                      config.fuzzy)
+   
+    train_loader, es_train_data, data_loaders, datasets = load_data(data_dir, 
+                                                  config.max_choices, 
+                                                  config.limit_es_results,
+                                                  config.fuzzy,
+                                                  config.batch_size,
+                                                  config.test_batch_size,
+                                                  config.names)
     logger.info(f"Total training examples: {len(es_train_data)}")
-    
-    train_data = TrainData(es_train_data, max_choices=config.max_choices)
-    tr_data = TrainData(es_data_tr_val, max_choices=config.max_choices)
-    prod_data = TrainData(es_data_prod_val, max_choices=config.max_choices)
-    lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
-    gwn_data = TrainData(es_data_gwn_val, max_choices=config.max_choices)
-    syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
-    wiki_data = TrainData(es_data_wiki_val, max_choices=config.max_choices)
-
-    train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=True)
-    train_val_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
-    prod_loader = DataLoader(dataset=prod_data, batch_size=config.test_batch_size, shuffle=False)
-    tr_loader = DataLoader(dataset=tr_data, batch_size=config.test_batch_size, shuffle=False)
-    lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=False)
-    gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=False)
-    syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=False)
-    wiki_loader = DataLoader(dataset=wiki_data, batch_size=config.test_batch_size, shuffle=False)
-
-    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val]
-    data_loaders = [train_val_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader, wiki_loader]
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = geoparse_model(device = device,
-                              bert_size = train_data.placename_tensor.shape[1],
+                              bert_size = es_train_data[0]['tensor'].shape[0],
                               num_feature_codes=53+1,
                               dropout = config.dropout,
                               country_size=config.country_size,
@@ -590,7 +615,6 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
     loss_func=nn.CrossEntropyLoss() # single label, multi-class
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
-
     if config.avg_params:
         from torch.optim.swa_utils import AveragedModel, SWALR
         from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -639,14 +663,15 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
             else:
                 scheduler.step()
 
-        wandb_dict = make_wandb_dict(names, datasets, data_loaders, model)
+        wandb_dict = make_wandb_dict(config.names, datasets, data_loaders, model)
         wandb_dict['loss'] = epoch_loss/len(train_loader)
 
         print(f"Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Exact Match: {wandb_dict['exact_match_avg']:.3f} | Country Match: {wandb_dict['country_avg']:.3f}")  # | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
         wandb.log(wandb_dict)
 
     logger.info("Saving model...")
-    torch.save(model.state_dict(), "mordecai_new.pt")
+    today = datetime.datetime.today().strftime('%Y-%m-%d')
+    torch.save(model.state_dict(), f"mordecai_{today}.pt")
     logger.info("Run complete.")
 
 if __name__ == "__main__":
