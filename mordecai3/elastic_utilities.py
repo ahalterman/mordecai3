@@ -48,8 +48,13 @@ def normalize(ll: list) -> np.array:
 
 def make_admin1_counts(out):
     """
-    Take in a document's worth of examples and return the (normalized) count of adm1s
+    Get the ADM1s from all candidate results for all locations in a document and return
+    the count of each ADM1. This allows us to prefer candidates that share an ADM1 with other
+    locations in a document.
     
+    This is getting at roughly the same info as previous (slow) approaches that tried to minimize
+    the distance between the returned geolocations.
+
     Parameters
     ---------
     out: list of dicts
@@ -105,7 +110,7 @@ def res_formatter(res, search_name, parent=None):
     ----------
     res: Elasticsearch/Geonames output
     search_name: str
-      The original search term
+      The original search term from the document
     parent: dict
       Geonames/ES entry for the inferred parent 
 
@@ -114,13 +119,14 @@ def res_formatter(res, search_name, parent=None):
     choices: list
       List of formatted Geonames results, including edit distance statistics
     """
-    #print(f"Using this as parent for {placename}:", parent)
+    # choices is our eventual output, a list of dicts, each of which is a formatted Geonames result 
     choices = []
     alt_lengths = []
     min_dist = []
     max_dist = []
     avg_dist = []
     ascii_dist = []
+    # iterate through the docs returned by ES
     for i in res['hits']['hits']:
         i = i.to_dict()['_source']
         names = [i['name']] + i['alternativenames'] 
@@ -137,6 +143,7 @@ def res_formatter(res, search_name, parent=None):
             "admin2_code": i['admin2_code'],
             "admin2_name": i['admin2_name'],
             "geonameid": i['geonameid']}
+        # if we detect a parent country or ADM1, add the parent match features
         if parent: 
             if parent['admin1_name'] == "":
                 d['admin1_parent_match'] = 0
@@ -156,12 +163,12 @@ def res_formatter(res, search_name, parent=None):
             d['country_code_parent_match'] = 0
 
         choices.append(d)
-        alt_lengths.append(len(i['alternativenames']))
+        alt_lengths.append(len(i['alternativenames'])+1)
         min_dist.append(np.min(dists))
         max_dist.append(np.max(dists))
         avg_dist.append(np.mean(dists))
         ascii_dist.append(jellyfish.levenshtein_distance(search_name, i['asciiname']))
-    alt_lengths = normalize(alt_lengths)
+    alt_lengths = np.log(alt_lengths)
     min_dist = normalize(min_dist)
     max_dist = normalize(max_dist)
     avg_dist = normalize(avg_dist)
@@ -213,20 +220,22 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False):
 
     Examples
     --------
-    d = {"search_name": ent.text,
+    ex = {"search_name": ent.text,
          "tensor": tensor,
          "doc_tensor": doc_tensor,
          "locs_tensor": locs_tensor,
          "sent": ent.sent.text,
-         "in_rel": in_rel,
+         "in_rel": in_rel,    # this comes from the heuristic `guess_in_rel` fuction defined in geoparse.py
          "start_char": ent[0].idx,
          "end_char": ent[-1].idx + len(ent.text)}
     d_es = add_es_data(d)
-    # d_es now has a "es_choices" key. 
+    # d_es now has a "es_choices" key and a "correct" key that indicates which geonames 
+    # entry was the correct one.
     """
     search_name = ex['search_name']
-    #print("placename in_rel:", ex['in_rel'])
     search_name = _clean_search_name(search_name)
+    # if we detect a parent location using our heuristic (see `guess_in_rel` in geoparse.py),
+    # check to see if that's a country or admin1. 
     if 'in_rel' in ex.keys():
         if ex['in_rel']:
             parent_place = get_country_by_name(ex['in_rel'], conn)
