@@ -1,5 +1,5 @@
-from mordecai3.torch_model import TrainData, geoparse_model
-from mordecai3.train import load_data
+from torch_model import TrainData, geoparse_model
+from train import load_data
 from torch.utils.data import DataLoader
 import torch
 from collections import Counter
@@ -65,7 +65,7 @@ def make_missing_table(cutoff, names, datasets):
 
 
 
-def load_model(path="assets/mordecai2.pt"):
+def load_model(path="assets/mordecai_new.pt"):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = geoparse_model(device = device,
                                 bert_size = 768,
@@ -80,7 +80,8 @@ def make_table(names, datasets, data_loaders, model):
     table.add_column("Dataset")
     table.add_column("Eval N", justify="right")
     table.add_column(f"Exact match", justify="right")
-    table.add_column(f"Mean Error", justify="right")
+    table.add_column(f"Mean Error (km)", justify="right")
+    table.add_column(f"Median Error (km)", justify="right")
     table.add_column(f"Correct Country", justify="right")
     table.add_column(f"Correct Feature Code", justify="right")
     table.add_column(f"Correct ADM1", justify="right")
@@ -93,8 +94,9 @@ def make_table(names, datasets, data_loaders, model):
         code_perc = str(round(100 * correct_avg['correct_code'], 1)) + "%"
         adm1_perc = str(round(100 * correct_avg['correct_adm1'], 1)) + "%"
         avg_dist = str(round(correct_avg['avg_dist'], 1))
+        median_dist = str(round(correct_avg['median_dist'], 1))
         correct_161 = str(round(100 * correct_avg['acc_at_161'], 1))
-        table.add_row(nn, str(len(data)), geoid_perc, avg_dist, country_perc, code_perc, adm1_perc, correct_161)
+        table.add_row(nn, str(len(data)), geoid_perc, avg_dist, median_dist, country_perc, code_perc, adm1_perc, correct_161)
     console.print(table)
 
 # ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
@@ -108,15 +110,20 @@ def make_table(names, datasets, data_loaders, model):
 # │ Synth          │       64.0% │           70.3% │                71.7% │        69.5% │
 # └────────────────┴─────────────┴─────────────────┴──────────────────────┴──────────────┘
 
+wandb.init()
+
 def main(data_dir: Path,
-        path: Path):
+        path: Path,
+        batch_size = 16,
+        test_batch_size = 16):
+    wandb.init()
     config = wandb.config          # Initialize config
     config.batch_size = 32         # input batch size for training (default: 64)
     config.test_batch_size = 64    # input batch size for testing (default: 1000)
-    config.epochs = 15           # number of epochs to train (default: 10)
+    config.epochs = 15             # number of epochs to train (default: 10)
     config.lr = 0.01               # learning rate
     config.seed = 42               # random seed (default: 42)
-    config.log_interval = 10     # how many batches to wait before logging training status
+    config.log_interval = 10       # how many batches to wait before logging training status
     config.max_choices = 500
     config.avg_params = False
     config.fuzzy=0
@@ -124,16 +131,25 @@ def main(data_dir: Path,
     print(config.__dict__)
     
     logger.info("Loading data...")
-    es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val  = load_data(data_dir, max_results=config.max_choices, fuzzy=config.fuzzy, limit_types=config.limit_es_results)
+    train_loader, es_train_data, data_loaders, datasets = load_data(data_dir, 
+                  max_results=config.max_choices, 
+                  fuzzy=config.fuzzy, 
+                  limit_types=config.limit_es_results,
+                  batch_size=batch_size,
+                  test_batch_size=test_batch_size)
+
+    # "prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"
+    es_prodigy_data_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val = datasets
 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
     train_data = TrainData(es_train_data, max_choices=config.max_choices)
     tr_data = TrainData(es_data_tr_val, max_choices=config.max_choices)
-    prod_data = TrainData(es_data_prod_val, max_choices=config.max_choices)
+    prod_data = TrainData(es_prodigy_data_val, max_choices=config.max_choices)
     lgl_data = TrainData(es_data_lgl_val, max_choices=config.max_choices)
     gwn_data = TrainData(es_data_gwn_val, max_choices=config.max_choices)
     syn_data = TrainData(es_data_syn_val, max_choices=config.max_choices)
+    wiki_data = TrainData(es_data_wiki_val, max_choices=config.max_choices)
 
 
     train_loader = DataLoader(dataset=train_data, batch_size=config.batch_size, shuffle=False)
@@ -142,13 +158,15 @@ def main(data_dir: Path,
     lgl_loader = DataLoader(dataset=lgl_data, batch_size=config.test_batch_size, shuffle=False)
     gwn_loader = DataLoader(dataset=gwn_data, batch_size=config.test_batch_size, shuffle=False)
     syn_loader = DataLoader(dataset=syn_data, batch_size=config.test_batch_size, shuffle=False)
+    wiki_loader = DataLoader(dataset=wiki_data, batch_size=config.test_batch_size, shuffle=False)
 
-    datasets = [es_train_data, es_data_prod_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val]
-    data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader]
-    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
+    datasets = [es_train_data, es_prodigy_data_val, es_data_tr_val, es_data_lgl_val, es_data_gwn_val, es_data_syn_val, es_data_wiki_val]
+    data_loaders = [train_loader, prod_loader, tr_loader, lgl_loader, gwn_loader, syn_loader, wiki_loader]
+    names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"]
 
     make_missing_table(500, names, datasets)
     make_missing_table(50, names, datasets)
+    # path = "mordecai_2023-02-07.pt"
     model = load_model(path)
     make_table(names, datasets, data_loaders, model)
     t = make_wandb_dict(names, datasets, data_loaders, model)
