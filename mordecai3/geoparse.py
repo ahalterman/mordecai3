@@ -151,6 +151,7 @@ def load_hierarchy(asset_path):
 class Geoparser:
     def __init__(self, 
                  model_path="assets/mordecai2.pt", 
+                 geo_asset_path="assets/",
                  nlp=None,
                  event_geoparse=True,
                  debug=None,
@@ -163,7 +164,7 @@ class Geoparser:
             self.nlp = nlp
         self.conn = es_util.make_conn()
         self.model = load_model(model_path)
-        self.hierarchy = load_hierarchy("assets/")
+        self.hierarchy = load_hierarchy(geo_asset_path)
         self.event_geoparse = event_geoparse
         if event_geoparse:
             self.trf = load_trf()
@@ -174,17 +175,25 @@ class Geoparser:
         city_id = ""
         city_name = ""
         if entry['feature_code'] == 'PPLX':
-            parent_id = self.hierarchy[entry['geonameid']]
-            parent_res = es_util.get_entry_by_id(parent_id, self.conn)
-            if parent_res['feature_class'] == "P":
-                city_id = parent_id
-                city_name = parent_res['name']
+            try:
+                parent_id = self.hierarchy[entry['geonameid']]
+                parent_res = es_util.get_entry_by_id(parent_id, self.conn)
+                if parent_res['feature_class'] == "P":
+                    city_id = parent_id
+                    city_name = parent_res['name']
+            except KeyError:
+                city_id = entry['name']
+                city_name = entry['geonameid']
         elif entry['feature_class'] == 'S':
-            parent_id = self.hierarchy[entry['geonameid']]
-            parent_res = es_util.get_entry_by_id(parent_id, self.conn)
-            if parent_res['feature_class'] == "P":
-                city_id = parent_id
-                city_name = parent_res['name']
+            try:
+                parent_id = self.hierarchy[entry['geonameid']]
+                parent_res = es_util.get_entry_by_id(parent_id, self.conn)
+                if parent_res['feature_class'] == "P":
+                    city_id = parent_id
+                    city_name = parent_res['name']
+            except KeyError:
+                city_id = ""
+                city_name = ""
         elif re.search("PPL", entry['feature_code']):
             # all other cities, just return self
             city_name = entry['name']
@@ -361,8 +370,10 @@ class Geoparser:
                         "start_char": ent['start_char'],
                         "end_char": ent['end_char']}
                 scores = np.array([r['score'] for r in results])
+                if len(scores) == 0:
+                    return output
                 if np.argmax(scores) == len(scores) - 1:
-                    return best
+                    return output
                 #results = [i for i in results if i['score'] > 0.001]
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:

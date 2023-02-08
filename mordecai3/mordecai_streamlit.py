@@ -79,7 +79,8 @@ def load_model():
 
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def load_geo():
-    geo = Geoparser(model_path="mordecai_2023-02-07.pt", 
+    geo = Geoparser(model_path="mordecai_2023-02-07_good.pt", 
+                 geo_asset_path="assets",
                  nlp=None,
                  event_geoparse=True,
                  debug=None,
@@ -100,6 +101,7 @@ text = st.text_area("Text to geoparse", default_text)
 doc = nlp(text)
 
 output = geo.geoparse_doc(doc)
+
 st.write(output)
 
 #labels = ["GPE", "LOC"]
