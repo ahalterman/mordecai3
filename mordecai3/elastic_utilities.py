@@ -202,7 +202,8 @@ def _clean_search_name(search_name):
         search_name = "United States"
     return search_name
 
-def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False):
+def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
+                remove_correct=False):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
     to the object.
@@ -217,6 +218,10 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False):
     fuzzy: int
       Allow fuzzy results? 0=exact matches. Higher numbers will
       increase the fuzziness of the search. 
+    remove_correct: bool
+        If True, remove the correct result from the list of results.
+        This is useful for training a model to handle "none of the above"
+        cases.
 
     Examples
     --------
@@ -232,6 +237,8 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False):
     # d_es now has a "es_choices" key and a "correct" key that indicates which geonames 
     # entry was the correct one.
     """
+    max_results = int(max_results)
+    fuzzy = int(fuzzy)
     search_name = ex['search_name']
     search_name = _clean_search_name(search_name)
     # if we detect a parent location using our heuristic (see `guess_in_rel` in geoparse.py),
@@ -281,18 +288,26 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False):
     
         choices = res_formatter(res, ex['search_name'], parent_place)
 
+    if remove_correct:
+        choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]
+
     ex['es_choices'] = choices
-    if 'correct_geonamesid' in ex.keys():
-        ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
+
+    if remove_correct:
+        ex['correct'] = [False for c in choices]
+    else:
+        if 'correct_geonamesid' in ex.keys():
+            ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
     return ex
 
 
-def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False):
+def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
+                    remove_correct=False):
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
             try:
-                es = add_es_data(ex, conn, max_results, fuzzy, limit_types)
+                es = add_es_data(ex, conn, max_results, fuzzy, limit_types, remove_correct)
                 doc_es.append(es)
             except Warning:
                 continue

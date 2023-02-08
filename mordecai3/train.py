@@ -260,25 +260,26 @@ def data_formatter_wiki(docs, data):
         if orig_places:
             places = [i for i in orig_places[0]]
             search_name = ''.join([i.text_with_ws for i in places]).strip()
-            try:
-                tensor = np.mean(np.vstack([i._.tensor for i in places]), axis=0)
-                loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
-                doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
-                other_locs = [i for e in loc_ents for i in e if i not in places]
-                if other_locs:
-                    locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
-                else:
-                    locs_tensor = np.zeros(len(tensor))
-                in_rel = guess_in_rel(places)
-                d = {"search_name": search_name,
-                   "tensor": tensor,
-                    "locs_tensor": locs_tensor,
-                    "doc_tensor": doc_tensor,
-                    "in_rel": in_rel,
-                   "correct_geonamesid": correct_id}
-                doc_formatted.append(d)
-            except Exception as e:
-                logger.info(f"Exception {e}: {ex}")
+            #try:
+            tensor = np.mean(np.vstack([i._.tensor for i in places]), axis=0)
+            loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
+            doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
+            orig_place_tokens = [i for i in orig_places[0]]
+            other_locs = [i for e in loc_ents for i in e if i not in orig_place_tokens]
+            if other_locs:
+                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
+            else:
+                locs_tensor = np.zeros(len(tensor))
+            in_rel = guess_in_rel(places)
+            d = {"search_name": search_name,
+               "tensor": tensor,
+                "locs_tensor": locs_tensor,
+                "doc_tensor": doc_tensor,
+                "in_rel": in_rel,
+               "correct_geonamesid": correct_id}
+            doc_formatted.append(d)
+            #except Exception as e:
+            #    logger.info(f"Exception {e}: {ex}")
             # Only one place name is annotated in each example, but we still want to know
             # the other place names that were extracted to calculate Geonames overlap
             # features. We'll throw these away later, so we can set the other values
@@ -386,7 +387,7 @@ def data_formatter(docs, data, source):
 
 
 def format_source(base_dir, source, conn, max_results, fuzzy, 
-                 limit_types, source_dict, nlp):
+                 limit_types, source_dict, nlp, remove_correct=False):
     print(f"limit types: {limit_types}")
     fn = f"source_{source}.spacy"
     fn = os.path.join(base_dir, "spacyed", fn)
@@ -410,11 +411,12 @@ def format_source(base_dir, source, conn, max_results, fuzzy,
     esed_data = []
     print("Adding Elasticsearch data...")
     for ff in tqdm(formatted, leave=False):
-        esd = es_util.add_es_data_doc(ff, conn, max_results, fuzzy, limit_types)
+        esd = es_util.add_es_data_doc(ff, conn, max_results, fuzzy, limit_types, remove_correct)
         for e in esd:
-            esed_data.append(e)
+            if e['correct_geonamesid'] != None:
+                esed_data.append(e)
 
-    if limit_types:
+    if limit_types == True:
         limit_type_str = "pa_only"
     else:
         limit_type_str = "all_loc_types"
@@ -432,8 +434,9 @@ app = typer.Typer(add_completion=True)
 
 @app.command()
 def nlp_docs(base_dir, 
-            sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'syn_caps',
-            'wiki']):
+            sources = "tr, lgl, gwn, prodigy, syn_cities, syn_caps"
+            #'wiki']
+            ):
     """
     Run spaCy over a list of training data sources and save the output.
 
@@ -458,6 +461,7 @@ def nlp_docs(base_dir,
         source_dict[k] = os.path.join(base_dir, v)
 
     print("Reading in data...")
+    print("sources: ", sources, type(sources))
     if type(sources) is str:
         sources = [i.strip() for i in sources.split(",")]
     for s in sources:
@@ -490,7 +494,7 @@ def add_es(base_dir,
           max_results=500,
           fuzzy=0, 
           limit_types = False,
-          sources=['tr', 'lgl', 'gwn', 'prodigy', 'syn_cities', 'syn_caps', 'wiki']):
+          sources= "tr, lgl, gwn, prodigy, syn_cities, syn_caps"):
     """
     Process spaCy outputs to add candidate entity data from Geonames/Elasticsearch.
 
@@ -522,8 +526,9 @@ def add_es(base_dir,
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
     if type(sources) is str:
-        sources = sources.split(",")
-    for source in sources:   
+        sources = [i.strip() for i in sources.split(",")]
+    for source in sources:
+        remove_correct = source == "wiki_incorrect"
         format_source(base_dir, 
                       source, 
                       conn, 
@@ -531,7 +536,8 @@ def add_es(base_dir,
                       limit_types=limit_types, 
                       fuzzy=fuzzy,
                       source_dict=source_dict, 
-                      nlp=nlp)
+                      nlp=nlp,
+                      remove_correct=remove_correct)
     print("Complete")
 
 #(batch_size: int = typer.Option(32, min=1),         # input batch size for training 
@@ -561,7 +567,8 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
           code_size: int = typer.Option(8, "--code_size"),
           country_pred: str = typer.Option("True", "--country_pred"),
           mix_dim: int = typer.Option(12, "--mix_dim"),
-          fuzzy: int = typer.Option(0, "--fuzzy")
+          fuzzy: int = typer.Option(0, "--fuzzy"),
+          datasets: str = typer.Option("Prodigy, TR, LGL, GWN, Synth", "--datasets")
 ):
     """
     Train the pytorch model from formatted training data.
@@ -584,21 +591,22 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     config.country_pred=country_pred=="True"
     config.mix_dim=mix_dim
     config.fuzzy=fuzzy
-    config.names = ["Prodigy", "TR", "LGL", "GWN", "Synth"]
+    datasets = [i.strip() for i in datasets.split(",")]
+    config.names = datasets 
+    #["Prodigy", "TR", "LGL", "GWN", "Synth"]
     #config.names = ["Wiki"]
 
 
     data_dir = "../raw_data"
     print(config.__dict__)
 
-   
     train_loader, es_train_data, data_loaders, datasets = load_data(data_dir, 
                                                   config.max_choices, 
                                                   config.limit_es_results,
                                                   config.fuzzy,
                                                   config.batch_size,
                                                   config.test_batch_size,
-                                                  config.names)
+                                                  data_sources=config.names)
     logger.info(f"Total training examples: {len(es_train_data)}")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
