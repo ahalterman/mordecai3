@@ -24,23 +24,47 @@ def evaluate_results(es_data, loader, model):
     correct_geoid = []
     dists = []
     for ent, pred in zip(es_data, pred_array):
+        if not ent['es_choices']:
+            continue
         for n, score in enumerate(pred):
             #score = i[0] # accounting for country prediction
             if n < len(ent['es_choices']):
                 ent['es_choices'][n]['score'] = score
-        correct_position = np.where(ent['correct'])[0]
-        if len(correct_position) == 0:
+        try:
+            correct_position = np.where(ent['correct'])[0][0]
+        except:
+            correct_position = None
+        predicted_position = np.argmax([i['score'] for i in ent['es_choices'] if 'score' in i.keys()])
+        #if len(correct_position) == 0 and np.sum(ent['correct']) == 0:
+        #    correct_country.append(True)
+        #    correct_code.append(True)
+        #    correct_adm1.append(True)
+        #    correct_geoid.append(True)
+        #    continue
+        # give credit for picking the last position (the "no match" option)
+        if correct_position == len(ent['es_choices'])-1 and predicted_position == len(ent['es_choices'])-1:
+            correct_country.append(True)
+            correct_code.append(True)
+            correct_adm1.append(True)
+            correct_geoid.append(True)
+            continue
+        elif correct_position == None and predicted_position == len(ent['es_choices'])-1:
+            correct_country.append(True)
+            correct_code.append(True)
+            correct_adm1.append(True)
+            correct_geoid.append(True)
+            continue
+        elif correct_position is None:
             correct_country.append(False)
             correct_code.append(False)
             correct_adm1.append(False)
             correct_geoid.append(False)
             continue
-        gold_country = ent['es_choices'][correct_position[0]]['country_code3']
-        gold_code = ent['es_choices'][correct_position[0]]['feature_code']
-        gold_adm1 = ent['es_choices'][correct_position[0]]['admin1_code']
-        gold_lat = ent['es_choices'][correct_position[0]]['lat']
-        gold_lon = ent['es_choices'][correct_position[0]]['lon']
-        predicted_position = np.argmax([i['score'] for i in ent['es_choices'] if 'score' in i.keys()])
+        gold_country = ent['es_choices'][correct_position]['country_code3']
+        gold_code = ent['es_choices'][correct_position]['feature_code']
+        gold_adm1 = ent['es_choices'][correct_position]['admin1_code']
+        gold_lat = ent['es_choices'][correct_position]['lat']
+        gold_lon = ent['es_choices'][correct_position]['lon']
         predicted_country = ent['es_choices'][predicted_position]['country_code3']
         predicted_code = ent['es_choices'][predicted_position]['feature_code']
         predicted_adm1 = ent['es_choices'][predicted_position]['admin1_code']
