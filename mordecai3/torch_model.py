@@ -59,7 +59,7 @@ class ProductionData(Dataset):
             feature_codes[-1] = 53
             feature_codes = np.array(feature_codes, dtype="int")
             all_feature_codes.append(feature_codes)
-        all_feature_codes = np.array(all_feature_codes).astype(np.long)
+        all_feature_codes = np.array(all_feature_codes).astype(np.int32)
         return all_feature_codes
 
     def create_country_codes(self, es_data):
@@ -71,7 +71,7 @@ class ProductionData(Dataset):
             country_codes = [self.country_dict[i] for i in country_code_raw]
             country_codes = np.array(country_codes, dtype="int")
             all_country_codes.append(country_codes)
-        all_country_codes = np.array(all_country_codes).astype(np.long)
+        all_country_codes = np.array(all_country_codes).astype(np.int32)
         return all_country_codes
 
     def create_gaz_features(self, es_data):
@@ -178,8 +178,8 @@ class TrainData(ProductionData):
             ## HACK here: convert back to index, not one-hot
             labels = np.argmax(labels)
             all_labels.append(labels)
-        all_labels = np.array(all_labels).astype(np.long)
-        all_countries = np.array(all_countries).astype(np.long)
+        all_labels = np.array(all_labels).astype(np.int32)
+        all_countries = np.array(all_countries).astype(np.int32)
         return all_labels, all_countries
 
 
