@@ -203,7 +203,7 @@ def _clean_search_name(search_name):
     return search_name
 
 def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
-                remove_correct=False):
+                remove_correct=False, known_country=None):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
     to the object.
@@ -267,6 +267,9 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
         a_filter = Q("term", feature_class="A")
         combined_filter = p_filter | a_filter
         res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+    if known_country:
+        country_filter = Q("term", country_code3=known_country)
+        res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     else:
         res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     
@@ -283,6 +286,9 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
             a_filter = Q("term", feature_class="A")
             combined_filter = p_filter | a_filter
             res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+        if known_country:
+            country_filter = Q("term", country_code3=known_country)
+            res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
         else:
             res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     
@@ -302,12 +308,12 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
 
 
 def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
-                    remove_correct=False):
+                    remove_correct=False, known_country=None):
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
             try:
-                es = add_es_data(ex, conn, max_results, fuzzy, limit_types, remove_correct)
+                es = add_es_data(ex, conn, max_results, fuzzy, limit_types, remove_correct, known_country)
                 doc_es.append(es)
             except Warning:
                 continue

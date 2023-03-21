@@ -135,7 +135,7 @@ def doc_to_ex_expanded(doc):
 
 def load_hierarchy(asset_path):
     fn = os.path.join(asset_path, "hierarchy.txt")
-    with open(fn, "r") as f:
+    with open(fn, "r", encoding="utf-8") as f:
         hierarchy = f.read()
     hierarchy = hierarchy.split("\n")
     hier_dict = {}
@@ -161,6 +161,10 @@ class Geoparser:
         if not nlp:
             self.nlp = load_nlp()
         else:
+            try:
+                nlp.add_pipe("token_tensors")
+            except:
+                pass
             self.nlp = nlp
         self.conn = es_util.make_conn()
         self.model = load_model(model_path)
@@ -288,7 +292,8 @@ class Geoparser:
         return d
 
 
-    def geoparse_doc(self, text, plover_cat=None, debug=False, trim=False):
+    def geoparse_doc(self, text, plover_cat=None, debug=False, trim=False, 
+                     known_country=None):
         """
         text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
         plover_cat = "Make statement"
@@ -310,7 +315,8 @@ class Geoparser:
         logger.debug("Doc ents: ", doc.ents)
         doc_ex = doc_to_ex_expanded(doc)
         if doc_ex:
-            es_data = es_util.add_es_data_doc(doc_ex, self.conn, max_results=500)
+            es_data = es_util.add_es_data_doc(doc_ex, self.conn, max_results=500,
+                                              known_country=known_country)
 
             dataset = ProductionData(es_data, max_choices=500)
             data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
