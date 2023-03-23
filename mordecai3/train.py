@@ -17,6 +17,7 @@ import typer
 import spacy
 from spacy.tokens import DocBin
 import datetime
+import multiprocessing
 
 from torch_model import geoparse_model
 import elastic_utilities as es_util
@@ -38,12 +39,22 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
-es_logger = elasticsearch.logger
-es_logger.setLevel(elasticsearch.logging.WARNING)
-es_logger2 = logging.getLogger('elasticsearch')
-es_logger2.setLevel(logging.WARNING)
+loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
+for i in loggers:
+    if re.search("NGEC\.", i.name):
+        i.addHandler(handler) 
+        i.setLevel(logging.INFO)
+        i.propagate = False
+    if re.search("elasticsearch", i.name):
+        i.addHandler(handler) 
+        i.setLevel(logging.WARNING)
+    if re.search("urllib3", i.name):
+        i.addHandler(handler) 
+        i.setLevel(logging.WARNING)
 
 spacy_doc_setup()
+# later, after loading the nlp object, don't forget to run this:
+# nlp.add_pipe("token_tensors")
 
 def binary_acc(y_pred, y_test):
     y_pred_tag = torch.argmax(y_pred, axis=1)
@@ -55,7 +66,7 @@ def binary_acc(y_pred, y_test):
 
 def read_file(fn):
     if re.search("xml", fn):
-        with open(fn, "r") as f:
+        with open(fn, "r", encoding='utf-8') as f:
             xml = f.read()
             data = xmltodict.parse(xml)
     elif re.search("jsonl", fn):
@@ -75,6 +86,7 @@ def load_data(data_dir,
              fuzzy,
              batch_size,
              test_batch_size,
+             train_frac=0.7,
              data_sources=["Prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"]):
     """
     Load formatted training data with Elasticsearch results
@@ -98,7 +110,7 @@ def load_data(data_dir,
     """
     es_train_data = [] 
     data_loaders = []
-    datasets = []
+    val_datasets = []
 
     for source in data_sources:
         logger.info(f"Loading data for {source}")
@@ -129,14 +141,12 @@ def load_data(data_dir,
             with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
                 logger.debug(f"Total wiki results: {len(es_data)}")
-            random.seed(617)
-            random.shuffle(es_data)
-            es_data = es_data[0:1000]
 
-        es_data, es_data_val = split_list(es_data)
+        es_data = [i for i in es_data if len(i['tensor']) > 1] # This is really weird!! Some sort of bug in the spacy step
+        es_data, es_data_val = split_list(es_data, train_frac)
         logger.debug(f"Training examples from {source}: {len(es_data)}")
         es_train_data.extend(es_data)
-        datasets.append(es_data_val)
+        val_datasets.append(es_data_val)
         dataset = TrainData(es_data_val, max_choices=max_results)
         loader = DataLoader(dataset=dataset, batch_size=test_batch_size, shuffle=False)
         data_loaders.append(loader)
@@ -147,7 +157,11 @@ def load_data(data_dir,
     train_data = TrainData(es_train_data, max_choices=max_results)
     train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
 
-    return train_loader, es_train_data, data_loaders, datasets
+    #debugging
+    #[len(i['tensor']) for i in es_train_data]
+    ######
+
+    return train_loader, es_train_data, data_loaders, val_datasets
 
 
 def data_formatter_prodigy(docs, data):
@@ -163,7 +177,6 @@ def data_formatter_prodigy(docs, data):
     ---------
     docs: list of spaCy docs
     data: list of dicts
-      Data from Gritta et al, converted from XML to dict
     source: the short name of the source used
 
     Returns
@@ -239,8 +252,6 @@ def data_formatter_wiki(docs, data):
     ---------
     docs: list of spaCy docs
     data: list of dicts
-      Data from Gritta et al, converted from XML to dict
-    source: the short name of the source used
 
     Returns
     -------
@@ -255,7 +266,10 @@ def data_formatter_wiki(docs, data):
         correct_id = ex['correct_geonamesid']
         # we might lose some examples here if the tokenization ever changes, but
         # it should be extremely rare
-        orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char_sent'] and ent.start_char < ex['end_char_sent']]
+        if 'start_char_sent' in ex.keys():
+            orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char_sent'] and ent.start_char < ex['end_char_sent']]
+        else:
+            orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char'] and ent.start_char < ex['end_char']]
         # get the tensor for those tokens
         if orig_places:
             places = [i for i in orig_places[0]]
@@ -384,7 +398,12 @@ def data_formatter(docs, data, source):
         doc_num += 1
     return all_formatted
 
-
+#base_dir = "../raw_data/"
+#source = "wiki"
+#limit_types = "all_loc_types"
+#max_results = 500
+#fuzzy = 0
+# !!!
 
 def format_source(base_dir, source, conn, max_results, fuzzy, 
                  limit_types, source_dict, nlp, remove_correct=False):
@@ -410,6 +429,10 @@ def format_source(base_dir, source, conn, max_results, fuzzy,
     # At the same time, we can exclude examples with missing geonames info 
     esed_data = []
     print("Adding Elasticsearch data...")
+    #with multiprocessing.Pool(8) as p:
+    #    esed_data = p.starmap(es_util.add_es_data_doc, zip(formatted, repeat(conn), repeat(max_results), 
+    #                                                       repeat(fuzzy), repeat(limit_types), 
+    #                                                       repeat(remove_correct)))
     for ff in tqdm(formatted, leave=False):
         esd = es_util.add_es_data_doc(ff, conn, max_results, fuzzy, limit_types, remove_correct)
         for e in esd:
@@ -434,9 +457,7 @@ app = typer.Typer(add_completion=True)
 
 @app.command()
 def nlp_docs(base_dir, 
-            sources = "tr, lgl, gwn, prodigy, syn_cities, syn_caps"
-            #'wiki']
-            ):
+            sources = "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki"):
     """
     Run spaCy over a list of training data sources and save the output.
 
@@ -451,12 +472,12 @@ def nlp_docs(base_dir,
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
-                  "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
+                  "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/lgl.xml",
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl",
-                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
+                  "wiki": "wiki/wiki_sampled.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
 
@@ -464,37 +485,17 @@ def nlp_docs(base_dir,
     print("sources: ", sources, type(sources))
     if type(sources) is str:
         sources = [i.strip() for i in sources.split(",")]
-    for s in sources:
-        print(source_dict[s])
-        data = read_file(source_dict[s])
-        if s == "wiki":
-            random.seed(617)
-            random.shuffle(data)
-            placename_count = {}
-            sampled_data = []
-            for i in data:
-                if i['ent_text'] not in placename_count.keys():
-                    placename_count[i['ent_text']] = 1
-                    sampled_data.append(i)
-                else:
-                    # under-sample locations that have already been added to the training data
-                    count = placename_count[i['ent_text']]
-                    sample_prob = 1 - (np.log(2*count) / (1 + np.log(count*2)))
-                    sample_bin = np.random.binomial(1, sample_prob)
-                    if sample_bin:
-                        sampled_data.append(i)
-                        placename_count[i['ent_text']] += 1
-            print(placename_count)
-            data = data[0:1000]
-            print(len(data))
-        data_to_docs(data, s, base_dir, nlp)
+    for source in sources:
+        print(source_dict[source])
+        data = read_file(source_dict[source])
+        data_to_docs(data, source, base_dir, nlp)
 
 @app.command()
 def add_es(base_dir, 
           max_results=500,
           fuzzy=0, 
           limit_types = False,
-          sources= "tr, lgl, gwn, prodigy, syn_cities, syn_caps"):
+          sources= "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki"):
     """
     Process spaCy outputs to add candidate entity data from Geonames/Elasticsearch.
 
@@ -517,12 +518,12 @@ def add_es(base_dir,
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
-                  "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/corpora/lgl.xml",
+                  "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/lgl.xml",
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl",
-                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
+                  "wiki": "wiki/wiki_sampled.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
     if type(sources) is str:
@@ -568,12 +569,12 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
           country_pred: str = typer.Option("True", "--country_pred"),
           mix_dim: int = typer.Option(12, "--mix_dim"),
           fuzzy: int = typer.Option(0, "--fuzzy"),
-          datasets: str = typer.Option("Prodigy, TR, LGL, GWN, Synth", "--datasets")
+          dataset_names: str = typer.Option("Prodigy, TR, LGL, GWN, Synth, Wiki", "--datasets")
 ):
     """
     Train the pytorch model from formatted training data.
     """
-    wandb.init(project="mordecai3", entity="ahalt")
+    wandb.init(project="mordecai3", entity="ahalt", allow_val_change=True)
 
     config = wandb.config          # Initialize config
     config.batch_size = batch_size
@@ -591,10 +592,11 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     config.country_pred=country_pred=="True"
     config.mix_dim=mix_dim
     config.fuzzy=fuzzy
-    datasets = [i.strip() for i in datasets.split(",")]
-    config.names = datasets 
+    dataset_names = [i.strip() for i in dataset_names.split(",")]
+    config.names = dataset_names 
     #["Prodigy", "TR", "LGL", "GWN", "Synth"]
     #config.names = ["Wiki"]
+    dataset_names = ['Prodigy', 'TR', 'LGL', 'Synth', 'Wiki'] # 'LGL',
 
 
     data_dir = "../raw_data"
@@ -606,7 +608,7 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
                                                   config.fuzzy,
                                                   config.batch_size,
                                                   config.test_batch_size,
-                                                  data_sources=config.names)
+                                                  data_sources=dataset_names) ## CHANGE!!!
     logger.info(f"Total training examples: {len(es_train_data)}")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -641,6 +643,7 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
         epoch_acc = 0
 
         for label, country, input in train_loader:
+            label = label.type(torch.LongTensor).to(device)
             optimizer.zero_grad()
             if config.country_pred:
                 label_pred, country_pred = model(input)
