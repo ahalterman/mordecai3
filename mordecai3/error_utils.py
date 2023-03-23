@@ -15,6 +15,8 @@ def evaluate_results(es_data, loader, model):
                 pred_val, country_pred = model(input)
             else:
                 pred_val = model(input)
+            if pred_val.is_cuda:
+                pred_val = pred_val.detach().cpu()
             pred_val_list.append(pred_val)
     pred_array = np.vstack(pred_val_list)
 
@@ -23,6 +25,8 @@ def evaluate_results(es_data, loader, model):
     correct_adm1 = []
     correct_geoid = []
     dists = []
+    total_missing = 0
+    missing_correct = 0
     for ent, pred in zip(es_data, pred_array):
         if not ent['es_choices']:
             continue
@@ -43,22 +47,16 @@ def evaluate_results(es_data, loader, model):
         #    continue
         # give credit for picking the last position (the "no match" option)
         if correct_position == len(ent['es_choices'])-1 and predicted_position == len(ent['es_choices'])-1:
-            correct_country.append(True)
-            correct_code.append(True)
-            correct_adm1.append(True)
-            correct_geoid.append(True)
+            total_missing += 1
+            missing_correct += 1
             continue
         elif correct_position == None and predicted_position == len(ent['es_choices'])-1:
-            correct_country.append(True)
-            correct_code.append(True)
-            correct_adm1.append(True)
-            correct_geoid.append(True)
+            total_missing += 1
+            missing_correct += 1
             continue
         elif correct_position is None:
-            correct_country.append(False)
-            correct_code.append(False)
-            correct_adm1.append(False)
-            correct_geoid.append(False)
+            total_missing += 1
+            #missing_correct += 0
             continue
         gold_country = ent['es_choices'][correct_position]['country_code3']
         gold_code = ent['es_choices'][correct_position]['feature_code']
@@ -77,12 +75,18 @@ def evaluate_results(es_data, loader, model):
         correct_geoid.append(ent['correct_geonamesid'] == predicted_geoid)
         dist = hs.haversine((gold_lat, gold_lon), (predicted_lat, predicted_lon))
         dists.append(dist)
+    if total_missing > 0:
+        miss_correct_perc = missing_correct / total_missing
+    else:
+        miss_correct_perc = 0
     correct_avg = {"correct_country": np.mean(correct_country), 
               "correct_code": np.mean(correct_code),
               "correct_adm1": np.mean(correct_adm1), 
               "exact_match": np.mean(correct_geoid),
               "avg_dist": np.mean(dists),
               "median_dist": np.median(dists),
+              "missing_correct": miss_correct_perc,
+              "total_missing": total_missing / len(es_data),
               "acc_at_161": np.mean([i <= 161 for i in dists])
     }
     return correct_avg
