@@ -311,7 +311,11 @@ class Geoparser:
         return d
 
 
-    def geoparse_doc(self, text, plover_cat=None, debug=False, trim=False, 
+    def geoparse_doc(self, 
+                     text, 
+                     plover_cat=None, 
+                     debug=False, 
+                     trim=True, 
                      known_country=None):
         """
         text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
