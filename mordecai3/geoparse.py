@@ -11,6 +11,7 @@ from spacy.tokens import Token, Span, Doc
 from spacy.pipeline import Pipe
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+import pkg_resources
 
 import elastic_utilities as es_util
 from torch_model import ProductionData, geoparse_model
@@ -38,7 +39,7 @@ def load_model(model_path):
     model = geoparse_model(device=device,
                            bert_size=768,
                            num_feature_codes=54) 
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     return model
 
@@ -59,7 +60,10 @@ def guess_in_rel(ent):
     """
     if type(ent) is list:
         ent = ent[0].doc[ent[0].i:ent[-1].i+1]
-    next_ent = [e for e in ent.doc.ents if e.start > ent.end]
+    try:
+        next_ent = [e for e in ent.doc.ents if e.start > ent.end]
+    except:
+        return ""
     # if it's the last ent in the DOC, assume no "in" relation:
     if not next_ent:
         return ""
@@ -150,12 +154,13 @@ def load_hierarchy(asset_path):
 
 class Geoparser:
     def __init__(self, 
-                 model_path="assets/mordecai2.pt", 
-                 geo_asset_path="assets/",
+                 model_path=None, 
+                 geo_asset_path=None,
                  nlp=None,
-                 event_geoparse=True,
+                 event_geoparse=False,
                  debug=None,
-                 trim=None):
+                 trim=None,
+                 check_es=True):
         self.debug = debug
         self.trim = trim
         if not nlp:
@@ -163,11 +168,25 @@ class Geoparser:
         else:
             try:
                 nlp.add_pipe("token_tensors")
-            except:
+            except Exception as e:
+                # TODO: this is currently catching the error that the pipe already exists,
+                # but it shouldn't catch the error that it doesn't know what
+                # token_tensors is.
+                logger.info(f"Error loading token_tensors pipe: {e}")
                 pass
             self.nlp = nlp
         self.conn = es_util.make_conn()
+        if check_es:
+            try:
+                assert len(list(geo.conn[1])) > 0
+                logger.info("Successfully connected to Elasticsearch.")
+            except:
+                ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
+        if not model_path:
+            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2023-03-28.pt")
         self.model = load_model(model_path)
+        if not geo_asset_path:
+            geo_asset_path = pkg_resources.resource_filename("mordecai3", "assets/")
         self.hierarchy = load_hierarchy(geo_asset_path)
         self.event_geoparse = event_geoparse
         if event_geoparse:
