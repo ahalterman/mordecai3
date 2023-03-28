@@ -1,38 +1,13 @@
 # Mordecai v3
 
-Mordecai3 is a new geoparser that replaces the earlier [Mordecai](https://github.com/openeventdata/mordecai) geoparser. 
-
-## Install and Requirements
-
-To install the libraries required for Mordecai, `pip install` the list of required libraries:
-
-```
-pip install -r requirements.txt
-```
-
-Then run the following command to download the NLP model used to identify place names:
-
-```
-python -m spacy download en_core_web_trf
-```
-
-The event-location linking step requires other models to be downloaded from https://huggingface.co/. These will be automatically downloaded the first time the program is run (if it's run on an internet-connected machine) or can be downloaded first by running `python roberta_qa.py`.
-
-Finally, Mordecai3 requires a local instance of Elasticsearch with a Geonames index. Instructions for setting up the index are available here: https://github.com/openeventdata/es-geonames
-
-Once built, the index can be started like this:
-
-```
-docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" -v $PWD/geonames_index/:/usr/share/elasticsearch/data elasticsearch:7.10.1
-```
+Mordecai3 is a new geoparser that replaces the earlier [Mordecai](https://github.com/openeventdata/mordecai) geoparser. It uses spaCy to identify place names in text, retrieves candidate geolocations from the Geonames gazetteer running in a local Elasticsearch index, and ranks the candidate results using a neural model trained on around 6,000 gold standard training examples.
 
 ## Usage
 
 ```
 >>> from mordecai3 import Geoparser
->>> geo = Geoparser(model_path="mordecai3/mordecai_2023-03-23.pt", 
-                 geo_asset_path="mordecai3/assets/")
->>> out = geo.geoparse_doc("I visited Alexanderplatz in Berlin.")
+>>> geo = Geoparser()
+>>> geo.geoparse_doc("I visited Alexanderplatz in Berlin.")
 {'doc_text': 'I visited Alexanderplatz in Berlin.',
  'event_location_raw': '',
  'geolocated_ents': [{'admin1_code': '16',
@@ -68,7 +43,49 @@ docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" -v $PWD/geo
                       'name': 'Berlin',
                       'score': 1.0,
                       'search_name': 'Berlin',
-                      'start_char': 28}]}
+                      'start_char': 28}]} 
+```
+
+## Installation and Requirements
+
+To install Mordecai3, run
+
+```
+pip install mordecai3
+```
+
+The library has two external dependencies that you'll need to set up.
+
+First, run following command to download the spaCy model used to identify place names and to compute the tensors used in the ranking model.
+
+```
+python -m spacy download en_core_web_trf
+```
+
+Second, Mordecai3 requires a local instance of Elasticsearch with a Geonames index. Instructions for setting up the index are available here: https://github.com/openeventdata/es-geonames
+
+Once built, the index can be started like this:
+
+```
+docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" -v $PWD/geonames_index/:/usr/share/elasticsearch/data elasticsearch:7.10.1
+```
+
+If you're doing event geoparsing, that step requires other models to be downloaded from https://huggingface.co/. These will be automatically downloaded the first time the program is run (if it's 
+
+## Details and Citation
+
+More details on the model and its accuracy are available here: https://arxiv.org/abs/2303.13675
+
+If you use Mordecai 3, please cite:
+
+```
+@article{halterman2023mordecai,
+      title={Mordecai 3: A Neural Geoparser and Event Geocoder}, 
+      author={Andrew Halterman},
+      year={2023},
+      journal={arXiv preprint arXiv:2303.13675}
+}
+
 ```
 
 ## Acknowledgements
