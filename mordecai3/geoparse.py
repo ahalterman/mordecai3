@@ -13,10 +13,10 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import pkg_resources
 
-import mordecai3.elastic_utilities as es_util
-from mordecai3.torch_model import ProductionData, geoparse_model
-from mordecai3.roberta_qa import setup_qa, add_event_loc
-from mordecai3.mordecai_utilities import spacy_doc_setup
+from .elastic_utilities import make_conn, get_entry_by_id, get_adm1_country_entry, get_country_entry
+from .torch_model import ProductionData, geoparse_model
+from .roberta_qa import setup_qa, add_event_loc
+from .mordecai_utilities import spacy_doc_setup
 
 import logging
 logger = logging.getLogger()
@@ -175,7 +175,7 @@ class Geoparser:
                 logger.info(f"Error loading token_tensors pipe: {e}")
                 pass
             self.nlp = nlp
-        self.conn = es_util.make_conn()
+        self.conn = make_conn()
         if check_es:
             try:
                 assert len(list(geo.conn[1])) > 0
@@ -200,7 +200,7 @@ class Geoparser:
         if entry['feature_code'] == 'PPLX':
             try:
                 parent_id = self.hierarchy[entry['geonameid']]
-                parent_res = es_util.get_entry_by_id(parent_id, self.conn)
+                parent_res = get_entry_by_id(parent_id, self.conn)
                 if parent_res['feature_class'] == "P":
                     city_id = parent_id
                     city_name = parent_res['name']
@@ -210,7 +210,7 @@ class Geoparser:
         elif entry['feature_class'] == 'S':
             try:
                 parent_id = self.hierarchy[entry['geonameid']]
-                parent_res = es_util.get_entry_by_id(parent_id, self.conn)
+                parent_res = get_entry_by_id(parent_id, self.conn)
                 if parent_res['feature_class'] == "P":
                     city_id = parent_id
                     city_name = parent_res['name']
@@ -278,12 +278,12 @@ class Geoparser:
                 ## TODO: see if the placenames all fit in a hierarchy (P --> ADM2 --> ADM1) etc.
                 elif len(adm1s) == 1:
                     iso3c, adm1 = adm1s[0].split("_")
-                    d['event_loc'] = es_util.get_adm1_country_entry(adm1, iso3c, self.conn)
+                    d['event_loc'] = get_adm1_country_entry(adm1, iso3c, self.conn)
                     d['event_loc_reason'] = "No event location identified, using common ADM1"
                 elif len(countries) == 1:
                     ## TODO: This needs to get the actual country entry
                     common_country = geo[0]['country_code3']
-                    d['event_loc'] = es_util.get_country_entry(common_country, self.conn)
+                    d['event_loc'] = get_country_entry(common_country, self.conn)
                     d['event_loc_reason'] = "No event location identified, using common country"
                 #elif:
                 #   # see if there's a nearby loc in the sentence here

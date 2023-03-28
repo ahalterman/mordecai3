@@ -6,7 +6,6 @@ setup(
     author='Andy Halterman',
     author_email='ahalterman0@gmail.com',
     license='MIT',
-    packages=['mordecai3'],
     keywords = ['geoparsing', 'nlp', 'geocoding', 'toponym resolution'],
     packages=find_packages(),
     install_requires = ['typer>=0.3.2,<1.0',
