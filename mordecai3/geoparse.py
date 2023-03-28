@@ -13,10 +13,10 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import pkg_resources
 
-import elastic_utilities as es_util
-from torch_model import ProductionData, geoparse_model
-from roberta_qa import setup_qa, add_event_loc
-from mordecai_utilities import spacy_doc_setup
+import mordecai3.elastic_utilities as es_util
+from mordecai3.torch_model import ProductionData, geoparse_model
+from mordecai3.roberta_qa import setup_qa, add_event_loc
+from mordecai3.mordecai_utilities import spacy_doc_setup
 
 import logging
 logger = logging.getLogger()

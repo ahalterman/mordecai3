@@ -8,9 +8,7 @@ setup(
     license='MIT',
     packages=['mordecai3'],
     keywords = ['geoparsing', 'nlp', 'geocoding', 'toponym resolution'],
-    package_dir = {
-        "mordecai3": "mordecai3"
-    },
+    packages=find_packages(),
     install_requires = ['typer>=0.3.2,<1.0',
             'spacy-transformers>=1.0.1,<2.0',
             'transformers>=4.2.2,<5.0',
@@ -27,13 +25,13 @@ setup(
             'xmltodict>=0.12.0,<1.0'],
    dependency_links=['https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.5.0/en_core_web_trf-3.5.0.tar.gz'],
    include_package_data=True,
-   package_data = {'assets': ['admin1CodesASCII.json',
-                             'country_bert_768.npy',
-                             'countryInfo.txt',
-                             'feature_code_dict.json',
-                             'hierarchy.txt',
-                             'mordecai_2023-03-28.pt',
-                             'wikipedia-iso-country-codes.txt']}
+   package_data = {'mordecai3': ['assets/admin1CodesASCII.json',
+                             'assets/country_bert_768.npy',
+                             'assets/countryInfo.txt',
+                             'assets/feature_code_dict.json',
+                             'assets/hierarchy.txt',
+                             'assets/mordecai_2023-03-28.pt',
+                             'assets/wikipedia-iso-country-codes.txt']}
 )
 
 
