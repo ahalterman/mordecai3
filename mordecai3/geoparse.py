@@ -13,10 +13,10 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import pkg_resources
 
-from .elastic_utilities import make_conn, get_entry_by_id, get_adm1_country_entry, get_country_entry
-from .torch_model import ProductionData, geoparse_model
-from .roberta_qa import setup_qa, add_event_loc
-from .mordecai_utilities import spacy_doc_setup
+from mordecai3.elastic_utilities import make_conn, get_entry_by_id, get_adm1_country_entry, get_country_entry, add_es_data_doc
+from mordecai3.torch_model import ProductionData, geoparse_model
+from mordecai3.roberta_qa import setup_qa, add_event_loc
+from mordecai3.mordecai_utilities import spacy_doc_setup
 
 import logging
 logger = logging.getLogger()
@@ -334,7 +334,7 @@ class Geoparser:
         logger.debug("Doc ents: ", doc.ents)
         doc_ex = doc_to_ex_expanded(doc)
         if doc_ex:
-            es_data = es_util.add_es_data_doc(doc_ex, self.conn, max_results=500,
+            es_data = add_es_data_doc(doc_ex, self.conn, max_results=500,
                                               known_country=known_country)
 
             dataset = ProductionData(es_data, max_choices=500)
