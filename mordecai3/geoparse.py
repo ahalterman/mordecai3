@@ -370,39 +370,38 @@ class Geoparser:
         else:
             for (ent, pred) in zip(es_data, pred_val):
                 logger.debug("**Place name**: {}".format(ent['search_name']))
-                #print(len(ent['es_choices']))
                 for n, score in enumerate(pred):
                     if n < len(ent['es_choices']):
                         ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
                 results = [e for e in ent['es_choices'] if 'score' in e.keys()]
 
                 # this is what the elements of "results" look like
-             #   {'feature_code': 'PPL',
-             #   'feature_class': 'P',
-             #   'country_code3': 'BRA',
-             #   'lat': -22.99835,
-             #   'lon': -43.36545,
-             #   'name': 'Barra da Tijuca',
-             #   'admin1_code': '21',
-             #   'admin1_name': 'Rio de Janeiro',
-             #   'admin2_code': '3304557',
-             #   'admin2_name': 'Rio de Janeiro',
-             #   'geonameid': '7290718',
-             #   'score': 1.0,
-             #   'search_name': 'Barra da Tijuca',
-             #   'start_char': 557,
-             #   'end_char': 581
-            #}
+                 #  {'feature_code': 'PPL',
+                 #  'feature_class': 'P',
+                 #  'country_code3': 'BRA',
+                 #  'lat': -22.99835,
+                 #  'lon': -43.36545,
+                 #  'name': 'Barra da Tijuca',
+                 #  'admin1_code': '21',
+                 #  'admin1_name': 'Rio de Janeiro',
+                 #  'admin2_code': '3304557',
+                 #  'admin2_name': 'Rio de Janeiro',
+                 #  'geonameid': '7290718',
+                 #  'score': 1.0,
+                 #  'search_name': 'Barra da Tijuca',
+                 #  'start_char': 557,
+                 #  'end_char': 581
+                 #  }
                 if not results:
                     logger.debug("(no results)")
                 best = {"search_name": ent['search_name'],
                         "start_char": ent['start_char'],
                         "end_char": ent['end_char']}
                 scores = np.array([r['score'] for r in results])
-                if len(scores) == 0:
-                    return output
-                if np.argmax(scores) == len(scores) - 1:
-                    return output
+                if len(scores) == 0 or np.argmax(scores) == len(scores) - 1:
+                    best['score'] = 0.0
+                    best_list.append(best)
+                    continue
                 #results = [i for i in results if i['score'] > 0.001]
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:
