@@ -195,6 +195,9 @@ class Geoparser:
         self.model.to(device)
 
     def lookup_city(self, entry):
+        """
+        
+        """
         city_id = ""
         city_name = ""
         if entry['feature_code'] == 'PPLX':
@@ -318,12 +321,38 @@ class Geoparser:
                      trim=True, 
                      known_country=None):
         """
-        text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
-        plover_cat = "Make statement"
+        Geoparse a document.
 
-        If debug=True, return the top 4 candidate locations rather than the best.
+        Parameters
+        ----------
+        text : str or spacy Doc (with ._.tensor attributes)
+            The text to geoparse.
+        plover_cat : str
+            The PLOVER category of the event you'd like to geolocated. If provided, the event geoparsing
+            will identify the place name in the document that is most likely to be the event location.
+            If not provided, the event geoparsing will be skipped.
+        debug : bool
+            If True, returns the top 4 results for each geoparsed location, rather than the single best.
+            This is useful for debugging or collecting new annotations.
+        trim : bool
+            If True, removes some of the keys from the output dictionary that are only used
+            internally for selecting the best geoparsed location. Including these keys is
+            useful for debugging.
+        known_country : str
+            If provided, the geoparser will only consider locations in the given country.
 
-        If trim=True, remove the extra fields that help with the model resolution.
+        Returns
+        -------
+        output : dict
+            Includes the following keys:
+            - "doc_text": a string of the input text
+            - "event_location_raw": str, the place name of the 'event location' (if provided)
+            - "geolocated_ents": list of dicts, each dict is a geoparsed location
+
+        Example
+        -------
+        >>> text = "The earthquake struck in the city of Christchurch, New Zealand."
+        >>> geoparser.geoparse_doc(text)
         """
         if type(text) is str:   
             doc = self.nlp(text)
