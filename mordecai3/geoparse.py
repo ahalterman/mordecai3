@@ -316,7 +316,8 @@ class Geoparser:
                      plover_cat=None, 
                      debug=False, 
                      trim=True, 
-                     known_country=None):
+                     known_country=None,
+                     max_choices=50):
         """
         Geoparse a document
 
@@ -364,10 +365,10 @@ class Geoparser:
         logger.debug("Doc ents: ", doc.ents)
         doc_ex = doc_to_ex_expanded(doc)
         if doc_ex:
-            es_data = add_es_data_doc(doc_ex, self.conn, max_results=500,
+            es_data = add_es_data_doc(doc_ex, self.conn, max_results=max_choices,
                                               known_country=known_country)
 
-            dataset = ProductionData(es_data, max_choices=500)
+            dataset = ProductionData(es_data, max_choices=max_choices)
             data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
             with torch.no_grad():
                 self.model.eval()
@@ -394,8 +395,19 @@ class Geoparser:
         elif len(es_data) == 0:
             return output
         else:
+            # Iterate over all the entities in the document
             for (ent, pred) in zip(es_data, pred_val):
                 logger.debug("**Place name**: {}".format(ent['search_name']))
+                # if the last one is the argmax, then the model thinks that no answer is correct
+                # so return blank
+                if pred[-1] == pred.max():
+                    logger.debug("Model predicts no answer")
+                    best = {"search_name": ent['search_name'],
+                        "start_char": ent['start_char'],
+                        "end_char": ent['end_char']}
+                    best_list.append(best)
+                    continue
+
                 for n, score in enumerate(pred):
                     if n < len(ent['es_choices']):
                         ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
@@ -424,14 +436,15 @@ class Geoparser:
                         "start_char": ent['start_char'],
                         "end_char": ent['end_char']}
                 scores = np.array([r['score'] for r in results])
-                if len(scores) == 0 or np.argmax(scores) == len(scores) - 1:
+                if len(scores) == 0:
+                    logger.debug("No results for this entity")
                     best['score'] = 0.0
                     best_list.append(best)
                     continue
                 #results = [i for i in results if i['score'] > 0.001]
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:
-                    logger.debug("Picking top predicted result for each location")
+                    logger.debug("Picking top predicted result")
                     best = results[0]
                     best["search_name"] = ent['search_name']
                     best["start_char"] = ent['start_char']
