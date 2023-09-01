@@ -1,5 +1,4 @@
 import pytest
-import spacy
 
 from ..geoparse import Geoparser
 

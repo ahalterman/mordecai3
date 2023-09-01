@@ -1,14 +1,10 @@
-import json
-
 import numpy as np
 import pandas as pd
 import spacy
 import streamlit as st
 import torch
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import Q, Search
-from spacy.pipeline import Pipe
-from spacy.tokens import Doc, Token
+from elasticsearch_dsl import Search
 from torch.utils.data import DataLoader
 
 import mordecai3.elastic_utilities as es_util

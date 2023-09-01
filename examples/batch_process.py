@@ -1,7 +1,5 @@
 import logging
-import re
 import time
-from collections import Counter
 from pathlib import Path
 
 import jsonlines
@@ -10,12 +8,7 @@ import pandas as pd
 import spacy
 import torch
 import typer
-from elasticsearch import Elasticsearch, helpers
-from elasticsearch_dsl import Q, Search
-from spacy.language import Language
-from spacy.pipeline import Pipe
-from spacy.tokens import Doc, Token
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utilities import spacy_doc_setup
 

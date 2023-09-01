@@ -1,7 +1,6 @@
 import logging
 import re
 import time
-from collections import Counter
 from configparser import ConfigParser
 from pathlib import Path
 
@@ -16,7 +15,6 @@ from tqdm import tqdm
 
 import mordecai3.elastic_utilities as es_util
 from mordecai3.geoparse import Geoparser, doc_to_ex_expanded
-from mordecai3.roberta_qa import setup_qa
 from mordecai3.torch_model import ProductionData
 from mordecai3.utilities import spacy_doc_setup
 

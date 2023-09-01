@@ -2,17 +2,11 @@ import logging
 import os
 import re
 
-import jsonlines
 import numpy as np
-import pandas as pd
 import pkg_resources
 import spacy
 import torch
-from spacy.language import Language
-from spacy.pipeline import Pipe
-from spacy.tokens import Doc, Span, Token
-from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
+from torch.utils.data import DataLoader
 
 from mordecai3.elastic_utilities import (
     add_es_data_doc,

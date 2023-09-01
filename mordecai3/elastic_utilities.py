@@ -5,7 +5,7 @@ from collections import Counter
 
 import jellyfish
 import numpy as np
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Q, Search
 
 logger = logging.getLogger(__name__)

@@ -9,10 +9,8 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 import datetime
 import logging
-import multiprocessing
 
 import elastic_utilities as es_util
-import elasticsearch
 import numpy as np
 import spacy
 import torch
