@@ -1,21 +1,20 @@
-import spacy
-from spacy.language import Language
-from spacy.tokens import Token, Doc
-from spacy.pipeline import Pipe
-import numpy as np
-import jsonlines
-from tqdm import tqdm
 import re
+
+import jsonlines
+import numpy as np
+import spacy
 import streamlit as st
 import torch
-from torch.utils.data import Dataset, DataLoader
-
-from elastic_utilities import res_formatter, add_es_data
-from torch_model import ProductionData, geoparse_model
-from geoparse import doc_to_ex_expanded, Geoparser
-
+from elastic_utilities import add_es_data, res_formatter
 from elasticsearch import Elasticsearch, helpers
-from elasticsearch_dsl import Search, Q
+from elasticsearch_dsl import Q, Search
+from geoparse import Geoparser, doc_to_ex_expanded
+from spacy.language import Language
+from spacy.pipeline import Pipe
+from spacy.tokens import Doc, Token
+from torch.utils.data import DataLoader, Dataset
+from torch_model import ProductionData, geoparse_model
+from tqdm import tqdm
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
 

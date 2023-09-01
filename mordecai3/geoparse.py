@@ -1,24 +1,30 @@
-import jsonlines
-from tqdm import tqdm
-import re
-import os
-
-import torch
-import pandas as pd
-import spacy
-from spacy.language import Language
-from spacy.tokens import Token, Span, Doc
-from spacy.pipeline import Pipe
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-import pkg_resources
-
-from mordecai3.elastic_utilities import make_conn, get_entry_by_id, get_adm1_country_entry, get_country_entry, add_es_data_doc
-from mordecai3.torch_model import ProductionData, geoparse_model
-from mordecai3.roberta_qa import setup_qa, add_event_loc
-from mordecai3.mordecai_utilities import spacy_doc_setup
-
 import logging
+import os
+import re
+
+import jsonlines
+import numpy as np
+import pandas as pd
+import pkg_resources
+import spacy
+import torch
+from spacy.language import Language
+from spacy.pipeline import Pipe
+from spacy.tokens import Doc, Span, Token
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+
+from mordecai3.elastic_utilities import (
+    add_es_data_doc,
+    get_adm1_country_entry,
+    get_country_entry,
+    get_entry_by_id,
+    make_conn,
+)
+from mordecai3.mordecai_utilities import spacy_doc_setup
+from mordecai3.roberta_qa import add_event_loc, setup_qa
+from mordecai3.torch_model import ProductionData, geoparse_model
+
 logger = logging.getLogger()
 handler = logging.StreamHandler() 
 formatter = logging.Formatter(
