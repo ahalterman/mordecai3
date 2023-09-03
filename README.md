@@ -4,7 +4,7 @@ Mordecai3 is a new geoparser that replaces the earlier [Mordecai](https://github
 
 ## Usage
 
-```
+```pycon
 >>> from mordecai3 import Geoparser
 >>> geo = Geoparser()
 >>> geo.geoparse_doc("I visited Alexanderplatz in Berlin.")
@@ -50,7 +50,7 @@ Mordecai3 is a new geoparser that replaces the earlier [Mordecai](https://github
 
 To install Mordecai3, run
 
-```
+```bash
 pip install mordecai3
 ```
 
@@ -58,7 +58,7 @@ The library has two external dependencies that you'll need to set up.
 
 First, run following command to download the spaCy model used to identify place names and to compute the tensors used in the ranking model.
 
-```
+```bash
 python -m spacy download en_core_web_trf
 ```
 
@@ -66,7 +66,7 @@ Second, Mordecai3 requires a local instance of Elasticsearch with a Geonames ind
 
 Once built, the index can be started like this:
 
-```
+```bash
 docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" -v $PWD/geonames_index/:/usr/share/elasticsearch/data elasticsearch:7.10.1
 ```
 
@@ -78,14 +78,13 @@ More details on the model and its accuracy are available here: https://arxiv.org
 
 If you use Mordecai 3, please cite:
 
-```
+```bibtex
 @article{halterman2023mordecai,
       title={Mordecai 3: A Neural Geoparser and Event Geocoder}, 
       author={Andrew Halterman},
       year={2023},
       journal={arXiv preprint arXiv:2303.13675}
 }
-
 ```
 
 ## Acknowledgements
