@@ -1,36 +1,36 @@
-import random
-import pickle
-import re
 import os
+import pickle
+import random
+import re
+
 import jsonlines
+
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
-import numpy as np
-from tqdm import tqdm
-import torch
-import torch.optim as optim
-import torch.nn as nn
-from torch.utils.data import  DataLoader
-import xmltodict
-import wandb
-import typer
-import spacy
-from spacy.tokens import DocBin
 import datetime
-import multiprocessing
+import logging
 
-from torch_model import geoparse_model
 import elastic_utilities as es_util
+import numpy as np
+import spacy
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import typer
+import wandb
+import xmltodict
+from error_utils import make_wandb_dict
+from geoparse import guess_in_rel
+
 # Currently getting this error: ImportError: attempted relative import with no known parent package
 # when I run the line below.
 # from .mordecai_utilities import spacy_doc_setup
 from mordecai_utilities import spacy_doc_setup
-from torch_model import TrainData
-from error_utils import make_wandb_dict
-from geoparse import guess_in_rel
-import elasticsearch
+from spacy.tokens import DocBin
+from torch.utils.data import DataLoader
+from torch_model import TrainData, geoparse_model
+from tqdm import tqdm
 
-import logging
 logger = logging.getLogger()
 handler = logging.StreamHandler()
 formatter = logging.Formatter(
@@ -625,8 +625,8 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     loss_func=nn.CrossEntropyLoss() # single label, multi-class
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
     if config.avg_params:
-        from torch.optim.swa_utils import AveragedModel, SWALR
         from torch.optim.lr_scheduler import CosineAnnealingLR
+        from torch.optim.swa_utils import SWALR, AveragedModel
 
         swa_model = AveragedModel(model)
         scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)

@@ -1,21 +1,18 @@
-import json
-
+import numpy as np
+import pandas as pd
+import spacy
 import streamlit as st
 import torch
-import pandas as pd
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import Search, Q
-import spacy
-from spacy.tokens import Token, Doc
-from spacy.pipeline import Pipe
-import numpy as np
+from elasticsearch_dsl import Search
 from torch.utils.data import DataLoader
 
 import mordecai3.elastic_utilities as es_util
 from mordecai3.geoparse import doc_to_ex_expanded
+from mordecai3.roberta_qa import add_event_loc, setup_qa
 from mordecai3.torch_model import ProductionData, geoparse_model
-from mordecai3.roberta_qa import setup_qa, add_event_loc
 from mordecai3.utilities import spacy_doc_setup
+
 
 # for dumping raw output to JSON
 # https://stackoverflow.com/a/52604722

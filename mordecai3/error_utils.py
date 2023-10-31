@@ -1,6 +1,6 @@
-import torch
-import numpy as np
 import haversine as hs
+import numpy as np
+import torch
 
 #es_data = datasets[2]
 #loader = data_loaders[2]

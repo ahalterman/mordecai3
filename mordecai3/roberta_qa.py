@@ -1,5 +1,5 @@
-from transformers import AutoModelForQuestionAnswering, AutoTokenizer, pipeline
 from spacy.tokens import Span
+from transformers import pipeline
 
 model_name = "deepset/roberta-base-squad2"
 

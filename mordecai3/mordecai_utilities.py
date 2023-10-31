@@ -1,6 +1,6 @@
-from spacy.tokens import Token
-from spacy.language import Language
 import numpy as np
+from spacy.language import Language
+from spacy.tokens import Token
 
 #def make_country_dict():
 #    country = pd.read_csv("assets/wikipedia-iso-country-codes.txt")

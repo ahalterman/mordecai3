@@ -1,12 +1,13 @@
-from elasticsearch import Elasticsearch, helpers
-from elasticsearch_dsl import Search, Q
-import numpy as np
-import jellyfish
-from collections import Counter
-import warnings
-import re
-
 import logging
+import re
+import warnings
+from collections import Counter
+
+import jellyfish
+import numpy as np
+from elasticsearch import Elasticsearch
+from elasticsearch_dsl import Q, Search
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
