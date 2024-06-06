@@ -1,16 +1,22 @@
 from spacy.language import Language
+from spacy.tokens import Token
 import numpy as np
 
+    
 def spacy_doc_setup():
     try:
         Token.set_extension('tensor', default=False)
     except ValueError:
         pass
-
-    @Language.component("token_tensors")
-    def token_tensors(doc):
-        for n, token in enumerate(doc):
-            ragged_tensor = doc._.trf_data.last_hidden_layer_state[n].data
-            mean_tensor = np.mean(ragged_tensor, axis=0)
-            token._.set('tensor', mean_tensor)
-        return doc
+    try:
+        @Language.component("token_tensors")
+        def token_tensors(doc):
+            tensors = doc._.trf_data.last_hidden_layer_state
+            for n, d in enumerate(doc):
+                if tensors[n]:
+                    d._.set('tensor', tensors[n].data)
+                else:
+                    d._.set('tensor',  np.zeros(tensors[0].shape[-1]))
+            return doc
+    except ValueError:
+        pass
