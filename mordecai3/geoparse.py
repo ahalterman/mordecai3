@@ -139,7 +139,7 @@ def doc_to_ex_expanded(doc):
                  "sent": ent.sent.text,
                  "in_rel": in_rel,
                 "start_char": ent[0].idx,
-                "end_char": ent[-1].idx + len(ent.text)}
+                "end_char": ent[-1].idx + len(ent[-1].text)}
             data.append(d)
     return data
 
