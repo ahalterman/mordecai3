@@ -1,15 +1,15 @@
 ## Read in the BERT embedding for each place name
 ## and predict the country using pytorch
-import numpy as np
 import json
+import logging
 import os
 
+import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
 from pandas import read_csv
+from torch.utils.data import Dataset
 
-import logging
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(

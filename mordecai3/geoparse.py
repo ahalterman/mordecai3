@@ -1,23 +1,23 @@
-import jsonlines
-from tqdm import tqdm
-import re
+import logging
 import os
+import re
 
-import torch
-import pandas as pd
-import spacy
-from spacy.language import Language
-from spacy.tokens import Token, Span, Doc
-from spacy.pipeline import Pipe
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
 import pkg_resources
+import spacy
+import torch
+from torch.utils.data import DataLoader
 
-from mordecai3.elastic_utilities import make_conn, get_entry_by_id, get_adm1_country_entry, get_country_entry, add_es_data_doc
-from mordecai3.torch_model import ProductionData, geoparse_model
-from mordecai3.roberta_qa import setup_qa, add_event_loc
+from mordecai3.elastic_utilities import (
+    add_es_data_doc,
+    get_adm1_country_entry,
+    get_country_entry,
+    get_entry_by_id,
+    make_conn,
+)
 from mordecai3.mordecai_utilities import spacy_doc_setup
-
+from mordecai3.roberta_qa import add_event_loc, setup_qa
+from mordecai3.torch_model import ProductionData, geoparse_model
 
 import logging
 logger = logging.getLogger()
@@ -323,7 +323,8 @@ class Geoparser:
                      plover_cat=None, 
                      debug=False, 
                      trim=True, 
-                     known_country=None):
+                     known_country=None,
+                     max_choices=50):
         """
         Geoparse a document.
 
@@ -374,6 +375,7 @@ class Geoparser:
                                               known_country=known_country)
 
             dataset = ProductionData(es_data, max_choices=100)
+
             data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
             with torch.no_grad():
                 self.model.eval()
@@ -400,31 +402,41 @@ class Geoparser:
         elif len(es_data) == 0:
             return output
         else:
+            # Iterate over all the entities in the document
             for (ent, pred) in zip(es_data, pred_val):
                 logger.debug("**Place name**: {}".format(ent['search_name']))
-                #print(len(ent['es_choices']))
+                # if the last one is the argmax, then the model thinks that no answer is correct
+                # so return blank
+                if pred[-1] == pred.max():
+                    logger.debug("Model predicts no answer")
+                    best = {"search_name": ent['search_name'],
+                        "start_char": ent['start_char'],
+                        "end_char": ent['end_char']}
+                    best_list.append(best)
+                    continue
+
                 for n, score in enumerate(pred):
                     if n < len(ent['es_choices']):
                         ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
                 results = [e for e in ent['es_choices'] if 'score' in e.keys()]
 
                 # this is what the elements of "results" look like
-             #   {'feature_code': 'PPL',
-             #   'feature_class': 'P',
-             #   'country_code3': 'BRA',
-             #   'lat': -22.99835,
-             #   'lon': -43.36545,
-             #   'name': 'Barra da Tijuca',
-             #   'admin1_code': '21',
-             #   'admin1_name': 'Rio de Janeiro',
-             #   'admin2_code': '3304557',
-             #   'admin2_name': 'Rio de Janeiro',
-             #   'geonameid': '7290718',
-             #   'score': 1.0,
-             #   'search_name': 'Barra da Tijuca',
-             #   'start_char': 557,
-             #   'end_char': 581
-            #}
+                 #  {'feature_code': 'PPL',
+                 #  'feature_class': 'P',
+                 #  'country_code3': 'BRA',
+                 #  'lat': -22.99835,
+                 #  'lon': -43.36545,
+                 #  'name': 'Barra da Tijuca',
+                 #  'admin1_code': '21',
+                 #  'admin1_name': 'Rio de Janeiro',
+                 #  'admin2_code': '3304557',
+                 #  'admin2_name': 'Rio de Janeiro',
+                 #  'geonameid': '7290718',
+                 #  'score': 1.0,
+                 #  'search_name': 'Barra da Tijuca',
+                 #  'start_char': 557,
+                 #  'end_char': 581
+                 #  }
                 if not results:
                     logger.debug("(no results)")
                 best = {"search_name": ent['search_name'],
@@ -439,7 +451,7 @@ class Geoparser:
                     continue
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:
-                    logger.debug("Picking top predicted result for each location")
+                    logger.debug("Picking top predicted result")
                     best = results[0]
                     best["search_name"] = ent['search_name']
                     best["start_char"] = ent['start_char']

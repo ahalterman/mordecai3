@@ -1,12 +1,13 @@
-from elasticsearch import Elasticsearch, helpers
-from elasticsearch_dsl import Search, Q
-import numpy as np
-import jellyfish
-from collections import Counter
-import warnings
-import re
-
 import logging
+import re
+import warnings
+from collections import Counter
+
+import jellyfish
+import numpy as np
+from elasticsearch import Elasticsearch
+from elasticsearch_dsl import Q, Search
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
@@ -266,8 +267,11 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
         p_filter = Q("term", feature_class="P")
         a_filter = Q("term", feature_class="A")
         combined_filter = p_filter | a_filter
+        if known_country:
+            country_filter = Q("term", country_code3=known_country)
+            combined_filter = combined_filter & country_filter
         res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    if known_country:
+    elif known_country:
         country_filter = Q("term", country_code3=known_country)
         res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     else:

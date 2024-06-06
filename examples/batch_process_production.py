@@ -1,27 +1,23 @@
-from collections import Counter
-from pathlib import Path
+import logging
+import re
 import time
 from configparser import ConfigParser
+from pathlib import Path
 
-import typer
-import pandas as pd 
-import spacy
-import numpy as np
 import jsonlines
-from tqdm import tqdm
-import re
-import torch
+import numpy as np
 import pandas as pd
-
+import spacy
+import torch
+import typer
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 import mordecai3.elastic_utilities as es_util
 from mordecai3.geoparse import Geoparser, doc_to_ex_expanded
 from mordecai3.torch_model import ProductionData
-from mordecai3.roberta_qa import setup_qa
 from mordecai3.utilities import spacy_doc_setup
 
-
-import logging
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler()
 formatter = logging.Formatter(

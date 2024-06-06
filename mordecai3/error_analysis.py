@@ -1,17 +1,17 @@
-from torch_model import TrainData, geoparse_model
-from train import load_data
-from torch.utils.data import DataLoader
-import torch
+import logging
 from collections import Counter
-import numpy as np
-from rich.console import Console
-from rich.table import Table
-import typer
 from pathlib import Path
 
+import numpy as np
+import torch
+import typer
 from error_utils import evaluate_results, make_wandb_dict
+from rich.console import Console
+from rich.table import Table
+from torch.utils.data import DataLoader
+from torch_model import TrainData, geoparse_model
+from train import load_data
 
-import logging
 logger = logging.getLogger()
 handler = logging.StreamHandler()
 formatter = logging.Formatter(
@@ -38,7 +38,6 @@ test_batch_size = 64
 #names = ["mixed training", "prodigy", "TR", "LGL", "GWN", "Synth"]
 
 import wandb
-
 
 
 def make_missing_table(cutoff, names, datasets):

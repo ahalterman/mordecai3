@@ -1,6 +1,8 @@
 import pytest
+
 from .. import elastic_utilities as es_utils
 from .. import geoparse
+
 
 def test_statement_event_loc(geo):
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."

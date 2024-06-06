@@ -1,6 +1,6 @@
+import numpy as np
 from spacy.language import Language
 from spacy.tokens import Token
-import numpy as np
 
     
 def spacy_doc_setup():
