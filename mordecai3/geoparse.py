@@ -121,6 +121,9 @@ def doc_to_ex_expanded(doc):
     """
     data = []
     doc_tensor = np.mean(np.vstack([i._.tensor.data for i in doc]), axis=0)
+    # the "loc_ents" are the ones we use for context. NORPs are useful for context,
+    # but we don't want to geoparse them. Anecdotally, FACs aren't so useful for context,
+    # but we do want to geoparse them.
     loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'NORP']]
     for ent in doc.ents:
         if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']:
