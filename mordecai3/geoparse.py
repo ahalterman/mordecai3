@@ -18,11 +18,6 @@ from mordecai3.torch_model import ProductionData, geoparse_model
 from mordecai3.roberta_qa import setup_qa, add_event_loc
 from mordecai3.mordecai_utilities import spacy_doc_setup
 
-from elastic_utilities import make_conn, get_entry_by_id, get_adm1_country_entry, get_country_entry, add_es_data_doc
-from torch_model import ProductionData, geoparse_model
-from roberta_qa import setup_qa, add_event_loc
-from mordecai_utilities import spacy_doc_setup
-
 
 import logging
 logger = logging.getLogger()
