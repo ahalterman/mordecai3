@@ -19,13 +19,14 @@ from mordecai3.mordecai_utilities import spacy_doc_setup
 from mordecai3.roberta_qa import add_event_loc, setup_qa
 from mordecai3.torch_model import ProductionData, geoparse_model
 
+import logging
 logger = logging.getLogger()
 handler = logging.StreamHandler() 
 formatter = logging.Formatter(
         '%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 spacy_doc_setup()
 
@@ -114,16 +115,19 @@ def doc_to_ex_expanded(doc):
     data: list of dicts
     """
     data = []
-    doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
+    doc_tensor = np.mean(np.vstack([i._.tensor.data for i in doc]), axis=0)
+    # the "loc_ents" are the ones we use for context. NORPs are useful for context,
+    # but we don't want to geoparse them. Anecdotally, FACs aren't so useful for context,
+    # but we do want to geoparse them.
     loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'NORP']]
     for ent in doc.ents:
         if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']:
-            tensor = np.mean(np.vstack([i._.tensor for i in ent]), axis=0)
+            tensor = np.mean(np.vstack([i._.tensor.data for i in ent]), axis=0)
             other_locs = [i for e in loc_ents for i in e if i not in ent]
             in_rel = guess_in_rel(ent)
             #print("detected relation: ", ent.text, "-->", in_rel)
             if other_locs:
-                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs if i not in ent]), axis=0)
+                locs_tensor = np.mean(np.vstack([i._.tensor.data for i in other_locs if i not in ent]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
             d = {"search_name": ent.text,
@@ -133,7 +137,7 @@ def doc_to_ex_expanded(doc):
                  "sent": ent.sent.text,
                  "in_rel": in_rel,
                 "start_char": ent[0].idx,
-                "end_char": ent[-1].idx + len(ent.text)}
+                "end_char": ent[-1].idx + len(ent[-1].text)}
             data.append(d)
     return data
 
@@ -158,7 +162,7 @@ class Geoparser:
                  geo_asset_path=None,
                  nlp=None,
                  event_geoparse=False,
-                 debug=None,
+                 debug=False,
                  trim=None,
                  check_es=True):
         self.debug = debug
@@ -183,7 +187,7 @@ class Geoparser:
             except:
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
         if not model_path:
-            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2023-03-28.pt")
+            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2024-06-04.pt")
         self.model = load_model(model_path)
         if not geo_asset_path:
             geo_asset_path = pkg_resources.resource_filename("mordecai3", "assets/")
@@ -195,6 +199,9 @@ class Geoparser:
         self.model.to(device)
 
     def lookup_city(self, entry):
+        """
+        
+        """
         city_id = ""
         city_name = ""
         if entry['feature_code'] == 'PPLX':
@@ -319,7 +326,7 @@ class Geoparser:
                      known_country=None,
                      max_choices=50):
         """
-        Geoparse a document
+        Geoparse a document.
 
         Parameters
         ----------
@@ -362,13 +369,13 @@ class Geoparser:
         if plover_cat and not self.event_geoparse:
             raise Warning("A PLOVER category was provided but event geoparsing is disabled. Skipping event geolocation!")
 
-        logger.debug("Doc ents: ", doc.ents)
         doc_ex = doc_to_ex_expanded(doc)
         if doc_ex:
-            es_data = add_es_data_doc(doc_ex, self.conn, max_results=max_choices,
+            es_data = add_es_data_doc(doc_ex, self.conn, max_results=100,
                                               known_country=known_country)
 
-            dataset = ProductionData(es_data, max_choices=max_choices)
+            dataset = ProductionData(es_data, max_choices=100)
+
             data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
             with torch.no_grad():
                 self.model.eval()
@@ -437,11 +444,11 @@ class Geoparser:
                         "end_char": ent['end_char']}
                 scores = np.array([r['score'] for r in results])
                 if len(scores) == 0:
-                    logger.debug("No results for this entity")
-                    best['score'] = 0.0
-                    best_list.append(best)
+                    logger.debug("No scores found.")
                     continue
-                #results = [i for i in results if i['score'] > 0.001]
+                if np.argmax(scores) == len(scores) - 1:
+                    logger.debug("Picking final ''null'' result.")
+                    continue
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:
                     logger.debug("Picking top predicted result")
@@ -451,6 +458,7 @@ class Geoparser:
                     best["end_char"] = ent['end_char']
                     ## Add in city info here
                     best['city_id'], best['city_name'] = self.lookup_city(best)
+                    best_list.append(best)
                 if results and debug==True:
                     logger.debug("Returning top 4 predicted results for each location")
                     best = results[0:4]
@@ -459,9 +467,8 @@ class Geoparser:
                         b["start_char"] = ent['start_char']
                         b["end_char"] = ent['end_char']
                         b['city_id'], b['city_name'] = self.lookup_city(b)
-                best_list.append(best)
+                        best_list.append(best)
 
-            
         if (self.trim or trim) and best_list:
             trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
                         'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
@@ -478,8 +485,11 @@ class Geoparser:
 
             
 if __name__ == "__main__":
-    geo = Geoparser("mordecai_new.pt")
+    geo = Geoparser("/home/andy/projects/mordecai3/mordecai_2024-06-04.pt",
+                    event_geoparse=False, trim=False)
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
+    text = "Speaking from the city of Xinwonsnos, President Obama expressed his hope for a peaceful resolution to the fighting in Janskan and Alanenesla."
+    geo.geoparse_doc(text)
     plover_cat = "fight"
     out = geo.geoparse_doc(text, plover_cat) 
     print(out)

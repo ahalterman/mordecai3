@@ -22,9 +22,9 @@ import xmltodict
 from error_utils import make_wandb_dict
 from geoparse import guess_in_rel
 
-# Currently getting this error: ImportError: attempted relative import with no known parent package
-# when I run the line below.
-# from .mordecai_utilities import spacy_doc_setup
+from torch_model import geoparse_model
+import elastic_utilities as es_util
+
 from mordecai_utilities import spacy_doc_setup
 from spacy.tokens import DocBin
 from torch.utils.data import DataLoader
@@ -37,7 +37,7 @@ formatter = logging.Formatter(
         '%(levelname)-8s %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
 for i in loggers:
@@ -141,6 +141,8 @@ def load_data(data_dir,
             with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
                 logger.debug(f"Total wiki results: {len(es_data)}")
+            # mean of 'correct' key
+            #np.mean([np.mean(i['correct']) for i in es_data])
 
         es_data = [i for i in es_data if len(i['tensor']) > 1] # This is really weird!! Some sort of bug in the spacy step
         es_data, es_data_val = split_list(es_data, train_frac)
@@ -266,10 +268,16 @@ def data_formatter_wiki(docs, data):
         correct_id = ex['correct_geonamesid']
         # we might lose some examples here if the tokenization ever changes, but
         # it should be extremely rare
+        # These are the keys for the old 'sent' format. Replace with the document-level ones.
+        #if 'start_char_sent' in ex.keys():
+        #    orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char_sent'] and ent.start_char < ex['end_char_sent']]
+        #else:
+        #    orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char'] and ent.start_char < ex['end_char']]
+        ## NEW:
         if 'start_char_sent' in ex.keys():
             orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char_sent'] and ent.start_char < ex['end_char_sent']]
         else:
-            orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char'] and ent.start_char < ex['end_char']]
+            orig_places = [ent for ent in doc.ents if ent.start_char >= ex['start_char_doc'] and ent.start_char < ex['end_char_doc']]
         # get the tensor for those tokens
         if orig_places:
             places = [i for i in orig_places[0]]
@@ -312,17 +320,24 @@ def data_formatter_wiki(docs, data):
 
 def data_to_docs(data, source, base_dir, nlp):
     """
-    NLP the training data and save the docs to disk. No Elasticsearch data is involved yet.
+    search data is involved yet.
     """
+    # NOTE: doing more than 5000 at a time maxes out RAM. 
+    # To get the full set of Wiki stories, we'll need to batch and
+    # save each batch to disk.
     print("NLPing docs...")
     doc_bin = DocBin(store_user_data=True)
+    print("spaCy batch size: ", nlp.batch_size)
     if source in ["prodigy", "syn_cities", "syn_caps", "wiki"]:
-        for doc in tqdm(nlp.pipe([i['text'] for i in data]), total=len(data)):
+        for doc in tqdm(nlp.pipe([i['text'] for i in data], 
+                                 batch_size=100),
+                                   total=len(data)):
             doc_bin.add(doc)
     else:
         for doc in tqdm(nlp.pipe([i['text'] for i in data['articles']['article']]), total=len(data['articles']['article'])):
             doc_bin.add(doc)
     fn = f"{base_dir}/spacyed/source_{source}.spacy"
+    print(f"Writing NLPed docs out to {fn}...")
     with open(fn, "wb") as f:
         doc_bin.to_disk(fn)
     print(f"Wrote NLPed docs out to {fn}")
@@ -393,7 +408,7 @@ def data_formatter(docs, data, source):
                                   "in_rel": in_rel,
                                   "correct_geonamesid": correct_geonamesid})
             except Exception as e:
-                print(f"e: {doc_num}_{n}")
+                print(f"{e}: {doc_num}_{n}")
         all_formatted.append(doc_formatted)
         doc_num += 1
     return all_formatted
@@ -469,15 +484,18 @@ def nlp_docs(base_dir,
       
     """
     print("Loading NLP stuff...")
+    spacy.prefer_gpu()
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
+
+    # check the spaCy model is on the GPU
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
                   "lgl":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/lgl.xml",
                   "gwn": "Pragmatic-Guide-to-Geoparsing-Evaluation/data/GWN.xml",
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl",
-                  "wiki": "wiki/wiki_sampled.jsonl"}
+                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
 
@@ -515,6 +533,7 @@ def add_es(base_dir,
     """
     conn = es_util.make_conn()
     print("Loading spacy model...")
+    spacy.prefer_gpu()
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     source_dict = {"tr":"Pragmatic-Guide-to-Geoparsing-Evaluation/data/Corpora/TR-News.xml",
@@ -523,7 +542,7 @@ def add_es(base_dir,
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl",
-                  "wiki": "wiki/wiki_sampled.jsonl"}
+                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
     if type(sources) is str:
@@ -541,33 +560,20 @@ def add_es(base_dir,
                       remove_correct=remove_correct)
     print("Complete")
 
-#(batch_size: int = typer.Option(32, min=1),         # input batch size for training 
-#          test_batch_size: int = typer.Option(64),    # input batch size for testing 
-#          epochs: int = typer.Option(20, min=0),          # number of epochs to train 
-#          lr: float = typer.Option(0.01),             # learning rate 
-#          max_choices: int = typer.Option(500),
-#          dropout: float = typer.Option(0.3),
-#          avg_params: str = typer.Option("False"),
-#          limit_es_results: str = typer.Option("all_loc_types"),
-#          country_size: int = typer.Option(24, min=1),
-#          code_size: int = typer.Option(8),
-#          country_pred: str = typer.Option("True"),
-#          mix_dim: int = typer.Option(12),
-#          fuzzy: int = typer.Option(0)
 
 @app.command()
 def train(batch_size: int = typer.Option(32, "--batch_size"),         # input batch size for training 
           test_batch_size: int= typer.Option(64, "--test_batch_size"),    # input batch size for testing 
           epochs: int = typer.Option(20, "--epochs"),         # number of epochs to train 
-          lr: float = typer.Option(0.01, "--lr"),            # learning rate 
+          lr: float = typer.Option(0.001, "--lr"),            # learning rate 
           max_choices: int = typer.Option(500, "--max_choices"),
           dropout: float = typer.Option(0.3, "--dropout"),
           avg_params: str = typer.Option("False", "--avg_params"),
           limit_es_results: str = typer.Option("all_loc_types", "--limit_es_results"),
           country_size: int = typer.Option(24, "--country_size"),
           code_size: int = typer.Option(8, "--code_size"),
-          country_pred: str = typer.Option("True", "--country_pred"),
-          mix_dim: int = typer.Option(12, "--mix_dim"),
+          country_pred: str = typer.Option("False", "--country_pred"),
+          mix_dim: int = typer.Option(24, "--mix_dim"),
           fuzzy: int = typer.Option(0, "--fuzzy"),
           dataset_names: str = typer.Option("Prodigy, TR, LGL, GWN, Synth, Wiki", "--datasets")
 ):
@@ -587,17 +593,14 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
     config.dropout = dropout 
     config.avg_params = avg_params=="True"
     config.limit_es_results = limit_es_results 
-    config.country_size=country_size
-    config.code_size=code_size
-    config.country_pred=country_pred=="True"
-    config.mix_dim=mix_dim
-    config.fuzzy=fuzzy
+    config.country_size = country_size
+    config.code_size = code_size
+    config.country_pred = country_pred=="True"
+    config.mix_dim = mix_dim
+    config.fuzzy = fuzzy
     dataset_names = [i.strip() for i in dataset_names.split(",")]
     config.names = dataset_names 
-    #["Prodigy", "TR", "LGL", "GWN", "Synth"]
-    #config.names = ["Wiki"]
-    dataset_names = ['Prodigy', 'TR', 'LGL', 'Synth', 'Wiki'] # 'LGL',
-
+    #dataset_names = ['Prodigy', 'TR', 'LGL', 'Synth', 'Wiki'] 
 
     data_dir = "../raw_data"
     print(config.__dict__)
@@ -608,10 +611,11 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
                                                   config.fuzzy,
                                                   config.batch_size,
                                                   config.test_batch_size,
-                                                  data_sources=dataset_names) ## CHANGE!!!
+                                                  data_sources=dataset_names) 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = "cpu"
     model = geoparse_model(device = device,
                               bert_size = es_train_data[0]['tensor'].shape[0],
                               num_feature_codes=53+1,
@@ -619,7 +623,6 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
                               country_size=config.country_size,
                               code_size=config.code_size, 
                               country_pred=config.country_pred)
-    #model = torch.nn.DataParallel(model)
     model.to(device)
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
     loss_func=nn.CrossEntropyLoss() # single label, multi-class
@@ -643,15 +646,23 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
         epoch_acc = 0
 
         for label, country, input in train_loader:
-            label = label.type(torch.LongTensor).to(device)
+            label = label.type(torch.LongTensor) #.to(device)
+            # input is a dict. It should be moved to device
+            #for k, v in input.items():
+            #    input[k] = v.to(device)
             optimizer.zero_grad()
             if config.country_pred:
+                label = label.type(torch.LongTensor)
                 label_pred, country_pred = model(input)
+                #label_pred = label_pred.type(torch.LongTensor)
+                #country_pred = label_pred.type(torch.LongTensor)
                 loss_1 = loss_func(label_pred, label)
                 loss_country = loss_func(country_pred, country)
                 loss = 0.8*loss_1 + 0.2*loss_country
             else:
+                label = label.type(torch.LongTensor)
                 label_pred = model(input)
+                #label_pred = label_pred.type(torch.LongTensor)
                 loss = loss_func(label_pred, label)
 
             #logger.debug(country_pred[1])
