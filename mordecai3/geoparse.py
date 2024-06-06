@@ -189,7 +189,7 @@ class Geoparser:
             except:
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
         if not model_path:
-            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2023-03-28.pt")
+            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2024-06-04.pt")
         self.model = load_model(model_path)
         if not geo_asset_path:
             geo_asset_path = pkg_resources.resource_filename("mordecai3", "assets/")

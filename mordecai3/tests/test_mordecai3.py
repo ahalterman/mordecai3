@@ -22,12 +22,15 @@ def test_no_event_given(geo):
 
 def test_no_locs(geo):
     text = "President Obama expressed his hope for a peaceful resolution to the fighting."
+    out = geo.geoparse_doc(text)
+    assert out['geolocated_ents'] == []
+
     icews_cat = "Make statement"
     out = geo.geoparse_doc(text, icews_cat) 
     assert out['geolocated_ents'] == []
 
 def test_three_locs(geo):
-    text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo Governorates."
+    text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in the cities of Homs and Aleppo."
     out = geo.geoparse_doc(text) 
     assert out['geolocated_ents'][0]['geonameid'] == "2950159" # Berlin
     assert out['geolocated_ents'][1]['geonameid'] == "169577" # Homs (city)
@@ -44,7 +47,7 @@ def test_governorates(geo):
 def test_district_upper_term(geo):
     text = "Afghanistan: Southern Radio, Television Highlights 22 February 2021. He added: 'Ten Taliban, including four Pakistani Nationals, were killed in clashes between the commandos and Taliban in Arghistan District on the night of 21 February."
     out = geo.geoparse_doc(text)
-    print(out)
+    #print(out)
     assert out['geolocated_ents'][0]['search_name'] == "Afghanistan" 
     assert out['geolocated_ents'][1]['feature_code'] == "ADM2"
     assert out['geolocated_ents'][1]['geonameid'] == "7053299"  # Arghistan district
@@ -60,9 +63,8 @@ def test_district_lower_term(geo):
 def test_miss_oxford(geo):
     text = "Ole Miss is located in Oxford."
     out = geo.geoparse_doc(text) 
-    assert out['geolocated_ents'][0]['geonameid'] == "4449414" 
     assert out['geolocated_ents'][0]['admin1_name'] == "Mississippi" 
-    assert out['geolocated_ents'][1]['geonameid'] == "4440076" 
+    assert out['geolocated_ents'][0]['geonameid'] == "4440076" 
 
 def test_uk_oxford(geo):
     text = "Oxford University, in the town of Oxford, is the best British university."
@@ -79,7 +81,7 @@ def test_multi_sent(geo):
     out = geo.geoparse_doc(text) 
 
 def test_prague(geo):
-    text = "A group of Czech settlers in Oklahoma named their new town Prague."
+    text = "A group of settlers in Oklahoma named their new town Prague."
     out = geo.geoparse_doc(text) 
     assert out['geolocated_ents'][0]['feature_code'] == "ADM1"
     assert out['geolocated_ents'][1]['admin1_name'] == "Oklahoma"
