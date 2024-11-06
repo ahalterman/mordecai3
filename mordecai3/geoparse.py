@@ -181,10 +181,12 @@ class Geoparser:
             self.nlp = nlp
         self.conn = make_conn()
         if check_es:
+            logger.info("Checking Elasticsearch connection...")
             try:
                 assert len(list(geo.conn[1])) > 0
                 logger.info("Successfully connected to Elasticsearch.")
             except:
+                logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
         if not model_path:
             model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2024-06-04.pt")
