@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
-    # Default to localhost if no hosts are provided
+    """
+    hosts: list[str] - list of hostnames, defaults to ['localhost'] if None
+    """
     hosts = hosts or ['localhost']
     kwargs = dict(
         hosts=hosts,
