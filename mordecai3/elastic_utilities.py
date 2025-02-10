@@ -11,21 +11,27 @@ from elasticsearch_dsl import Q, Search
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-def make_conn():
+def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
+    """
+    hosts: list[str] - list of hostnames, defaults to ['localhost'] if None
+    """
+    hosts = hosts or ['localhost']
     kwargs = dict(
-        hosts=['localhost'],
-        port=9200,
-        use_ssl=False,
+        hosts=hosts,
+        port=port,
+        use_ssl=use_ssl,
     )
     CLIENT = Elasticsearch(**kwargs)
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-def setup_es():
+def setup_es(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
+    # Default to localhost if no hosts are provided
+    hosts = hosts or ['localhost']
     kwargs = dict(
-        hosts=['localhost'],
-        port=9200,
-        use_ssl=False,
+        hosts=hosts,
+        port=port,
+        use_ssl=use_ssl,
     )
     CLIENT = Elasticsearch(**kwargs)
     try:
