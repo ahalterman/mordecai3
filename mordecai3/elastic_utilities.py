@@ -25,21 +25,30 @@ def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-def setup_es(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
-    # Default to localhost if no hosts are provided
-    hosts = hosts or ['localhost']
-    kwargs = dict(
-        hosts=hosts,
-        port=port,
-        use_ssl=use_ssl,
-    )
-    CLIENT = Elasticsearch(**kwargs)
+def setup_es(es_config=None):
+    if not es_config:
+            es_config = {
+                "es_host": "localhost",
+                "es_port": 9200,
+                "es_user": None,
+                "es_password": None,
+                "use_ssl": False
+            }
+    # fill in any missing keys with the default
+    for key, default in [("es_host", "localhost"), ("es_port", 9200), ("es_user", None), ("es_password", None), ("use_ssl", False)]:
+        if key not in es_config:
+            es_config[key] = default
+    client = Elasticsearch(hosts=[{'host': es_config['es_host'], 
+                                   'port': es_config['es_port']}],
+                            use_ssl=es_config['use_ssl'],
+                            http_auth=(es_config['es_user'], es_config['es_password']) if es_config['es_user'] and es_config['es_password'] else None
+                                   )
     try:
-        CLIENT.ping()
+        client.ping()
         logger.info("Successfully connected to Elasticsearch.")
     except:
         ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
-    conn = Search(using=CLIENT, index="geonames")
+    conn = Search(using=client, index="geonames")
     return conn
 
 def normalize(ll: list) -> np.array:    

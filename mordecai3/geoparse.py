@@ -13,7 +13,7 @@ from mordecai3.elastic_utilities import (
     get_adm1_country_entry,
     get_country_entry,
     get_entry_by_id,
-    make_conn,
+    setup_es,
 )
 from mordecai3.mordecai_utilities import spacy_doc_setup
 from mordecai3.roberta_qa import add_event_loc, setup_qa
@@ -31,7 +31,11 @@ logger.setLevel(logging.DEBUG)
 spacy_doc_setup()
 
 def load_nlp():
-    nlp = spacy.load("en_core_web_trf")
+    try:
+        nlp = spacy.load("en_core_web_trf")
+    except Exception as e:
+        logger.error(f"Couldn't find the spaCy model. Try downloading first with `python -m spacy download en_core_web_trf`")
+        raise ValueError("Couldn't load the spaCy model. Try downloading first with `python -m spacy download en_core_web_trf`")
     nlp.add_pipe("token_tensors")
     return nlp
 
@@ -115,19 +119,19 @@ def doc_to_ex_expanded(doc):
     data: list of dicts
     """
     data = []
-    doc_tensor = np.mean(np.vstack([i._.tensor.data for i in doc]), axis=0)
+    doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)  # Remove .data
     # the "loc_ents" are the ones we use for context. NORPs are useful for context,
     # but we don't want to geoparse them. Anecdotally, FACs aren't so useful for context,
     # but we do want to geoparse them.
     loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'NORP']]
     for ent in doc.ents:
         if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']:
-            tensor = np.mean(np.vstack([i._.tensor.data for i in ent]), axis=0)
+            tensor = np.mean(np.vstack([i._.tensor for i in ent]), axis=0)
             other_locs = [i for e in loc_ents for i in e if i not in ent]
             in_rel = guess_in_rel(ent)
             #print("detected relation: ", ent.text, "-->", in_rel)
             if other_locs:
-                locs_tensor = np.mean(np.vstack([i._.tensor.data for i in other_locs if i not in ent]), axis=0)
+                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs if i not in ent]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
             d = {"search_name": ent.text,
@@ -165,9 +169,34 @@ class Geoparser:
                  debug=False,
                  trim=None,
                  check_es=True,
-                 hosts: list[str] = None,
-                 port: int = 9200,
-                 use_ssl: bool = False):
+                 es_config=None):
+        """
+        Initialize the Geoparser
+
+        Parameters
+        ----------
+        model_path: str
+          Path to the Mordecai geoparsing model (.pt) file.
+        geo_asset_path: str
+          Path to the geo assets directory.
+        nlp: spacy.Language
+          A pre-loaded en_core_web_trf model if previously loaded.
+        event_geoparse: bool
+          Whether to enable event geoparsing.
+        debug: bool
+          Whether to enable debug mode (extra verbosity).
+        trim: float
+          If true, remove some intermediate variables before returning. (Recommended for production)
+        check_es: bool
+          Whether to check Elasticsearch connection.
+        es_config: dict
+          Elasticsearch configuration. Can have any of the following keys:
+          - es_host: str
+          - es_port: int
+          - es_user: str
+          - es_password: str
+          - use_ssl: bool
+        """
         self.debug = debug
         self.trim = trim
         if not nlp:
@@ -182,7 +211,7 @@ class Geoparser:
                 logger.info(f"Error loading token_tensors pipe: {e}")
                 pass
             self.nlp = nlp
-        self.conn = make_conn(hosts=hosts, port=port, use_ssl=use_ssl)
+        self.conn = setup_es(es_config=es_config)
         if check_es:
             logger.info("Checking Elasticsearch connection...")
             try:
