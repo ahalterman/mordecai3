@@ -8,16 +8,16 @@ import spacy
 import torch
 from torch.utils.data import DataLoader
 
-from mordecai3.elastic_utilities import (
+from elastic_utilities import (
     add_es_data_doc,
     get_adm1_country_entry,
     get_country_entry,
     get_entry_by_id,
     make_conn,
 )
-from mordecai3.mordecai_utilities import spacy_doc_setup
-from mordecai3.roberta_qa import add_event_loc, setup_qa
-from mordecai3.torch_model import ProductionData, geoparse_model
+from mordecai_utilities import spacy_doc_setup
+from roberta_qa import add_event_loc, setup_qa
+from torch_model import ProductionData, geoparse_model
 
 import logging
 logger = logging.getLogger()
