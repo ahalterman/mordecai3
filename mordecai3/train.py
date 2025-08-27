@@ -80,7 +80,8 @@ def split_list(data, frac=0.7):
     split = round(frac*len(data))
     return data[0:split], data[split:]
 
-def load_data(data_dir, 
+
+def load_es_data(data_dir, 
              max_results, 
              limit_types, 
              fuzzy,
@@ -508,7 +509,14 @@ def nlp_docs(base_dir,
         data = read_file(source_dict[source])
         data_to_docs(data, source, base_dir, nlp)
 
-@app.command()
+#@app.command()
+
+base_dir = "/home/andy/projects/mordecai3/raw_data"
+max_results = 500
+fuzzy = 0
+limit_types = False
+sources = "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki"
+
 def add_es(base_dir, 
           max_results=500,
           fuzzy=0, 
@@ -561,57 +569,77 @@ def add_es(base_dir,
     print("Complete")
 
 
-@app.command()
-def train(batch_size: int = typer.Option(32, "--batch_size"),         # input batch size for training 
-          test_batch_size: int= typer.Option(64, "--test_batch_size"),    # input batch size for testing 
-          epochs: int = typer.Option(20, "--epochs"),         # number of epochs to train 
-          lr: float = typer.Option(0.001, "--lr"),            # learning rate 
-          max_choices: int = typer.Option(500, "--max_choices"),
-          dropout: float = typer.Option(0.3, "--dropout"),
-          avg_params: str = typer.Option("False", "--avg_params"),
-          limit_es_results: str = typer.Option("all_loc_types", "--limit_es_results"),
-          country_size: int = typer.Option(24, "--country_size"),
-          code_size: int = typer.Option(8, "--code_size"),
-          country_pred: str = typer.Option("False", "--country_pred"),
-          mix_dim: int = typer.Option(24, "--mix_dim"),
-          fuzzy: int = typer.Option(0, "--fuzzy"),
-          dataset_names: str = typer.Option("Prodigy, TR, LGL, GWN, Synth, Wiki", "--datasets")
+#@app.command()
+
+batch_size = 32
+test_batch_size = 64
+epochs = 20
+# fill in the rest of the default values:
+lr = 0.001
+max_choices = 500
+dropout = 0.3
+avg_params = False
+limit_es_results = "all_loc_types"
+country_size = 24
+code_size = 8
+country_pred = False
+mix_dim = 256
+fuzzy = 0
+dataset_names = "Prodigy, TR, LGL, GWN, Synth, Wiki"
+
+
+def train(batch_size=32,
+          test_batch_size=64,
+          epochs=20,
+          lr=0.001,
+          max_choices=500,
+          dropout=0.3,
+          avg_params=False,
+          limit_es_results="all_loc_types",
+          country_size=24,
+          code_size=8,
+          country_pred=False,
+          mix_dim=24,
+          fuzzy=0,
+          dataset_names="Prodigy, TR, LGL, GWN, Synth, Wiki"
 ):
     """
     Train the pytorch model from formatted training data.
     """
     wandb.init(project="mordecai3", entity="ahalt", allow_val_change=True)
 
+    dataset_names_list = [str(name).strip() for name in str(dataset_names).split(",")]
     config = wandb.config          # Initialize config
-    config.batch_size = batch_size
-    config.test_batch_size = test_batch_size 
-    config.epochs = epochs 
-    config.lr = lr
-    config.seed = 42          
-    config.log_interval = 10
-    config.max_choices = max_choices
-    config.dropout = dropout 
-    config.avg_params = avg_params=="True"
-    config.limit_es_results = limit_es_results 
-    config.country_size = country_size
-    config.code_size = code_size
-    config.country_pred = country_pred=="True"
-    config.mix_dim = mix_dim
-    config.fuzzy = fuzzy
-    dataset_names = [i.strip() for i in dataset_names.split(",")]
-    config.names = dataset_names 
-    #dataset_names = ['Prodigy', 'TR', 'LGL', 'Synth', 'Wiki'] 
+    config.update({
+        'batch_size': batch_size,
+        'test_batch_size': test_batch_size,
+        'epochs': epochs,
+        'lr': lr,
+        'seed': 42,
+        'log_interval': 10,
+        'max_choices': max_choices,
+        'dropout': dropout,
+        'avg_params': str(avg_params).lower() == "true",
+        'limit_es_results': limit_es_results,
+        'country_size': country_size,
+        'code_size': code_size,
+        'country_pred': str(country_pred).lower() == "true",
+        'mix_dim': mix_dim,
+        'dataset_names': dataset_names_list,
+        'fuzzy': fuzzy
+    },
+    allow_val_change=True)
 
-    data_dir = "../raw_data"
+    data_dir = "/home/andy/projects/mordecai3/raw_data"
     print(config.__dict__)
 
-    train_loader, es_train_data, data_loaders, datasets = load_data(data_dir, 
+    train_loader, es_train_data, data_loaders, datasets = load_es_data(data_dir, 
                                                   config.max_choices, 
                                                   config.limit_es_results,
                                                   config.fuzzy,
                                                   config.batch_size,
                                                   config.test_batch_size,
-                                                  data_sources=dataset_names) 
+                                                  data_sources=dataset_names_list) 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
     #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -684,16 +712,18 @@ def train(batch_size: int = typer.Option(32, "--batch_size"),         # input ba
             else:
                 scheduler.step()
 
-        wandb_dict = make_wandb_dict(config.names, datasets, data_loaders, model)
+        wandb_dict = make_wandb_dict(config.dataset_names, datasets, data_loaders, model)
         wandb_dict['loss'] = epoch_loss/len(train_loader)
 
         print(f"Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Exact Match: {wandb_dict['exact_match_avg']:.3f} | Country Match: {wandb_dict['country_avg']:.3f}")  # | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
         wandb.log(wandb_dict)
 
-    logger.info("Saving model...")
     today = datetime.datetime.today().strftime('%Y-%m-%d')
+    logger.info(f"Saving model to mordecai_{today}.pt")
     torch.save(model.state_dict(), f"mordecai_{today}.pt")
     logger.info("Run complete.")
+
+train(mix_dim = 512, epochs=30)
 
 if __name__ == "__main__":
     app()
