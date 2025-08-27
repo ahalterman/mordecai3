@@ -167,6 +167,7 @@ class Geoparser:
                  check_es=True,
                  hosts: list[str] = None,
                  port: int = 9200,
+                 device='cpu',
                  use_ssl: bool = False):
         self.debug = debug
         self.trim = trim
@@ -192,7 +193,7 @@ class Geoparser:
                 logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
         if not model_path:
-            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2024-06-04.pt")
+            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2025-08-27.pt")
         self.model = load_model(model_path)
         if not geo_asset_path:
             geo_asset_path = pkg_resources.resource_filename("mordecai3", "assets/")
@@ -200,7 +201,8 @@ class Geoparser:
         self.event_geoparse = event_geoparse
         if event_geoparse:
             self.trf = load_trf()
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if device != "cpu":
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
 
     def lookup_city(self, entry):
