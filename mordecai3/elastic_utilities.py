@@ -209,8 +209,14 @@ def _clean_search_name(search_name):
         search_name = "United States"
     return search_name
 
-def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
-                remove_correct=False, known_country=None):
+
+def add_es_data(ex, 
+                conn, 
+                max_results=50, 
+                fuzzy=0, 
+                limit_types=False,
+                remove_correct=False, 
+                known_country=None):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
     to the object.
@@ -273,11 +279,8 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
         p_filter = Q("term", feature_class="P")
         a_filter = Q("term", feature_class="A")
         combined_filter = p_filter | a_filter
-        if known_country:
-            country_filter = Q("term", country_code3=known_country)
-            combined_filter = combined_filter & country_filter
         res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    elif known_country:
+    if known_country:
         country_filter = Q("term", country_code3=known_country)
         res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     else:
@@ -307,6 +310,29 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
     if remove_correct:
         choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]
 
+    # Always add a final "NULL" choice at the end
+    logger.debug("Adding NULL choice")
+    null_choice = {'feature_code': 'NULL', 
+            'feature_class': 'NULL', 
+            'country_code3': 'NULL', 
+            'lat': 0, 
+            'lon': 0, 
+            'name': 'NULL', 
+            'admin1_code': 'NULL', 
+            'admin1_name': 'NULL', 
+            'admin2_code': 'NULL', 
+            'admin2_name': 'NULL', 
+            'geonameid': 'NULL', 
+            'admin1_parent_match': -1, 
+            'country_code_parent_match': -1, 
+            'alt_name_length': 0, 
+            'min_dist': 99.0, 
+            'max_dist': 99.0, 
+            'avg_dist': 99.0, 
+            'ascii_dist': 99.0, 
+            'adm1_count': 0.0, 
+            'country_count': 0.0}
+    choices.append(null_choice)
     ex['es_choices'] = choices
 
     if remove_correct:
@@ -315,6 +341,7 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
         if 'correct_geonamesid' in ex.keys():
             ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
     return ex
+
 
 
 def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
