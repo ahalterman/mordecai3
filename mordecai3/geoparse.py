@@ -35,8 +35,9 @@ def load_nlp():
     nlp.add_pipe("token_tensors")
     return nlp
 
-def load_model(model_path):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+def load_model(model_path, device=None):
+    if not device:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = geoparse_model(device=device,
                            bert_size=768,
                            num_feature_codes=54) 
@@ -115,19 +116,19 @@ def doc_to_ex_expanded(doc):
     data: list of dicts
     """
     data = []
-    doc_tensor = np.mean(np.vstack([i._.tensor.data for i in doc]), axis=0)
+    doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
     # the "loc_ents" are the ones we use for context. NORPs are useful for context,
     # but we don't want to geoparse them. Anecdotally, FACs aren't so useful for context,
     # but we do want to geoparse them.
     loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'NORP']]
     for ent in doc.ents:
         if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']:
-            tensor = np.mean(np.vstack([i._.tensor.data for i in ent]), axis=0)
+            tensor = np.mean(np.vstack([i._.tensor for i in ent]), axis=0)
             other_locs = [i for e in loc_ents for i in e if i not in ent]
             in_rel = guess_in_rel(ent)
             #print("detected relation: ", ent.text, "-->", in_rel)
             if other_locs:
-                locs_tensor = np.mean(np.vstack([i._.tensor.data for i in other_locs if i not in ent]), axis=0)
+                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs if i not in ent]), axis=0)
             else:
                 locs_tensor = np.zeros(len(tensor))
             d = {"search_name": ent.text,
@@ -169,19 +170,22 @@ class Geoparser:
                  port: int = 9200,
                  device='cpu',
                  use_ssl: bool = False):
+        if device != "cpu":
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.debug = debug
         self.trim = trim
         if not nlp:
             self.nlp = load_nlp()
         else:
-            try:
-                nlp.add_pipe("token_tensors")
-            except Exception as e:
-                # TODO: this is currently catching the error that the pipe already exists,
-                # but it shouldn't catch the error that it doesn't know what
-                # token_tensors is.
-                logger.info(f"Error loading token_tensors pipe: {e}")
-                pass
+            if 'token_tensors' not in nlp.pipe_names:
+                try:
+                    nlp.add_pipe("token_tensors")
+                except Exception as e:
+                    # TODO: this is currently catching the error that the pipe already exists,
+                    # but it shouldn't catch the error that it doesn't know what
+                    # token_tensors is.
+                    logger.info(f"Error loading token_tensors pipe: {e}")
+                    pass
             self.nlp = nlp
         self.conn = make_conn(hosts=hosts, port=port, use_ssl=use_ssl)
         if check_es:
@@ -194,15 +198,13 @@ class Geoparser:
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
         if not model_path:
             model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2025-08-27.pt")
-        self.model = load_model(model_path)
+        self.model = load_model(model_path, device=device)
         if not geo_asset_path:
             geo_asset_path = pkg_resources.resource_filename("mordecai3", "assets/")
         self.hierarchy = load_hierarchy(geo_asset_path)
         self.event_geoparse = event_geoparse
         if event_geoparse:
             self.trf = load_trf()
-        if device != "cpu":
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.to(device)
 
     def lookup_city(self, entry):
@@ -240,7 +242,6 @@ class Geoparser:
             city_id = ""
             city_name = ""
         return city_id, city_name
-
 
 
     def pick_event_loc(self, d):
@@ -331,7 +332,7 @@ class Geoparser:
                      debug=False, 
                      trim=True, 
                      known_country=None,
-                     max_choices=50):
+                     max_choices=100):
         """
         Geoparse a document.
 
@@ -347,7 +348,7 @@ class Geoparser:
             If True, returns the top 4 results for each geoparsed location, rather than the single best.
             This is useful for debugging or collecting new annotations.
         trim : bool
-            If True, removes some of the keys from the output dictionary that are only used
+            If True (default: True), removes some of the keys from the output dictionary that are only used
             internally for selecting the best geoparsed location. Including these keys is
             useful for debugging.
         known_country : str
@@ -378,16 +379,20 @@ class Geoparser:
 
         doc_ex = doc_to_ex_expanded(doc)
         if doc_ex:
-            es_data = add_es_data_doc(doc_ex, self.conn, max_results=100,
+            es_data = add_es_data_doc(doc_ex, self.conn, max_results=max_choices,
                                               known_country=known_country)
 
-            dataset = ProductionData(es_data, max_choices=100)
+            dataset = ProductionData(es_data, max_choices=max_choices)
 
             data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
             with torch.no_grad():
                 self.model.eval()
-                for input in data_loader:
-                    pred_val = self.model(input)
+                pred_val_list = []
+                for input_batch in data_loader:
+                    # Move the entire input batch to the model's device
+                    input_batch_on_device = {k: v.to(self.model.device) for k, v in input_batch.items()}
+                    pred_val_list.append(self.model(input_batch_on_device))
+                pred_val = torch.cat(pred_val_list, dim=0)
 
         if plover_cat and self.event_geoparse:
             question = f"Where did {plover_cat.lower()} happen?"
@@ -455,6 +460,13 @@ class Geoparser:
                     continue
                 if np.argmax(scores) == len(scores) - 1:
                     logger.debug("Picking final ''null'' result.")
+                    # print the next best result:
+                    if len(scores) == 1:
+                        logger.debug(f"Only one score found: {results[0]}")
+                    if len(scores) > 1:
+                        second_best_idx = np.argsort(scores)[-2]
+                        second_best = results[second_best_idx]
+                        logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
                     continue
                 results = sorted(results, key=lambda k: -k['score'])
                 if results and debug==False:
@@ -492,7 +504,7 @@ class Geoparser:
 
             
 if __name__ == "__main__":
-    geo = Geoparser("/home/andy/projects/mordecai3/mordecai_2024-06-04.pt",
+    geo = Geoparser("/home/andy/projects/mordecai3/mordecai_2025-08-27.pt",
                     event_geoparse=False, trim=False)
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
     text = "Speaking from the city of Xinwonsnos, President Obama expressed his hope for a peaceful resolution to the fighting in Janskan and Alanenesla."
