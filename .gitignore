@@ -12,6 +12,9 @@ _*
 .vscode/
 tmp/
 
+# VS Code workspace 
+mordecai3.code-workspace
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

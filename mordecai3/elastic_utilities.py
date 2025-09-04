@@ -1,21 +1,43 @@
-import logging
-import re
-import warnings
-from collections import Counter
 
 import jellyfish
+import logging
 import numpy as np
+import numpy.typing as npt
+import re
+import warnings
+
+from collections import Counter
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Q, Search
+from urllib3.exceptions import NewConnectionError
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
+
+def es_is_accepting_connection(hosts: list[str]=["localhost"]) -> bool:
+    """Check if the Elasticsearch service is running and accessible"""
+    try:
+        es = Elasticsearch(hosts)
+        res = es.ping()
+    except (NewConnectionError, ConnectionRefusedError):
+        return False
+    return res
+
+
+def es_check_geonames_index(hosts: list[str]=["localhost"]) -> bool:
+    """Check if the ES GeoNames index is accessible"""
+    if not es_is_accepting_connection(hosts):
+        return False
+    es = Elasticsearch(hosts)
+    return es.indices.exists(index="geonames")
+
+
+
+def make_conn(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False):
     """
     hosts: list[str] - list of hostnames, defaults to ['localhost'] if None
     """
-    hosts = hosts or ['localhost']
     kwargs = dict(
         hosts=hosts,
         port=port,
@@ -25,9 +47,8 @@ def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-def setup_es(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
-    # Default to localhost if no hosts are provided
-    hosts = hosts or ['localhost']
+
+def setup_es(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False):
     kwargs = dict(
         hosts=hosts,
         port=port,
@@ -42,15 +63,16 @@ def setup_es(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-def normalize(ll: list) -> np.array:    
+
+def normalize(ll: list[float]) -> npt.NDArray[np.float64]:    
     """Normalize an array to [0, 1]"""
-    ll = np.array(ll)
-    if len(ll) > 0:
-        max_ll = np.max(ll)
-        if max_ll == 0:
-            max_ll = 0.001
-        ll = (ll - np.min(ll)) / max_ll
-    return ll
+    arr = np.array(ll)
+    if len(arr) > 0:
+        max_arr = np.max(arr)
+        if max_arr == 0:
+            max_arr = 0.001
+        arr = (arr - np.min(arr)) / max_arr
+    return arr
 
 
 def make_admin1_counts(out):
