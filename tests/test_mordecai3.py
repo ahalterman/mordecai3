@@ -1,8 +1,8 @@
 import pytest
 import spacy
 
-from .. import elastic_utilities as es_utils
-from .. import geoparse
+from mordecai3 import elastic_utilities as es_utils
+from mordecai3 import geoparse
 
 if not es_utils.es_is_accepting_connection():
     pytest.skip("Elasticsearch isn't available", allow_module_level=True)

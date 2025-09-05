@@ -1,6 +1,6 @@
 import pytest
 
-from ..geoparse import Geoparser
+from mordecai3.geoparse import Geoparser
 
 
 @pytest.fixture(scope='session', autouse=True)
