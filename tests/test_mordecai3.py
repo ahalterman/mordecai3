@@ -3,6 +3,7 @@ import spacy
 
 from mordecai3 import elastic_utilities as es_utils
 from mordecai3 import geoparse
+from mordecai3.geoparse import Geoparser
 
 if not es_utils.es_is_accepting_connection():
     pytest.skip("Elasticsearch isn't available", allow_module_level=True)
@@ -12,6 +13,9 @@ try:
 except OSError:
     pytest.skip("spaCy model 'en_core_web_trf' not available", allow_module_level=True)
 
+@pytest.fixture(scope='session', autouse=True)
+def geo():
+    return Geoparser()
 
 def test_statement_event_loc(geo):
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
