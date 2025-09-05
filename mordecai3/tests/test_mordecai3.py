@@ -1,10 +1,17 @@
 import pytest
+import spacy
 
 from .. import elastic_utilities as es_utils
 from .. import geoparse
 
 if not es_utils.es_is_accepting_connection():
     pytest.skip("Elasticsearch isn't available", allow_module_level=True)
+
+try:
+    spacy.load("en_core_web_trf")
+except OSError:
+    pytest.skip("spaCy model 'en_core_web_trf' not available", allow_module_level=True)
+
 
 def test_statement_event_loc(geo):
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
