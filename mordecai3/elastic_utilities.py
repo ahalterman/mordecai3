@@ -78,9 +78,9 @@ def es_determine_data_extent(conn: Search=setup_es()) -> DataExtent:
     
     Returns
     -------
-    str
-      Either "all" if the full Geonames dataset is present, "test" if only
-      the reduced test set is present, or "none" if no data appears to be present.
+    DataExtent
+      Either "ALL" if the full Geonames dataset is present, "TEST" if only
+      the reduced test set is present, or "NONE" if no data appears to be present.
     """
     usa = get_adm1_country_entry("New York", "USA", conn)
     nld = get_adm1_country_entry("North Holland", "NLD", conn)
