@@ -12,6 +12,7 @@ keywords = ["geoparsing", "nlp", "geocoding", "toponym resolution"]
 authors = [
     {name = "Andy Halterman", email = "ahalterman0@gmail.com"}
 ]
+requires-python = ">=3.10"
 dependencies = [
     "elasticsearch-dsl>=7.3.0,<8.0",
     "elasticsearch>=7.11.0,<8.0",
