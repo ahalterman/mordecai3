@@ -9,6 +9,7 @@ import warnings
 from collections import Counter
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Q, Search
+from enum import IntEnum
 from urllib3.exceptions import NewConnectionError
 
 logger = logging.getLogger(__name__)
@@ -33,8 +34,7 @@ def es_check_geonames_index(hosts: list[str]=["localhost"]) -> bool:
     return es.indices.exists(index="geonames")
 
 
-
-def make_conn(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False):
+def make_conn(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False) -> Search:
     """
     hosts: list[str] - list of hostnames, defaults to ['localhost'] if None
     """
@@ -62,6 +62,34 @@ def setup_es(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool =
         ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
     conn = Search(using=CLIENT, index="geonames")
     return conn
+
+
+# Using an IntEnum here so that we can test whether sufficient data for a test
+# is present, since if we have "all" data, we also have "test" data.
+class DataExtent(IntEnum):
+    NONE = 1
+    TEST = 2
+    ALL = 3
+
+
+def es_determine_data_extent(conn: Search=setup_es()) -> DataExtent:
+    # TODO: this is a bit hacky, but it works for now. 
+    """Check what extent of data we have in the ES/Geonames index
+    
+    Returns
+    -------
+    str
+      Either "all" if the full Geonames dataset is present, "test" if only
+      the reduced test set is present, or "none" if no data appears to be present.
+    """
+    usa = get_adm1_country_entry("New York", "USA", conn)
+    nld = get_adm1_country_entry("North Holland", "NLD", conn)
+    if usa and nld:
+        return DataExtent.ALL
+    elif nld:   
+        return DataExtent.TEST
+    else:
+        return DataExtent.NONE
 
 
 def normalize(ll: list[float]) -> npt.NDArray[np.float64]:    
@@ -433,11 +461,25 @@ def get_entry_by_id(geonameid: str, conn):
     r = _format_country_results(res)
     return r
 
-def get_adm1_country_entry(adm1: str, iso3c: str, conn):
+def get_adm1_country_entry(adm1: str, iso3c: str | None=None, 
+                           conn: Search=setup_es()) -> dict | None:
     """
-    Return the Geonames result for an ADM1 code.
+    Return the Geonames entity for an ADM1 code.
     
-    iso3c can be None if the country isn't known.
+    Parameters
+    ----------
+    adm1: str
+      Name of the ADM1 (state/province)
+    iso3c: str or None
+      Optional three letter country code to limit the search
+    conn: elasticsearch connection
+      An elasticsearch connection object, as returned by setup_es()
+
+    Examples
+    --------
+    >>> conn = setup_es()
+    >>> get_adm1_country_entry("North Holland", "NLD", conn)
+    {'extracted_name': '', 'name': 'Provincie Noord-Holland', 'lat': '52.58333', 'lon': '4.91667', 'admin1_name': 'North Holland', 'admin2_name': '', 'country_code3': 'NLD', 'feature_code': 'ADM1', 'feature_class': 'A', 'geonameid': '2749879', 'start_char': '', 'end_char': ''}
     """
     type_filter = Q("term", feature_code="ADM1") 
     q = {"multi_match": {"query": adm1,
@@ -451,4 +493,3 @@ def get_adm1_country_entry(adm1: str, iso3c: str, conn):
     r = _format_country_results(res)
     return r
 
-#get_adm1_country_entry("Kaduna", "NGA", conn)
