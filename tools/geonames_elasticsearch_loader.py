@@ -83,7 +83,7 @@ def iso_convert(iso2c):
         return iso3c
 
 
-def read_adm1(fn="admin1CodesASCII.txt"):
+def read_adm1(fn="tools/data/admin1CodesASCII.txt"):
     adm1_dict = {}
     with open(fn, 'rt', encoding='utf-8') as f:
         reader = csv.reader(f, delimiter='\t')
@@ -92,7 +92,7 @@ def read_adm1(fn="admin1CodesASCII.txt"):
     return adm1_dict
 
 
-def read_adm2(fn="admin2Codes.txt"):
+def read_adm2(fn="tools/data/admin2Codes.txt"):
     adm2_dict = {}
     with open(fn, 'rt', encoding='utf-8') as f:
         reader = csv.reader(f, delimiter='\t')
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     t = time.time()
     adm1_dict = read_adm1()
     adm2_dict = read_adm2()
-    f = open('NL.txt', 'rt', encoding='utf-8')
+    f = open('tools/data/NL.txt', 'rt', encoding='utf-8')
     reader = csv.reader(f, delimiter='\t')
     actions = documents(reader, adm1_dict, adm2_dict)
     helpers.bulk(es, actions, chunk_size=500)
