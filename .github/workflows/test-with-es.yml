@@ -50,7 +50,7 @@ jobs:
       id: spacy-model
       with:
         path: .venv/lib/python${{ matrix.python-version }}/site-packages/en_core_web_trf*
-        key: spacy-en-core-web-trf-py${{ matrix.python-version }}
+        key: spacy-en-core-web-trf-ubuntu-latest-py${{ matrix.python-version }}
     
     - name: Download spaCy model
       if: steps.spacy-model.outputs.cache-hit != 'true'
@@ -59,4 +59,4 @@ jobs:
     - name: Run tests
       run: |
         uv run pytest
-        uv run python -c 'import en_core_web_trf as m; print(m.__file__)'
+        
