@@ -4,14 +4,18 @@ import spacy
 from mordecai3 import elastic_utilities as es_utils
 from mordecai3 import geoparse
 from mordecai3.geoparse import Geoparser
+from mordecai3.elastic_utilities import setup_es, es_determine_data_extent, DataExtent
+from mordecai3.utils import check_spacy_model
 
 if not es_utils.es_is_accepting_connection():
     pytest.skip("Elasticsearch isn't available", allow_module_level=True)
 
-try:
-    spacy.load("en_core_web_trf")
-except OSError:
-    pytest.skip("spaCy model 'en_core_web_trf' not available", allow_module_level=True)
+if not check_spacy_model():
+    pytest.skip("spaCy model not available", allow_module_level=True)
+
+conn = setup_es()
+if es_determine_data_extent(conn) < DataExtent.ALL:
+    pytest.skip("Elasticsearch Geonames index is empty", allow_module_level=True)
 
 @pytest.fixture(scope='session', autouse=True)
 def geo():
