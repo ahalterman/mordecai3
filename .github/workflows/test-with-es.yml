@@ -45,9 +45,18 @@ jobs:
       run: |
         bash tools/load-es-test-data.sh
 
+    - name: Cache spaCy model
+      uses: actions/cache@v4
+      id: spacy-model
+      with:
+        path: .venv/lib/python${{ matrix.python-version }}/site-packages/en_core_web_trf*
+        key: spacy-en-core-web-trf-py${{ matrix.python-version }}
+    
     - name: Download spaCy model
+      if: steps.spacy-model.outputs.cache-hit != 'true'
       run: uv run python -m spacy download en_core_web_trf
 
     - name: Run tests
       run: |
         uv run pytest
+        uv run python -c 'import en_core_web_trf as m; print(m.__file__)'
