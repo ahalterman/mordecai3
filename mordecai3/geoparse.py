@@ -1,12 +1,14 @@
-import logging
-import os
-import re
 
+import logging
 import numpy as np
-import pkg_resources
+import os
 import spacy
 import torch
+import re
+
+from importlib import resources
 from torch.utils.data import DataLoader
+
 
 from .elastic_utilities import (
     add_es_data_doc,
@@ -197,10 +199,10 @@ class Geoparser:
                 logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
         if not model_path:
-            model_path = pkg_resources.resource_filename("mordecai3", "assets/mordecai_2025-08-27.pt")
+            model_path =  resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt"
         self.model = load_model(model_path, device=device)
         if not geo_asset_path:
-            geo_asset_path = pkg_resources.resource_filename("mordecai3", "assets/")
+            geo_asset_path = resources.files("mordecai3") / "assets/"
         self.hierarchy = load_hierarchy(geo_asset_path)
         self.event_geoparse = event_geoparse
         if event_geoparse:
