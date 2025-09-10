@@ -161,17 +161,17 @@ def load_hierarchy(asset_path):
 
 class Geoparser:
     def __init__(self, 
-                 model_path=None, 
-                 geo_asset_path=None,
+                 model_path: str | None=None, 
+                 geo_asset_path: str | None=None,
                  nlp=None,
-                 event_geoparse=False,
-                 debug=False,
+                 event_geoparse: bool=False,
+                 debug: bool=False,
                  trim=None,
-                 check_es=True,
-                 hosts: list[str] = None,
+                 check_es: bool=True,
+                 hosts: list[str] | None = None,
                  port: int = 9200,
                  device='cpu',
-                 use_ssl: bool = False):
+                 use_ssl: bool=False):
         if device != "cpu":
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.debug = debug
@@ -193,7 +193,7 @@ class Geoparser:
         if check_es:
             logger.info("Checking Elasticsearch connection...")
             try:
-                assert len(list(geo.conn[1])) > 0
+                assert len(list(self.conn[1])) > 0
                 logger.info("Successfully connected to Elasticsearch.")
             except:
                 logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")

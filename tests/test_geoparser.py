@@ -13,5 +13,8 @@ conn = setup_es()
 if es_determine_data_extent(conn) == DataExtent.NONE:
     pytest.skip("Elasticsearch Geonames index is empty", allow_module_level=True)
 
-geo = Geoparser()
-geo.geoparse_doc("I visited The Hague in the Netherlands.")
+
+def test_geoparse_doc():
+    geo = Geoparser(hosts=["localhost"])
+    res = geo.geoparse_doc("I visited The Hague in the Netherlands.")
+    assert res["geolocated_ents"][0]["name"] == "The Hague"

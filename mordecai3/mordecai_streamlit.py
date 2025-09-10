@@ -2,10 +2,14 @@ import numpy as np
 import spacy
 import streamlit as st
 import torch
+
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
+from importlib import resources
 from spacy.language import Language
 from spacy.tokens import Token
+
+from mordecai3  import Geoparser 
 from torch_model import geoparse_model
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
@@ -64,17 +68,19 @@ def load_model():
     model = geoparse_model(device=-1,
                            bert_size = 768,
                            num_feature_codes=54)
-    model.load_state_dict(torch.load("mordecai_2023-02-07.pt"))
+    model_path = resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt"
+    model.load_state_dict(torch.load(model_path))
     model.eval()
     return model
 
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def load_geo():
-    geo = Geoparser(model_path="mordecai_2023-02-07_good.pt", 
-                 geo_asset_path="assets",
+    geo = Geoparser(model_path=resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt", 
+                 geo_asset_path=resources.files("mordecai3") / "assets",
+                 hosts=["localhost"],
                  nlp=None,
                  event_geoparse=True,
-                 debug=None,
+                 debug=False,
                  trim=None)
     return geo
 
@@ -89,7 +95,11 @@ geo = load_geo()
 #default_text = 'A "scorched earth"-type policy was used in the city of New York City and the north-western governorate of Idleb.'
 default_text = """COTABATO CITY (MindaNews/03 March) – A provincial board member is proposing the declaration of a state of calamity in the entire province of Maguindanao as more residents are fleeing in at least nine towns due to armed conflict."""
 text = st.text_area("Text to geoparse", default_text)
-doc = nlp(text)
+
+print(text)
+
+#doc = nlp(text)
+doc = text
 
 output = geo.geoparse_doc(doc)
 

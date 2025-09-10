@@ -29,6 +29,12 @@ dependencies = [
     "xmltodict>=0.12.0,<1.0"
 ]
 
+[project.optional-dependencies]
+streamlit = ["streamlit>=1.0.0"]
+
+[project.scripts]
+mordecai3-app = "mordecai3:run_streamlit_app"
+
 [project.urls]
 Homepage = "http://github.com/ahalterman/mordecai3/"
 Repository = "https://github.com/ahalterman/mordecai3.git"
