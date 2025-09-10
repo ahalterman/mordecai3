@@ -1,4 +1,3 @@
-import numpy as np
 import spacy
 import streamlit as st
 import torch
@@ -11,6 +10,7 @@ from spacy.tokens import Token
 
 from mordecai3  import Geoparser 
 from torch_model import geoparse_model
+from mordecai_utilities import spacy_doc_setup
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
 
@@ -20,27 +20,8 @@ except ValueError:
     pass
 
 
-@Language.component("token_tensors")
-def token_tensors(doc):
-    chunk_len = len(doc._.trf_data.tensors[0][0])
-    token_tensors = [[]]*len(doc)
-
-    for n, i in enumerate(doc):
-        wordpiece_num = doc._.trf_data.align[n]
-        for d in wordpiece_num.dataXd:
-            which_chunk = int(np.floor(d[0] / chunk_len))
-            which_token = d[0] % chunk_len
-            ## You can uncomment this to see that spaCy tokens are being aligned with the correct
-            ## wordpieces.
-            #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
-            #print(n, i, wordpiece)
-            token_tensors[n] = token_tensors[n] + [doc._.trf_data.tensors[0][which_chunk][which_token]]
-    for n, d in enumerate(doc):
-        if token_tensors[n]:
-            d._.set('tensor', np.mean(np.vstack(token_tensors[n]), axis=0))
-        else:
-            d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
-    return doc
+# define and register "token_tensors" component with spaCy
+spacy_doc_setup()
 
 
 
@@ -98,8 +79,7 @@ text = st.text_area("Text to geoparse", default_text)
 
 print(text)
 
-#doc = nlp(text)
-doc = text
+doc = nlp(text)
 
 output = geo.geoparse_doc(doc)
 
