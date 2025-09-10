@@ -7,8 +7,12 @@ import torch
 import re
 
 from importlib import resources
+try: 
+    from importlib.resources.abc import Traversable  # type: ignore[import-untyped]
+except ImportError:
+    # Python < 3.13
+    from importlib.abc import Traversable
 from torch.utils.data import DataLoader
-
 
 from .elastic_utilities import (
     add_es_data_doc,
@@ -21,7 +25,7 @@ from .mordecai_utilities import spacy_doc_setup
 from .roberta_qa import add_event_loc, setup_qa
 from .torch_model import ProductionData, geoparse_model
 
-import logging
+
 logger = logging.getLogger()
 handler = logging.StreamHandler() 
 formatter = logging.Formatter(
@@ -161,8 +165,8 @@ def load_hierarchy(asset_path):
 
 class Geoparser:
     def __init__(self, 
-                 model_path: str | None=None, 
-                 geo_asset_path: str | None=None,
+                 model_path: str | Traversable | None=None, 
+                 geo_asset_path: str | Traversable | None=None,
                  nlp=None,
                  event_geoparse: bool=False,
                  debug: bool=False,
@@ -471,7 +475,7 @@ class Geoparser:
                         logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
                     continue
                 results = sorted(results, key=lambda k: -k['score'])
-                if results and debug==False:
+                if results and (not debug):
                     logger.debug("Picking top predicted result")
                     best = results[0]
                     best["search_name"] = ent['search_name']
@@ -480,7 +484,7 @@ class Geoparser:
                     ## Add in city info here
                     best['city_id'], best['city_name'] = self.lookup_city(best)
                     best_list.append(best)
-                if results and debug==True:
+                if results and debug:
                     logger.debug("Returning top 4 predicted results for each location")
                     best = results[0:4]
                     for b in best:

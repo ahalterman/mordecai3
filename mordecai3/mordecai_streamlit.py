@@ -25,7 +25,7 @@ spacy_doc_setup()
 
 
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def load_nlp():
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
@@ -33,7 +33,7 @@ def load_nlp():
 
 
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def setup_es():
     kwargs = dict(
         hosts=['localhost'],
@@ -44,17 +44,17 @@ def setup_es():
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def load_model():
     model = geoparse_model(device=-1,
                            bert_size = 768,
                            num_feature_codes=54)
-    model_path = resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt"
+    model_path = str(resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt")
     model.load_state_dict(torch.load(model_path))
     model.eval()
     return model
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def load_geo():
     geo = Geoparser(model_path=resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt", 
                  geo_asset_path=resources.files("mordecai3") / "assets",
