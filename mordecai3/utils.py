@@ -1,7 +1,6 @@
 
 import spacy
 
-
 def check_spacy_model() -> bool:
     """Check if the spacy model is available."""
     try:

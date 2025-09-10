@@ -1,28 +1,36 @@
-name: CI
+name: Test with ES
 
 on: 
   push:
     branches: 
       - main
       - 'spacy-3-8'
+      - 'github-action-dev'
   pull_request:
     branches: [ main ]
 
-jobs:
+jobs:  
   test:
-    name: Test ${{ matrix.os }} / ${{ matrix.python-version }}
+    name: Test ubuntu-latest / ${{ matrix.python-version }}
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
         python-version: ['3.10']
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+
+    services:
+      elasticsearch:
+        image: elasticsearch:7.10.1
+        env: 
+          discovery.type: single-node
+        ports:
+          - "9200:9200"
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v6
       with:
@@ -30,9 +38,13 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --all-extras
+        uv sync --all-extras --group es-data
         uv pip install pip
     
+    - name: Load ES test data
+      run: |
+        bash tools/load-es-test-data.sh
+
     - name: Cache spaCy model
       uses: actions/cache@v4
       id: spacy-model
@@ -42,11 +54,13 @@ jobs:
           .venv/lib/python${{ matrix.python-version }}/site-packages/spacy_curated_transformers*
           .venv/lib/python${{ matrix.python-version }}/site-packages/curated_tokenizers*
           .venv/lib/python${{ matrix.python-version }}/site-packages/curated_transformers*
-        key: spacy-en-core-web-trf-${{ matrix.os }}-py${{ matrix.python-version }}
-
+        key: spacy-en-core-web-trf-ubuntu-latest-py${{ matrix.python-version }}
+    
     - name: Download spaCy model
       if: steps.spacy-model.outputs.cache-hit != 'true'
       run: uv run python -m spacy download en_core_web_trf
-    
+
     - name: Run tests
-      run: uv run pytest
+      run: |
+        uv run pytest
+        
