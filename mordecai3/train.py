@@ -723,7 +723,8 @@ def train(batch_size=32,
     torch.save(model.state_dict(), f"mordecai_{today}.pt")
     logger.info("Run complete.")
 
-train(mix_dim = 512, epochs=30)
+
 
 if __name__ == "__main__":
+    train(mix_dim = 512, epochs=30)
     app()
