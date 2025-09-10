@@ -52,6 +52,8 @@ jobs:
         path: |
           .venv/lib/python${{ matrix.python-version }}/site-packages/en_core_web_trf*
           .venv/lib/python${{ matrix.python-version }}/site-packages/spacy_curated_transformers*
+          .venv/lib/python${{ matrix.python-version }}/site-packages/curated_tokenizers*
+          .venv/lib/python${{ matrix.python-version }}/site-packages/curated_transformers*
         key: spacy-en-core-web-trf-ubuntu-latest-py${{ matrix.python-version }}
     
     - name: Download spaCy model
