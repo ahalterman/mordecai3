@@ -38,7 +38,7 @@ jobs:
       id: spacy-model
       with:
         path: .venv/lib/python${{ matrix.python-version }}/site-packages/en_core_web_trf*
-        key: spacy-en-core-web-trf-${{ runner.os }}-py${{ matrix.python-version }}
+        key: spacy-en-core-web-trf-${{ matrix.os }}-py${{ matrix.python-version }}
 
     - name: Download spaCy model
       if: steps.spacy-model.outputs.cache-hit != 'true'
