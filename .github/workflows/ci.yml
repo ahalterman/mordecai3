@@ -37,7 +37,9 @@ jobs:
       uses: actions/cache@v4
       id: spacy-model
       with:
-        path: .venv/lib/python${{ matrix.python-version }}/site-packages/en_core_web_trf*
+        path: |
+          .venv/lib/python${{ matrix.python-version }}/site-packages/en_core_web_trf*
+          .venv/lib/python${{ matrix.python-version }}/site-packages/spacy_curated_transformers*
         key: spacy-en-core-web-trf-${{ matrix.os }}-py${{ matrix.python-version }}
 
     - name: Download spaCy model
