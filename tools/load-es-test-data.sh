@@ -1,6 +1,22 @@
 # Load the raw test data to Elasticsearch
 # bash tools/load-es-test-data.sh
 
+# Check if textacy package is installed
+echo "Checking for required Python packages..."
+if uv run python -c "import textacy" 2>/dev/null; then
+  echo "✅ textacy package is installed"
+else
+  echo "❌ Error: The 'textacy' package is required but not installed."
+  echo ""
+  echo "To install it, run one of the following commands:"
+  echo "  uv sync --group es-data"
+  echo "  OR"
+  echo "  pip install textacy"
+  echo ""
+  echo "The textacy package is needed for the geonames_elasticsearch_loader.py script."
+  exit 1
+fi
+
 # Check if Elasticsearch is running
 if ! curl -s localhost:9200 > /dev/null 2>&1; then
   echo "Elasticsearch is not running. Starting containers..."
