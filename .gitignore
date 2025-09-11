@@ -12,9 +12,8 @@ _*
 .vscode/
 tmp/
 
-# ES test data transaction logs
-translog-*.tlog
-translog.ckp
+# Local Elasticsearch test data
+tests/es_data/geonames_index/*
 
 # VS Code workspace 
 mordecai3.code-workspace
