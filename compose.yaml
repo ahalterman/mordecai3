@@ -1,0 +1,10 @@
+services:
+  elasticsearch:
+    image: elasticsearch:7.10.1
+    container_name: es_geonames
+    volumes:
+      - ./tests/es_data/geonames_index:/usr/share/elasticsearch/data
+    environment: 
+      - discovery.type=single-node
+    ports:
+     - "9200:9200"

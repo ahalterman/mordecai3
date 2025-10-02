@@ -1,12 +1,16 @@
-import numpy as np
 import spacy
 import streamlit as st
 import torch
+
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
+from importlib import resources
 from spacy.language import Language
 from spacy.tokens import Token
+
+from mordecai3  import Geoparser 
 from torch_model import geoparse_model
+from mordecai_utilities import spacy_doc_setup
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
 
@@ -16,31 +20,12 @@ except ValueError:
     pass
 
 
-@Language.component("token_tensors")
-def token_tensors(doc):
-    chunk_len = len(doc._.trf_data.tensors[0][0])
-    token_tensors = [[]]*len(doc)
-
-    for n, i in enumerate(doc):
-        wordpiece_num = doc._.trf_data.align[n]
-        for d in wordpiece_num.dataXd:
-            which_chunk = int(np.floor(d[0] / chunk_len))
-            which_token = d[0] % chunk_len
-            ## You can uncomment this to see that spaCy tokens are being aligned with the correct
-            ## wordpieces.
-            #wordpiece = doc._.trf_data.wordpieces.strings[which_chunk][which_token]
-            #print(n, i, wordpiece)
-            token_tensors[n] = token_tensors[n] + [doc._.trf_data.tensors[0][which_chunk][which_token]]
-    for n, d in enumerate(doc):
-        if token_tensors[n]:
-            d._.set('tensor', np.mean(np.vstack(token_tensors[n]), axis=0))
-        else:
-            d._.set('tensor',  np.zeros(doc._.trf_data.tensors[0].shape[-1]))
-    return doc
+# define and register "token_tensors" component with spaCy
+spacy_doc_setup()
 
 
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def load_nlp():
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
@@ -48,7 +33,7 @@ def load_nlp():
 
 
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def setup_es():
     kwargs = dict(
         hosts=['localhost'],
@@ -59,22 +44,24 @@ def setup_es():
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def load_model():
     model = geoparse_model(device=-1,
                            bert_size = 768,
                            num_feature_codes=54)
-    model.load_state_dict(torch.load("mordecai_2023-02-07.pt"))
+    model_path = str(resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt")
+    model.load_state_dict(torch.load(model_path))
     model.eval()
     return model
 
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_resource
 def load_geo():
-    geo = Geoparser(model_path="mordecai_2023-02-07_good.pt", 
-                 geo_asset_path="assets",
+    geo = Geoparser(model_path=resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt", 
+                 geo_asset_path=resources.files("mordecai3") / "assets",
+                 hosts=["localhost"],
                  nlp=None,
                  event_geoparse=True,
-                 debug=None,
+                 debug=False,
                  trim=None)
     return geo
 
@@ -89,6 +76,9 @@ geo = load_geo()
 #default_text = 'A "scorched earth"-type policy was used in the city of New York City and the north-western governorate of Idleb.'
 default_text = """COTABATO CITY (MindaNews/03 March) – A provincial board member is proposing the declaration of a state of calamity in the entire province of Maguindanao as more residents are fleeing in at least nine towns due to armed conflict."""
 text = st.text_area("Text to geoparse", default_text)
+
+print(text)
+
 doc = nlp(text)
 
 output = geo.geoparse_doc(doc)

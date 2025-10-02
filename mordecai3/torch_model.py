@@ -19,15 +19,28 @@ logger.addHandler(handler)
 logger.setLevel(logging.WARN)
 
 
+def convert_to_numpy(tensor):
+    """Convert a tensor to numpy array, handling both CuPy and NumPy inputs."""
+    if hasattr(tensor, 'get'):  # CuPy array
+        return tensor.get()
+    else:  # Already a NumPy array or other array-like
+        return np.asarray(tensor)
+    
 class ProductionData(Dataset):
     def __init__(self, es_data, max_choices=25, max_codes=50):
         self.max_choices = max_choices
         self.max_codes = max_codes
         self.country_dict = self._make_country_dict()
         self.feature_code_dict = self._make_feature_code_dict()
-        self.placename_tensor = np.array([i['tensor'] for i in es_data]).astype(np.float32)
-        self.doc_tensor = np.array([i['doc_tensor'] for i in es_data]).astype(np.float32)
-        self.other_locs_tensor = np.array([i['locs_tensor'] for i in es_data]).astype(np.float32)
+        self.placename_tensor = np.array([
+            convert_to_numpy(i['tensor']) for i in es_data
+        ]).astype(np.float32)
+        self.doc_tensor = np.array([
+            convert_to_numpy(i['doc_tensor']) for i in es_data
+        ]).astype(np.float32)
+        self.other_locs_tensor = np.array([
+            convert_to_numpy(i['locs_tensor']) for i in es_data
+        ]).astype(np.float32)
         self.feature_codes = self.create_feature_codes(es_data)
         self.country_codes = self.create_country_codes(es_data)
         self.gaz_info = self.create_gaz_features(es_data).astype(np.float32)
@@ -237,12 +250,12 @@ class geoparse_model(nn.Module):
 
         # Unpack the dictionary here. Sending the data to device within the forward
         # function isn't standard, but it makes the training loop code easier to follow.
-        placename_tensor = input['placename_tensor'].to(self.device)
-        other_locs_tensor = input['other_locs_tensor'].to(self.device)
-        doc_tensor = input['doc_tensor'].to(self.device)
-        feature_codes = input['feature_codes'].to(self.device)
-        country_codes = input['country_codes'].to(self.device)
-        gaz_info = input['gaz_info'].to(self.device)
+        placename_tensor = input['placename_tensor']
+        other_locs_tensor = input['other_locs_tensor']
+        doc_tensor = input['doc_tensor']
+        feature_codes = input['feature_codes']
+        country_codes = input['country_codes']
+        gaz_info = input['gaz_info']
         logger.debug("feature_code input shape:{}".format(feature_codes.shape))
 
         ###### Text info setup  ######

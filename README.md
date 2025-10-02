@@ -87,6 +87,44 @@ If you use Mordecai 3, please cite:
 }
 ```
 
+The current version of Mordecai3 includes a retrained model that slightly improves on the results reported in the paper.
+
+```
+┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳
+┃            ┃        ┃             ┃            ┃     Correct ┃            ┃
+┃            ┃        ┃             ┃    Correct ┃     Feature ┃    Correct ┃
+┃ Dataset    ┃ Eval N ┃ Exact match ┃    Country ┃        Code ┃       ADM1 ┃
+┡━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇
+│ training   │   7337 │       90.9% │      99.1% │       95.4% │      93.7% │
+│ set        │        │             │            │             │            │
+│ prodigy    │    500 │       87.8% │      96.8% │       87.8% │      95.1% │
+│ TR         │    274 │       84.3% │      97.8% │       89.6% │      88.1% │
+│ LGL        │    967 │       79.4% │      97.9% │       87.3% │      82.5% │
+│ GWN        │    474 │       90.1% │      97.4% │       91.0% │      95.6% │
+│ GWN_compl… │   1564 │       92.0% │      98.5% │       93.4% │      97.2% │
+│ Synth      │    300 │       93.3% │      96.9% │       96.1% │      94.9% │
+│ Wiki       │    630 │       86.0% │      98.2% │       86.3% │      96.7% │
+└────────────┴────────┴─────────────┴────────────┴─────────────┴────────────┴
+```
+
+```
+┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃            ┃        ┃            ┃             ┃             ┃            ┃            ┃
+┃            ┃        ┃ Mean Error ┃      Median ┃     Missing ┃      Total ┃            ┃
+┃ Dataset    ┃ Eval N ┃       (km) ┃  Error (km) ┃     correct ┃    missing ┃ Acc @161km ┃
+┡━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ training   │   7337 │      119.8 │         0.0 │       71.9% │      10.2% │       93.6 │
+│ set        │        │            │             │             │            │            │
+│ prodigy    │    500 │      273.5 │         0.0 │      100.0% │       6.8% │       95.9 │
+│ TR         │    274 │      294.7 │         0.0 │       66.7% │       2.2% │       87.3 │
+│ LGL        │    967 │      303.9 │         0.0 │       37.7% │       5.5% │       82.7 │
+│ GWN        │    474 │      249.4 │         0.0 │       31.6% │       4.0% │       94.1 │
+│ GWN_compl… │   1564 │      178.3 │         0.0 │       57.5% │       5.6% │       95.7 │
+│ Synth      │    300 │      215.3 │         0.0 │       97.8% │      15.0% │       95.7 │
+│ Wiki       │    630 │       23.8 │         0.0 │       54.5% │       3.5% │       98.0 │
+└────────────┴────────┴────────────┴─────────────┴─────────────┴────────────┴────────────┘
+```
+
 ## Acknowledgements
 
 This work was sponsored by the Political Instability Task Force (PITF). The PITF is funded by the Central Intelligence Agency. The views expressed in this here are the authors' alone and do not represent the views of the US Government.

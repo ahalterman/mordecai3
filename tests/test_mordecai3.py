@@ -1,8 +1,25 @@
 import pytest
+import spacy
 
-from .. import elastic_utilities as es_utils
-from .. import geoparse
+from mordecai3 import elastic_utilities as es_utils
+from mordecai3 import geoparse
+from mordecai3.geoparse import Geoparser
+from mordecai3.elastic_utilities import setup_es, es_determine_data_extent, DataExtent
+from mordecai3.utils import check_spacy_model
 
+if not es_utils.es_is_accepting_connection():
+    pytest.skip("Elasticsearch isn't available", allow_module_level=True)
+
+if not check_spacy_model():
+    pytest.skip("spaCy model not available", allow_module_level=True)
+
+conn = setup_es()
+if es_determine_data_extent(conn) < DataExtent.ALL:
+    pytest.skip("Elasticsearch Geonames index is empty", allow_module_level=True)
+
+@pytest.fixture(scope='session', autouse=True)
+def geo():
+    return Geoparser()
 
 def test_statement_event_loc(geo):
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."

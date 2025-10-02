@@ -1,21 +1,43 @@
-import logging
-import re
-import warnings
-from collections import Counter
 
 import jellyfish
+import logging
 import numpy as np
+import numpy.typing as npt
+import re
+import warnings
+
+from collections import Counter
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Q, Search
+from enum import IntEnum
+from urllib3.exceptions import NewConnectionError
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
+
+def es_is_accepting_connection(hosts: list[str]=["localhost"]) -> bool:
+    """Check if the Elasticsearch service is running and accessible"""
+    try:
+        es = Elasticsearch(hosts)
+        res = es.ping()
+    except (NewConnectionError, ConnectionRefusedError):
+        return False
+    return res
+
+
+def es_check_geonames_index(hosts: list[str]=["localhost"]) -> bool:
+    """Check if the ES GeoNames index is accessible"""
+    if not es_is_accepting_connection(hosts):
+        return False
+    es = Elasticsearch(hosts)
+    return es.indices.exists(index="geonames")
+
+
+def make_conn(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False) -> Search:
     """
     hosts: list[str] - list of hostnames, defaults to ['localhost'] if None
     """
-    hosts = hosts or ['localhost']
     kwargs = dict(
         hosts=hosts,
         port=port,
@@ -25,9 +47,8 @@ def make_conn(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-def setup_es(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
-    # Default to localhost if no hosts are provided
-    hosts = hosts or ['localhost']
+
+def setup_es(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False):
     kwargs = dict(
         hosts=hosts,
         port=port,
@@ -42,15 +63,44 @@ def setup_es(hosts: list[str] = None, port: int = 9200, use_ssl: bool = False):
     conn = Search(using=CLIENT, index="geonames")
     return conn
 
-def normalize(ll: list) -> np.array:    
+
+# Using an IntEnum here so that we can test whether sufficient data for a test
+# is present, since if we have "all" data, we also have "test" data.
+class DataExtent(IntEnum):
+    NONE = 1
+    TEST = 2
+    ALL = 3
+
+
+def es_determine_data_extent(conn: Search=setup_es()) -> DataExtent:
+    # TODO: this is a bit hacky, but it works for now. 
+    """Check what extent of data we have in the ES/Geonames index
+    
+    Returns
+    -------
+    DataExtent
+      Either "ALL" if the full Geonames dataset is present, "TEST" if only
+      the reduced test set is present, or "NONE" if no data appears to be present.
+    """
+    usa = get_adm1_country_entry("New York", "USA", conn)
+    nld = get_adm1_country_entry("North Holland", "NLD", conn)
+    if usa and nld:
+        return DataExtent.ALL
+    elif nld:   
+        return DataExtent.TEST
+    else:
+        return DataExtent.NONE
+
+
+def normalize(ll: list[float]) -> npt.NDArray[np.float64]:    
     """Normalize an array to [0, 1]"""
-    ll = np.array(ll)
-    if len(ll) > 0:
-        max_ll = np.max(ll)
-        if max_ll == 0:
-            max_ll = 0.001
-        ll = (ll - np.min(ll)) / max_ll
-    return ll
+    arr = np.array(ll)
+    if len(arr) > 0:
+        max_arr = np.max(arr)
+        if max_arr == 0:
+            max_arr = 0.001
+        arr = (arr - np.min(arr)) / max_arr
+    return arr
 
 
 def make_admin1_counts(out):
@@ -209,8 +259,14 @@ def _clean_search_name(search_name):
         search_name = "United States"
     return search_name
 
-def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
-                remove_correct=False, known_country=None):
+
+def add_es_data(ex, 
+                conn, 
+                max_results=50, 
+                fuzzy=0, 
+                limit_types=False,
+                remove_correct=False, 
+                known_country=None):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
     to the object.
@@ -273,11 +329,8 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
         p_filter = Q("term", feature_class="P")
         a_filter = Q("term", feature_class="A")
         combined_filter = p_filter | a_filter
-        if known_country:
-            country_filter = Q("term", country_code3=known_country)
-            combined_filter = combined_filter & country_filter
         res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    elif known_country:
+    if known_country:
         country_filter = Q("term", country_code3=known_country)
         res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     else:
@@ -307,6 +360,29 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
     if remove_correct:
         choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]
 
+    # Always add a final "NULL" choice at the end
+    logger.debug("Adding NULL choice")
+    null_choice = {'feature_code': 'NULL', 
+            'feature_class': 'NULL', 
+            'country_code3': 'NULL', 
+            'lat': 0, 
+            'lon': 0, 
+            'name': 'NULL', 
+            'admin1_code': 'NULL', 
+            'admin1_name': 'NULL', 
+            'admin2_code': 'NULL', 
+            'admin2_name': 'NULL', 
+            'geonameid': 'NULL', 
+            'admin1_parent_match': -1, 
+            'country_code_parent_match': -1, 
+            'alt_name_length': 0, 
+            'min_dist': 99.0, 
+            'max_dist': 99.0, 
+            'avg_dist': 99.0, 
+            'ascii_dist': 99.0, 
+            'adm1_count': 0.0, 
+            'country_count': 0.0}
+    choices.append(null_choice)
     ex['es_choices'] = choices
 
     if remove_correct:
@@ -315,6 +391,7 @@ def add_es_data(ex, conn, max_results=50, fuzzy=0, limit_types=False,
         if 'correct_geonamesid' in ex.keys():
             ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in choices]
     return ex
+
 
 
 def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
@@ -384,11 +461,25 @@ def get_entry_by_id(geonameid: str, conn):
     r = _format_country_results(res)
     return r
 
-def get_adm1_country_entry(adm1: str, iso3c: str, conn):
+def get_adm1_country_entry(adm1: str, iso3c: str | None=None, 
+                           conn: Search=setup_es()) -> dict | None:
     """
-    Return the Geonames result for an ADM1 code.
+    Return the Geonames entity for an ADM1 code.
     
-    iso3c can be None if the country isn't known.
+    Parameters
+    ----------
+    adm1: str
+      Name of the ADM1 (state/province)
+    iso3c: str or None
+      Optional three letter country code to limit the search
+    conn: elasticsearch connection
+      An elasticsearch connection object, as returned by setup_es()
+
+    Examples
+    --------
+    >>> conn = setup_es()
+    >>> get_adm1_country_entry("North Holland", "NLD", conn)
+    {'extracted_name': '', 'name': 'Provincie Noord-Holland', 'lat': '52.58333', 'lon': '4.91667', 'admin1_name': 'North Holland', 'admin2_name': '', 'country_code3': 'NLD', 'feature_code': 'ADM1', 'feature_class': 'A', 'geonameid': '2749879', 'start_char': '', 'end_char': ''}
     """
     type_filter = Q("term", feature_code="ADM1") 
     q = {"multi_match": {"query": adm1,
@@ -402,4 +493,3 @@ def get_adm1_country_entry(adm1: str, iso3c: str, conn):
     r = _format_country_results(res)
     return r
 
-#get_adm1_country_entry("Kaduna", "NGA", conn)
