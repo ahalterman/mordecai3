@@ -17,7 +17,7 @@ dependencies = [
     "elasticsearch-dsl>=7.3.0,<8.0",
     "elasticsearch>=7.11.0,<8.0",
     "jellyfish>=0.8.2,<2.0",
-    "jsonlines>=3.0.0,<4.0",
+    "jsonlines>=3.0.0",
     "numpy",
     "pandas",
     "scikit-learn>=0.24.1",
