@@ -10,69 +10,28 @@ from collections import Counter
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Q, Search
 from enum import IntEnum
-from urllib3.exceptions import NewConnectionError
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
-def es_is_accepting_connection(hosts: list[str]=["localhost"]) -> bool:
-    """Check if the Elasticsearch service is running and accessible"""
-    try:
-        es = Elasticsearch(hosts)
-        res = es.ping()
-    except (NewConnectionError, ConnectionRefusedError):
-        return False
-    return res
-
-
-def es_check_geonames_index(hosts: list[str]=["localhost"]) -> bool:
-    """Check if the ES GeoNames index is accessible"""
-    if not es_is_accepting_connection(hosts):
-        return False
-    es = Elasticsearch(hosts)
-    return es.indices.exists(index="geonames")
-
-
-def make_conn(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False) -> Search:
-    """
-    hosts: list[str] - list of hostnames, defaults to ['localhost'] if None
-    """
-    kwargs = dict(
-        hosts=hosts,
-        port=port,
-        use_ssl=use_ssl,
-    )
-    CLIENT = Elasticsearch(**kwargs)
-    conn = Search(using=CLIENT, index="geonames")
-    return conn
-
-
-def setup_es(hosts: list[str] = ['localhost'], port: int = 9200, use_ssl: bool = False):
-    kwargs = dict(
-        hosts=hosts,
-        port=port,
-        use_ssl=use_ssl,
-    )
-    CLIENT = Elasticsearch(**kwargs)
-    try:
-        CLIENT.ping()
-        logger.info("Successfully connected to Elasticsearch.")
-    except:
-        ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
-    conn = Search(using=CLIENT, index="geonames")
-    return conn
-
+#
+#   Helpers for data extent checking, used in elasticsearch.py
+#   ================================
+#
+#   But depend on GeonamesService functionality, so leave it here
+#
 
 # Using an IntEnum here so that we can test whether sufficient data for a test
 # is present, since if we have "all" data, we also have "test" data.
 class DataExtent(IntEnum):
+    NA   = 0  # Fallback for ES client connection problems or missing index   
     NONE = 1
     TEST = 2
-    ALL = 3
+    ALL  = 3
 
 
-def es_determine_data_extent(conn: Search=setup_es()) -> DataExtent:
+def determine_geonames_data_extent(conn: Elasticsearch) -> DataExtent:
     # TODO: this is a bit hacky, but it works for now. 
     """Check what extent of data we have in the ES/Geonames index
     
@@ -82,14 +41,63 @@ def es_determine_data_extent(conn: Search=setup_es()) -> DataExtent:
       Either "ALL" if the full Geonames dataset is present, "TEST" if only
       the reduced test set is present, or "NONE" if no data appears to be present.
     """
-    usa = get_adm1_country_entry("New York", "USA", conn)
-    nld = get_adm1_country_entry("North Holland", "NLD", conn)
+    search_client = Search(using=conn, index="geonames")
+    usa = get_adm1_country_entry("New York", "USA", search_client)
+    nld = get_adm1_country_entry("North Holland", "NLD", search_client)
     if usa and nld:
         return DataExtent.ALL
     elif nld:   
         return DataExtent.TEST
     else:
         return DataExtent.NONE
+
+
+#
+#   Geonames service class: how to actually use Geonames in mordecai3
+#   =========================================
+#
+
+
+class GeonamesService:
+    """Class to encapsulate Geonames functionality needed for mordecai3"""
+    def __init__(self, es_client: Elasticsearch):
+        self.conn = es_client
+        self.search = Search(using=self.conn, index="geonames")
+
+    def get_adm1_country_entry(self, 
+                               adm1: str, 
+                               iso3c: str | None=None, 
+                               ) -> dict | None:
+        """
+        Return the Geonames entity for an ADM1 code.
+        
+        Parameters
+        ----------
+        adm1: str
+        Name of the ADM1 (state/province)
+        iso3c: str or None
+        Optional three letter country code to limit the search
+        conn: elasticsearch connection
+        An elasticsearch connection object, as returned by setup_es()
+
+        Examples
+        --------
+        >>> conn = setup_es()
+        >>> get_adm1_country_entry("North Holland", "NLD", conn)
+        {'extracted_name': '', 'name': 'Provincie Noord-Holland', 'lat': '52.58333', 'lon': '4.91667', 'admin1_name': 'North Holland', 'admin2_name': '', 'country_code3': 'NLD', 'feature_code': 'ADM1', 'feature_class': 'A', 'geonameid': '2749879', 'start_char': '', 'end_char': ''}
+        """
+        type_filter = Q("term", feature_code="ADM1") 
+        q = {"multi_match": {"query": adm1,
+                                "fields": ['name', 'asciiname', 'alternativenames'],
+                                "type" : "phrase"}}
+        if iso3c:
+            country_filter = Q("term", country_code3=iso3c) 
+            res = self.search.query(q).filter(type_filter).filter(country_filter).execute()
+        else:
+            res = self.search.query(q).filter(type_filter).execute()
+        r = _format_country_results(res)
+        return r
+
 
 
 def normalize(ll: list[float]) -> npt.NDArray[np.float64]:    
@@ -462,7 +470,7 @@ def get_entry_by_id(geonameid: str, conn):
     return r
 
 def get_adm1_country_entry(adm1: str, iso3c: str | None=None, 
-                           conn: Search=setup_es()) -> dict | None:
+                           conn: Search=None) -> dict | None:
     """
     Return the Geonames entity for an ADM1 code.
     

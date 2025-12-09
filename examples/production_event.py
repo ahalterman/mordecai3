@@ -7,7 +7,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
 from torch.utils.data import DataLoader
 
-import mordecai3.elastic_utilities as es_util
+import mordecai3.elasticsearch as es_util
 from mordecai3.geoparse import doc_to_ex_expanded
 from mordecai3.roberta_qa import add_event_loc, setup_qa
 from mordecai3.torch_model import ProductionData, geoparse_model

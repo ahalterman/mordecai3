@@ -6,6 +6,12 @@ import spacy
 import torch
 import re
 
+from elasticsearch import Elasticsearch
+try: 
+    from elasticsearch.dsl import Search             # type: ignore
+except ImportError:
+    # elasticsearch < 8.18.0
+    from elasticsearch_dsl import Search
 from importlib import resources
 try: 
     from importlib.resources.abc import Traversable  # type: ignore[import-untyped]
@@ -14,12 +20,12 @@ except ImportError:
     from importlib.abc import Traversable
 from torch.utils.data import DataLoader
 
-from .elastic_utilities import (
+from .elasticsearch import setup_es_client, make_conn
+from .geonames import (
     add_es_data_doc,
     get_adm1_country_entry,
     get_country_entry,
     get_entry_by_id,
-    make_conn,
 )
 from .mordecai_utilities import spacy_doc_setup
 from .roberta_qa import add_event_loc, setup_qa
@@ -164,6 +170,8 @@ def load_hierarchy(asset_path):
             
 
 class Geoparser:
+    conn: Search
+
     def __init__(self, 
                  model_path: str | Traversable | None=None, 
                  geo_asset_path: str | Traversable | None=None,
@@ -175,7 +183,8 @@ class Geoparser:
                  hosts: list[str] | None = None,
                  port: int = 9200,
                  device='cpu',
-                 use_ssl: bool=False):
+                 use_ssl: bool=False,
+                 es_client: Elasticsearch | None=None):
         if device != "cpu":
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.debug = debug
@@ -193,7 +202,15 @@ class Geoparser:
                     logger.info(f"Error loading token_tensors pipe: {e}")
                     pass
             self.nlp = nlp
-        self.conn = make_conn(hosts=hosts, port=port, use_ssl=use_ssl)
+        
+        # Handle ES and GeonamesService connection
+
+        if es_client is not None:
+            self.conn = Search(using=es_client, index="geonames")
+        else:
+            es_client = setup_es_client(hosts=hosts, port=port, use_ssl=use_ssl)
+            self.conn = Search(using=es_client, index="geonames")
+        
         if check_es:
             logger.info("Checking Elasticsearch connection...")
             try:
@@ -202,6 +219,8 @@ class Geoparser:
             except:
                 logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")
                 ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
+        
+        
         if not model_path:
             model_path =  resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt"
         self.model = load_model(model_path, device=device)

@@ -10,7 +10,7 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 import datetime
 import logging
 
-import elastic_utilities as es_util
+import mordecai3.elasticsearch as es_util
 import numpy as np
 import spacy
 import torch
@@ -23,7 +23,6 @@ from error_utils import make_wandb_dict
 from geoparse import guess_in_rel
 
 from torch_model import geoparse_model
-import elastic_utilities as es_util
 
 from mordecai_utilities import spacy_doc_setup
 from spacy.tokens import DocBin

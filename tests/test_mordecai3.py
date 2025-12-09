@@ -1,21 +1,27 @@
 import pytest
 import spacy
 
-from mordecai3 import elastic_utilities as es_utils
+from mordecai3 import geonames as es_utils
 from mordecai3 import geoparse
 from mordecai3.geoparse import Geoparser
-from mordecai3.elastic_utilities import setup_es, es_determine_data_extent, DataExtent
 from mordecai3.utils import check_spacy_model
+from mordecai3.geonames import (DataExtent)
 
-if not es_utils.es_is_accepting_connection():
-    pytest.skip("Elasticsearch isn't available", allow_module_level=True)
 
 if not check_spacy_model():
     pytest.skip("spaCy model not available", allow_module_level=True)
 
-conn = setup_es()
-if es_determine_data_extent(conn) < DataExtent.ALL:
-    pytest.skip("Elasticsearch Geonames index is empty", allow_module_level=True)
+
+@pytest.fixture(scope='module', autouse=True)
+def check_data_extent(geonames_data_extent):
+    extent = geonames_data_extent[0]
+    
+    if extent < DataExtent.ALL:
+        pytest.skip(
+            f"Geonames data not available (extent: {extent})",
+            allow_module_level=True
+        )
+
 
 @pytest.fixture(scope='session', autouse=True)
 def geo():
