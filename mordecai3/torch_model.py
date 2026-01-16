@@ -11,12 +11,7 @@ from pandas import read_csv
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter(
-        '%(levelname)-8s %(name)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.WARN)
+logger.addHandler(logging.NullHandler())
 
 
 def convert_to_numpy(tensor):
