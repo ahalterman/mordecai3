@@ -22,11 +22,14 @@ def convert_to_numpy(tensor):
         return np.asarray(tensor)
     
 class ProductionData(Dataset):
+    _country_dict = None
+    _feature_code_dict = None
+
     def __init__(self, es_data, max_choices=25, max_codes=50):
         self.max_choices = max_choices
         self.max_codes = max_codes
-        self.country_dict = self._make_country_dict()
-        self.feature_code_dict = self._make_feature_code_dict()
+        self.country_dict = self._get_country_dict()
+        self.feature_code_dict = self._get_feature_code_dict()
         self.placename_tensor = np.array([
             convert_to_numpy(i['tensor']) for i in es_data
         ]).astype(np.float32)
@@ -124,27 +127,32 @@ class ProductionData(Dataset):
         ed_stack = np.stack(edit_info)
         return ed_stack
 
-    def _make_country_dict(self):
-        pt = os.path.dirname(os.path.realpath(__file__))
-        fn = os.path.join(pt, "assets", "wikipedia-iso-country-codes.txt")
-        country = read_csv(fn)
-        country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
-        country_dict["CUW"] = len(country_dict)
-        country_dict["XKX"] = len(country_dict)
-        country_dict["SCG"] = len(country_dict)
-        country_dict["SSD"] = len(country_dict)
-        country_dict["BES"] = len(country_dict)
-        country_dict["SXM"] = len(country_dict)
-        country_dict["NULL"] = len(country_dict)
-        country_dict["NA"] = len(country_dict)
-        return country_dict
+    @classmethod
+    def _get_country_dict(cls):
+        if cls._country_dict is None:
+            pt = os.path.dirname(os.path.realpath(__file__))
+            fn = os.path.join(pt, "assets", "wikipedia-iso-country-codes.txt")
+            country = read_csv(fn)
+            country_dict = {i:n for n, i in enumerate(country['Alpha-3 code'].to_list())}
+            country_dict["CUW"] = len(country_dict)
+            country_dict["XKX"] = len(country_dict)
+            country_dict["SCG"] = len(country_dict)
+            country_dict["SSD"] = len(country_dict)
+            country_dict["BES"] = len(country_dict)
+            country_dict["SXM"] = len(country_dict)
+            country_dict["NULL"] = len(country_dict)
+            country_dict["NA"] = len(country_dict)
+            cls._country_dict = country_dict
+        return cls._country_dict
 
-    def _make_feature_code_dict(self):
-        pt = os.path.dirname(os.path.realpath(__file__))
-        fn = os.path.join(pt, "assets", "feature_code_dict.json")
-        with open(fn, "r") as f:
-            feature_code_dict = json.load(f)
-            return feature_code_dict
+    @classmethod
+    def _get_feature_code_dict(cls):
+        if cls._feature_code_dict is None:
+            pt = os.path.dirname(os.path.realpath(__file__))
+            fn = os.path.join(pt, "assets", "feature_code_dict.json")
+            with open(fn, "r") as f:
+                cls._feature_code_dict = json.load(f)
+        return cls._feature_code_dict
 
 
 class TrainData(ProductionData):
