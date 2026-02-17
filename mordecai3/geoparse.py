@@ -20,7 +20,8 @@ except ImportError:
     from importlib.abc import Traversable
 from torch.utils.data import DataLoader
 
-from .elasticsearch import setup_es_client, make_conn
+from .elasticsearch import setup_es_client, make_conn, es_is_accepting_connection, es_has_geonames_index
+from .exceptions import SpacyModelError, ElasticsearchConnectionError, GeonamesIndexError
 from .geonames import (
     add_es_data_batch,
     add_es_data_doc,
@@ -46,7 +47,10 @@ def load_nlp(use_gpu=False):
             logger.info("spaCy: GPU activated")
         else:
             logger.info("spaCy: GPU requested but not available, using CPU")
-    nlp = spacy.load("en_core_web_trf")
+    try:
+        nlp = spacy.load("en_core_web_trf")
+    except OSError:
+        raise SpacyModelError()
     nlp.add_pipe("token_tensors")
     return nlp
 
@@ -220,12 +224,11 @@ class Geoparser:
         
         if check_es:
             logger.info("Checking Elasticsearch connection...")
-            try:
-                assert len(list(self.conn[1])) > 0
-                logger.info("Successfully connected to Elasticsearch.")
-            except:
-                logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")
-                ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
+            if not es_is_accepting_connection(es_client):
+                raise ElasticsearchConnectionError()
+            if not es_has_geonames_index(es_client):
+                raise GeonamesIndexError()
+            logger.info("Successfully connected to Elasticsearch.")
         
         
         if not model_path:
