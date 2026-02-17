@@ -1,6 +1,7 @@
 import os
 import pytest
 
+from mordecai3 import Geoparser
 from mordecai3.geonames import DataExtent
 from mordecai3.elasticsearch import setup_es_client, check_es_and_geonames
 from mordecai3.logging import setup_logging
@@ -22,8 +23,7 @@ def es_client():
 
 @pytest.fixture(scope="session")
 def geonames_data_extent(es_client):
-    """Print startup info about external services."""
-    
+    """Check what extent of Geonames data is loaded in ES."""
     res = check_es_and_geonames(es_client)
     return res
 
@@ -44,6 +44,15 @@ def test_data_required(geonames_data_extent):
         pytest.skip(
             f"Geonames test data not available (extent: {extent})",
         )
+
+
+@pytest.fixture(scope="session")
+def geo(all_data_required):
+    """Session-scoped Geoparser instance (requires full Geonames data).
+
+    Shared across all tests to avoid repeated model/spaCy loading (~10s).
+    """
+    return Geoparser(hosts=[ES_HOST], port=int(ES_PORT))
 
 
 @pytest.fixture(scope="session", autouse=True)
