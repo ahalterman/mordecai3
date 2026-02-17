@@ -7,6 +7,7 @@ import re
 import warnings
 
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Q, Search
 from enum import IntEnum
@@ -403,7 +404,12 @@ def add_es_data(ex,
 
 
 def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
-                    remove_correct=False, known_country=None):
+                    remove_correct=False, known_country=None, es_workers=4):
+    if es_workers > 1 and len(doc_ex) > 1:
+        return _add_es_data_doc_threaded(doc_ex, conn, max_results, fuzzy,
+                                          limit_types, remove_correct,
+                                          known_country, es_workers)
+    # Sequential fallback for single entities or when threading is disabled
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
@@ -422,6 +428,108 @@ def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
             e['adm1_count'] = admin1_count[e['admin1_name']]
             e['country_count'] = country_count[e['country_code3']]
     return doc_es
+
+
+def _add_es_data_doc_threaded(doc_ex, conn, max_results, fuzzy, limit_types,
+                               remove_correct, known_country, es_workers):
+    """Thread-parallel version of add_es_data_doc for multiple entities."""
+    results_by_idx = {}
+
+    def _lookup(idx, ex):
+        with warnings.catch_warnings():
+            try:
+                return idx, add_es_data(ex, conn, max_results, fuzzy,
+                                         limit_types, remove_correct, known_country)
+            except Warning:
+                return idx, None
+
+    with ThreadPoolExecutor(max_workers=es_workers) as pool:
+        futures = [pool.submit(_lookup, i, ex) for i, ex in enumerate(doc_ex)]
+        for fut in as_completed(futures):
+            idx, result = fut.result()
+            if result is not None:
+                results_by_idx[idx] = result
+
+    # Preserve original ordering
+    doc_es = [results_by_idx[i] for i in sorted(results_by_idx)]
+    if not doc_es:
+        return []
+
+    # Cross-entity features computed after all lookups complete
+    admin1_count = make_admin1_counts(doc_es)
+    country_count = make_country_counts(doc_es)
+
+    for i in doc_es:
+        for e in i['es_choices']:
+            e['adm1_count'] = admin1_count[e['admin1_name']]
+            e['country_count'] = country_count[e['country_code3']]
+    return doc_es
+
+def add_es_data_batch(all_doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
+                      remove_correct=False, known_country=None, es_workers=4):
+    """Process ES lookups for multiple documents using a shared thread pool.
+
+    All entity lookups across all documents are submitted to a single thread pool,
+    then results are reassembled by document for cross-entity feature computation.
+
+    Parameters
+    ----------
+    all_doc_ex : list of list of dicts
+        Entity dicts per document (output of doc_to_ex_expanded for each doc).
+    conn : elasticsearch_dsl.Search
+    es_workers : int
+        Number of threads for parallel ES queries.
+
+    Returns
+    -------
+    list of list of dicts
+        ES-enriched entity data, one list per document.
+    """
+    # Flatten all entities with document indices
+    tasks = []
+    for doc_idx, doc_ex in enumerate(all_doc_ex):
+        for ent_idx, ex in enumerate(doc_ex):
+            tasks.append((doc_idx, ent_idx, ex))
+
+    if not tasks:
+        return [[] for _ in all_doc_ex]
+
+    results_by_doc = {i: [] for i in range(len(all_doc_ex))}
+
+    def _lookup(task):
+        doc_idx, ent_idx, ex = task
+        with warnings.catch_warnings():
+            try:
+                result = add_es_data(ex, conn, max_results, fuzzy,
+                                     limit_types, remove_correct, known_country)
+                return doc_idx, ent_idx, result
+            except Warning:
+                return doc_idx, ent_idx, None
+
+    with ThreadPoolExecutor(max_workers=es_workers) as pool:
+        for result in pool.map(_lookup, tasks):
+            doc_idx, ent_idx, data = result
+            if data is not None:
+                results_by_doc[doc_idx].append((ent_idx, data))
+
+    # Reassemble by document, preserving entity order within each doc
+    all_doc_es = []
+    for doc_idx in range(len(all_doc_ex)):
+        entries = sorted(results_by_doc[doc_idx], key=lambda x: x[0])
+        doc_es = [r for _, r in entries]
+
+        if doc_es:
+            admin1_count = make_admin1_counts(doc_es)
+            country_count = make_country_counts(doc_es)
+            for i in doc_es:
+                for e in i['es_choices']:
+                    e['adm1_count'] = admin1_count[e['admin1_name']]
+                    e['country_count'] = country_count[e['country_code3']]
+
+        all_doc_es.append(doc_es)
+
+    return all_doc_es
+
 
 def _format_country_results(res):
     if not res:
