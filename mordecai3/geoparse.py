@@ -22,11 +22,13 @@ from torch.utils.data import DataLoader
 
 from .elasticsearch import setup_es_client, make_conn
 from .geonames import (
+    add_es_data_batch,
     add_es_data_doc,
     get_adm1_country_entry,
     get_country_entry,
     get_entry_by_id,
 )
+from tqdm import tqdm
 from .mordecai_utilities import spacy_doc_setup
 from .roberta_qa import add_event_loc, setup_qa
 from .torch_model import ProductionData, geoparse_model
@@ -37,7 +39,13 @@ logger.addHandler(logging.NullHandler())
 
 spacy_doc_setup()
 
-def load_nlp():
+def load_nlp(use_gpu=False):
+    if use_gpu:
+        activated = spacy.prefer_gpu()
+        if activated:
+            logger.info("spaCy: GPU activated")
+        else:
+            logger.info("spaCy: GPU requested but not available, using CPU")
     nlp = spacy.load("en_core_web_trf")
     nlp.add_pipe("token_tensors")
     return nlp
@@ -167,8 +175,8 @@ def load_hierarchy(asset_path):
 class Geoparser:
     conn: Search
 
-    def __init__(self, 
-                 model_path: str | Traversable | None=None, 
+    def __init__(self,
+                 model_path: str | Traversable | None=None,
                  geo_asset_path: str | Traversable | None=None,
                  nlp=None,
                  event_geoparse: bool=False,
@@ -177,15 +185,19 @@ class Geoparser:
                  check_es: bool=True,
                  hosts: list[str] | None = None,
                  port: int = 9200,
-                 device='cpu',
+                 device=None,
                  use_ssl: bool=False,
                  es_client: Elasticsearch | None=None):
-        if device != "cpu":
+        if device is None:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        else:
+            device = torch.device(device)
+        use_gpu = (device.type != "cpu")
+        logger.info(f"Using device: {device}")
         self.debug = debug
         self.trim = trim
         if not nlp:
-            self.nlp = load_nlp()
+            self.nlp = load_nlp(use_gpu=use_gpu)
         else:
             if 'token_tensors' not in nlp.pipe_names:
                 try:
@@ -346,15 +358,180 @@ class Geoparser:
         return d
 
 
-    def geoparse_doc(self, 
-                     text, 
-                     plover_cat=None, 
-                     debug=False, 
-                     trim=True, 
+    def _resolve_results(self, es_data, pred_val, debug=False):
+        """Select best geonames candidates based on model predictions.
+
+        Parameters
+        ----------
+        es_data : list of dicts
+            ES-enriched entity data for a single document.
+        pred_val : torch.Tensor
+            Model predictions, shape (num_entities, max_choices).
+        debug : bool
+            If True, return top 4 candidates per entity instead of just the best.
+
+        Returns
+        -------
+        best_list : list of dicts
+        """
+        best_list = []
+        for (ent, pred) in zip(es_data, pred_val):
+            logger.debug("**Place name**: {}".format(ent['search_name']))
+            # if the last one is the argmax, the model thinks no answer is correct
+            if pred[-1] == pred.max():
+                logger.debug("Model predicts no answer")
+                best = {"search_name": ent['search_name'],
+                    "start_char": ent['start_char'],
+                    "end_char": ent['end_char']}
+                best_list.append(best)
+                continue
+
+            for n, score in enumerate(pred):
+                if n < len(ent['es_choices']):
+                    ent['es_choices'][n]['score'] = score.item()
+            results = [e for e in ent['es_choices'] if 'score' in e.keys()]
+
+            if not results:
+                logger.debug("(no results)")
+            best = {"search_name": ent['search_name'],
+                    "start_char": ent['start_char'],
+                    "end_char": ent['end_char']}
+            scores = np.array([r['score'] for r in results])
+            if len(scores) == 0:
+                logger.debug("No scores found.")
+                continue
+            if np.argmax(scores) == len(scores) - 1:
+                logger.debug("Picking final ''null'' result.")
+                if len(scores) == 1:
+                    logger.debug(f"Only one score found: {results[0]}")
+                if len(scores) > 1:
+                    second_best_idx = np.argsort(scores)[-2]
+                    second_best = results[second_best_idx]
+                    logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
+                continue
+            results = sorted(results, key=lambda k: -k['score'])
+            if results and (not debug):
+                logger.debug("Picking top predicted result")
+                best = results[0]
+                best["search_name"] = ent['search_name']
+                best["start_char"] = ent['start_char']
+                best["end_char"] = ent['end_char']
+                best['city_id'], best['city_name'] = self.lookup_city(best)
+                best_list.append(best)
+            if results and debug:
+                logger.debug("Returning top 4 predicted results for each location")
+                for b in results[0:4]:
+                    b["search_name"] = ent['search_name']
+                    b["start_char"] = ent['start_char']
+                    b["end_char"] = ent['end_char']
+                    b['city_id'], b['city_name'] = self.lookup_city(b)
+                    best_list.append(b)
+        return best_list
+
+    @staticmethod
+    def _trim_results(best_list):
+        """Remove internal-only keys from result dicts."""
+        trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
+                    'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
+        for entry in best_list:
+            for key in trim_keys:
+                entry.pop(key, None)
+
+    def _geoparse_docs(self, docs, max_choices=100, known_country=None,
+                       trim=True, debug=False, es_workers=4):
+        """Core geoparsing pipeline for a list of spaCy docs.
+
+        Handles entity extraction, ES lookups (cross-doc threaded), cross-document
+        model batching, and result resolution.
+
+        Parameters
+        ----------
+        docs : list of spacy.tokens.doc.Doc
+        max_choices : int
+            Maximum ES candidates per entity.
+        known_country : str or None
+            Restrict results to a single country (ISO 3166-1 alpha-3).
+        trim : bool
+            Remove internal keys from output.
+        debug : bool
+            Return top 4 candidates per entity.
+        es_workers : int
+            Thread pool size for ES lookups.
+
+        Returns
+        -------
+        list of dicts
+            One result dict per input document.
+        """
+        # 1. Entity extraction
+        all_doc_ex = []
+        for doc in docs:
+            try:
+                doc_ex = doc_to_ex_expanded(doc)
+            except Exception as e:
+                logger.warning(f"Entity extraction failed for document: {e}")
+                doc_ex = []
+            all_doc_ex.append(doc_ex)
+
+        # 2. ES lookups across all documents via shared thread pool
+        all_es_data = add_es_data_batch(
+            all_doc_ex, self.conn, max_results=max_choices,
+            known_country=known_country, es_workers=es_workers)
+
+        # 3. Cross-document model batching: pool all entities into one inference pass
+        pooled_es_data = []
+        entity_counts = []
+        for es_data in all_es_data:
+            entity_counts.append(len(es_data))
+            pooled_es_data.extend(es_data)
+
+        all_preds = None
+        if pooled_es_data:
+            dataset = ProductionData(pooled_es_data, max_choices=max_choices)
+            data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
+            with torch.no_grad():
+                self.model.eval()
+                pred_val_list = []
+                for input_batch in data_loader:
+                    input_batch_on_device = {k: v.to(self.model.device) for k, v in input_batch.items()}
+                    pred_val_list.append(self.model(input_batch_on_device))
+                all_preds = torch.cat(pred_val_list, dim=0)
+
+        # 4. Split predictions by document and resolve results
+        results = []
+        pred_offset = 0
+        for doc, doc_ex, es_data, n_ents in zip(docs, all_doc_ex, all_es_data, entity_counts):
+            output = {"doc_text": doc.text,
+                     "event_location_raw": "",
+                     "geolocated_ents": []}
+
+            if n_ents == 0 or not es_data:
+                results.append(output)
+                continue
+
+            pred_val = all_preds[pred_offset:pred_offset + n_ents]
+            pred_offset += n_ents
+
+            best_list = self._resolve_results(es_data, pred_val, debug)
+            if (self.trim or trim) and best_list:
+                self._trim_results(best_list)
+            output["geolocated_ents"] = best_list
+            results.append(output)
+
+        return results
+
+    def geoparse_doc(self,
+                     text,
+                     plover_cat=None,
+                     debug=False,
+                     trim=True,
                      known_country=None,
                      max_choices=100):
         """
-        Geoparse a document.
+        Geoparse a single document.
+
+        This is a convenience wrapper around geoparse_batch() for processing
+        a single text. For multiple documents, use geoparse_batch() directly.
 
         Parameters
         ----------
@@ -387,140 +564,100 @@ class Geoparser:
         >>> text = "The earthquake struck in the city of Christchurch, New Zealand."
         >>> geoparser.geoparse_doc(text)
         """
-        if type(text) is str:   
-            doc = self.nlp(text)
-        elif type(text) is spacy.tokens.doc.Doc:
+        if isinstance(text, spacy.tokens.doc.Doc):
             doc = text
+        elif isinstance(text, str):
+            doc = self.nlp(text)
         else:
             raise ValueError("Text must be either of type 'str' or 'spacy.tokens.doc.Doc'.")
 
-        if plover_cat and not self.event_geoparse:
-            raise Warning("A PLOVER category was provided but event geoparsing is disabled. Skipping event geolocation!")
+        result = self._geoparse_docs(
+            [doc], max_choices=max_choices, known_country=known_country,
+            trim=trim, debug=debug)[0]
 
-        doc_ex = doc_to_ex_expanded(doc)
-        if doc_ex:
-            es_data = add_es_data_doc(doc_ex, self.conn, max_results=max_choices,
-                                              known_country=known_country)
-
-            dataset = ProductionData(es_data, max_choices=max_choices)
-
-            data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
-            with torch.no_grad():
-                self.model.eval()
-                pred_val_list = []
-                for input_batch in data_loader:
-                    # Move the entire input batch to the model's device
-                    input_batch_on_device = {k: v.to(self.model.device) for k, v in input_batch.items()}
-                    pred_val_list.append(self.model(input_batch_on_device))
-                pred_val = torch.cat(pred_val_list, dim=0)
-
+        # Event geoparsing (only available in single-doc API)
         if plover_cat and self.event_geoparse:
             question = f"Where did {plover_cat.lower()} happen?"
-            QA_input = {
-                    'question': question,
-                    'context':text
-                }
+            QA_input = {'question': question, 'context': doc.text}
             res = self.trf(QA_input)
             event_doc = add_event_loc(doc, res)
-        else:
-            event_doc = doc
+            result['event_location_raw'] = ''.join(
+                [i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]
+            ).strip()
+        elif plover_cat and not self.event_geoparse:
+            logger.warning("A PLOVER category was provided but event geoparsing is disabled. Skipping event geolocation!")
 
-        best_list = []
-        output = {"doc_text": doc.text,
-                 "event_location": '',
-                 "geolocated_ents": []}
-        if len(doc_ex) == 0:
-            return output
-        elif len(es_data) == 0:
-            return output
-        else:
-            # Iterate over all the entities in the document
-            for (ent, pred) in zip(es_data, pred_val):
-                logger.debug("**Place name**: {}".format(ent['search_name']))
-                # if the last one is the argmax, then the model thinks that no answer is correct
-                # so return blank
-                if pred[-1] == pred.max():
-                    logger.debug("Model predicts no answer")
-                    best = {"search_name": ent['search_name'],
-                        "start_char": ent['start_char'],
-                        "end_char": ent['end_char']}
-                    best_list.append(best)
-                    continue
+        return result
 
-                for n, score in enumerate(pred):
-                    if n < len(ent['es_choices']):
-                        ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
-                results = [e for e in ent['es_choices'] if 'score' in e.keys()]
+    def geoparse_batch(self, texts, batch_size=32, chunk_size=200,
+                       es_workers=4, max_choices=100, known_country=None,
+                       trim=True, debug=False, show_progress=False):
+        """
+        Geoparse multiple documents with optimized batching.
 
-                # this is what the elements of "results" look like
-                 #  {'feature_code': 'PPL',
-                 #  'feature_class': 'P',
-                 #  'country_code3': 'BRA',
-                 #  'lat': -22.99835,
-                 #  'lon': -43.36545,
-                 #  'name': 'Barra da Tijuca',
-                 #  'admin1_code': '21',
-                 #  'admin1_name': 'Rio de Janeiro',
-                 #  'admin2_code': '3304557',
-                 #  'admin2_name': 'Rio de Janeiro',
-                 #  'geonameid': '7290718',
-                 #  'score': 1.0,
-                 #  'search_name': 'Barra da Tijuca',
-                 #  'start_char': 557,
-                 #  'end_char': 581
-                 #  }
-                if not results:
-                    logger.debug("(no results)")
-                best = {"search_name": ent['search_name'],
-                        "start_char": ent['start_char'],
-                        "end_char": ent['end_char']}
-                scores = np.array([r['score'] for r in results])
-                if len(scores) == 0:
-                    logger.debug("No scores found.")
-                    continue
-                if np.argmax(scores) == len(scores) - 1:
-                    logger.debug("Picking final ''null'' result.")
-                    # print the next best result:
-                    if len(scores) == 1:
-                        logger.debug(f"Only one score found: {results[0]}")
-                    if len(scores) > 1:
-                        second_best_idx = np.argsort(scores)[-2]
-                        second_best = results[second_best_idx]
-                        logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
-                    continue
-                results = sorted(results, key=lambda k: -k['score'])
-                if results and (not debug):
-                    logger.debug("Picking top predicted result")
-                    best = results[0]
-                    best["search_name"] = ent['search_name']
-                    best["start_char"] = ent['start_char']
-                    best["end_char"] = ent['end_char']
-                    ## Add in city info here
-                    best['city_id'], best['city_name'] = self.lookup_city(best)
-                    best_list.append(best)
-                if results and debug:
-                    logger.debug("Returning top 4 predicted results for each location")
-                    best = results[0:4]
-                    for b in best:
-                        b["search_name"] = ent['search_name']
-                        b["start_char"] = ent['start_char']
-                        b["end_char"] = ent['end_char']
-                        b['city_id'], b['city_name'] = self.lookup_city(b)
-                        best_list.append(best)
+        Uses three layers of optimization:
+        1. spaCy batching via nlp.pipe() for transformer forward passes
+        2. Cross-document threaded ES lookups via a shared thread pool
+        3. Cross-document model batching (all entities from a chunk in one inference pass)
 
-        if (self.trim or trim) and best_list:
-            trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
-                        'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
-            for i in best_list:
-                i = [i.pop(key) for key in trim_keys if key in i.keys()]
-            output = {"doc_text": doc.text,
-                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
-                 "geolocated_ents": best_list} 
-        else:
-            output = {"doc_text": doc.text,
-                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
-                 "geolocated_ents": best_list}
-        return output
+        Parameters
+        ----------
+        texts : list of str
+            Documents to geoparse.
+        batch_size : int
+            Batch size for spaCy's nlp.pipe() transformer inference. Default: 32.
+        chunk_size : int
+            Number of documents per processing chunk (bounds memory). Default: 200.
+        es_workers : int
+            Thread pool size for parallel ES lookups. Default: 8.
+        max_choices : int
+            Maximum ES candidates per entity. Default: 100.
+        known_country : str or None
+            Restrict results to a single country (ISO 3166-1 alpha-3).
+        trim : bool
+            Remove internal keys from output. Default: True.
+        debug : bool
+            Return top 4 candidates per entity. Default: False.
+        show_progress : bool
+            Show tqdm progress bar. Default: False.
+
+        Returns
+        -------
+        list of dicts
+            One result dict per input document. Each dict has the same structure
+            as the output of geoparse_doc(): keys "doc_text", "event_location_raw",
+            and "geolocated_ents".
+        """
+        all_results = []
+        progress = tqdm(total=len(texts), desc="Geoparsing",
+                        disable=not show_progress)
+
+        for chunk_start in range(0, len(texts), chunk_size):
+            chunk_texts = texts[chunk_start:chunk_start + chunk_size]
+
+            # Layer 1: spaCy batching
+            docs = []
+            for doc in self.nlp.pipe(chunk_texts, batch_size=batch_size):
+                docs.append(doc)
+                progress.update(1)
+
+            # Layers 2-4: ES lookups, model inference, result resolution
+            try:
+                chunk_results = self._geoparse_docs(
+                    docs, max_choices=max_choices, known_country=known_country,
+                    trim=trim, debug=debug, es_workers=es_workers)
+            except Exception as e:
+                logger.error(f"Chunk processing failed: {e}")
+                chunk_results = [
+                    {"doc_text": doc.text, "event_location_raw": "",
+                     "geolocated_ents": [], "error": str(e)}
+                    for doc in docs
+                ]
+
+            all_results.extend(chunk_results)
+
+        progress.close()
+        return all_results
 
             
 if __name__ == "__main__":
