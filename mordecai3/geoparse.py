@@ -25,6 +25,7 @@ from .exceptions import SpacyModelError, ElasticsearchConnectionError, GeonamesI
 from .geonames import (
     add_es_data_batch,
     add_es_data_doc,
+    clear_es_cache,
     get_adm1_country_entry,
     get_country_entry,
     get_entry_by_id,
@@ -632,6 +633,7 @@ class Geoparser:
             and "geolocated_ents".
         """
         all_results = []
+        clear_es_cache()  # fresh cache per geoparse_batch() run
         progress = tqdm(total=len(texts), desc="Geoparsing",
                         disable=not show_progress)
 

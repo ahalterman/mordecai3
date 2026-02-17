@@ -1,4 +1,5 @@
 
+import copy
 import jellyfish
 import logging
 import numpy as np
@@ -14,6 +15,24 @@ from enum import IntEnum
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+
+
+# ---------------------------------------------------------------------------
+# ES result caches — avoid redundant queries for repeated place names
+# ---------------------------------------------------------------------------
+
+# Cache for add_es_data() results: (search_name, in_rel, known_country) → es_choices list
+_es_cache: dict[tuple, list] = {}
+
+# Cache for parent lookups: (function_name, query_args) → result dict or None
+_parent_cache: dict[tuple, dict | None] = {}
+
+
+def clear_es_cache():
+    """Clear both the ES result cache and parent lookup cache."""
+    _es_cache.clear()
+    _parent_cache.clear()
+    logger.debug("ES caches cleared")
 
 
 #
@@ -313,17 +332,35 @@ def add_es_data(ex,
     fuzzy = int(fuzzy)
     search_name = ex['search_name']
     search_name = _clean_search_name(search_name)
+
+    # Build cache key from the inputs that determine the ES query
+    in_rel_value = ex.get('in_rel', '') or ''
+    cache_key = (search_name, in_rel_value, known_country or '',
+                 max_results, fuzzy, limit_types)
+
+    if cache_key in _es_cache:
+        # Deep-copy because downstream code mutates choices (adm1_count, country_count)
+        ex['es_choices'] = copy.deepcopy(_es_cache[cache_key])
+        if remove_correct:
+            ex['es_choices'] = [c for c in ex['es_choices'] if c['geonameid'] != ex.get('correct_geonamesid')]
+            ex['correct'] = [False for c in ex['es_choices']]
+        else:
+            if 'correct_geonamesid' in ex.keys():
+                ex['correct'] = [c['geonameid'] == ex['correct_geonamesid'] for c in ex['es_choices']]
+        logger.debug(f"ES cache hit for '{search_name}'")
+        return ex
+
     # if we detect a parent location using our heuristic (see `guess_in_rel` in geoparse.py),
-    # check to see if that's a country or admin1. 
+    # check to see if that's a country or admin1.
     if 'in_rel' in ex.keys():
         if ex['in_rel']:
             parent_place = get_country_by_name(ex['in_rel'], conn)
             if not parent_place:
                 parent_place = get_adm1_country_entry(ex['in_rel'], None, conn)
         else:
-            parent_place = None 
+            parent_place = None
     else:
-        parent_place = None 
+        parent_place = None
     if fuzzy:
         q = {"multi_match": {"query": search_name,
                              "fields": ['name', 'alternativenames', 'asciiname'],
@@ -344,7 +381,7 @@ def add_es_data(ex,
         res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     else:
         res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    
+
     choices = res_formatter(res, search_name, parent_place)
 
     if not choices:
@@ -363,35 +400,40 @@ def add_es_data(ex,
             res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
         else:
             res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    
+
         choices = res_formatter(res, ex['search_name'], parent_place)
+
+    # Always add a final "NULL" choice at the end
+    logger.debug("Adding NULL choice")
+    null_choice = {'feature_code': 'NULL',
+            'feature_class': 'NULL',
+            'country_code3': 'NULL',
+            'lat': 0,
+            'lon': 0,
+            'name': 'NULL',
+            'admin1_code': 'NULL',
+            'admin1_name': 'NULL',
+            'admin2_code': 'NULL',
+            'admin2_name': 'NULL',
+            'geonameid': 'NULL',
+            'admin1_parent_match': -1,
+            'country_code_parent_match': -1,
+            'alt_name_length': 0,
+            'min_dist': 99.0,
+            'max_dist': 99.0,
+            'avg_dist': 99.0,
+            'ascii_dist': 99.0,
+            'adm1_count': 0.0,
+            'country_count': 0.0}
+    choices.append(null_choice)
+
+    # Cache a deep copy (downstream code mutates dicts via adm1_count/country_count)
+    _es_cache[cache_key] = copy.deepcopy(choices)
+    logger.debug(f"ES cache miss for '{search_name}', cached {len(choices)} choices")
 
     if remove_correct:
         choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]
 
-    # Always add a final "NULL" choice at the end
-    logger.debug("Adding NULL choice")
-    null_choice = {'feature_code': 'NULL', 
-            'feature_class': 'NULL', 
-            'country_code3': 'NULL', 
-            'lat': 0, 
-            'lon': 0, 
-            'name': 'NULL', 
-            'admin1_code': 'NULL', 
-            'admin1_name': 'NULL', 
-            'admin2_code': 'NULL', 
-            'admin2_name': 'NULL', 
-            'geonameid': 'NULL', 
-            'admin1_parent_match': -1, 
-            'country_code_parent_match': -1, 
-            'alt_name_length': 0, 
-            'min_dist': 99.0, 
-            'max_dist': 99.0, 
-            'avg_dist': 99.0, 
-            'ascii_dist': 99.0, 
-            'adm1_count': 0.0, 
-            'country_count': 0.0}
-    choices.append(null_choice)
     ex['es_choices'] = choices
 
     if remove_correct:
@@ -562,12 +604,16 @@ def get_country_entry(iso3c: str, conn):
 
 def get_country_by_name(country_name: str, conn):
     """Return the Geonames result for a country given its three letter country code"""
-    type_filter = Q("term", feature_code="PCLI") 
+    cache_key = ("country_by_name", country_name)
+    if cache_key in _parent_cache:
+        return _parent_cache[cache_key]
+    type_filter = Q("term", feature_code="PCLI")
     q = {"multi_match": {"query": country_name,
                          "fields": ['name', 'asciiname', 'alternativenames'],
                          "type" : "phrase"}}
     res = conn.query(q).filter(type_filter).execute()
     r = _format_country_results(res)
+    _parent_cache[cache_key] = r
     return r
 
 def get_entry_by_id(geonameid: str, conn):
@@ -577,11 +623,11 @@ def get_entry_by_id(geonameid: str, conn):
     r = _format_country_results(res)
     return r
 
-def get_adm1_country_entry(adm1: str, iso3c: str | None=None, 
+def get_adm1_country_entry(adm1: str, iso3c: str | None=None,
                            conn: Search=None) -> dict | None:
     """
     Return the Geonames entity for an ADM1 code.
-    
+
     Parameters
     ----------
     adm1: str
@@ -597,15 +643,19 @@ def get_adm1_country_entry(adm1: str, iso3c: str | None=None,
     >>> get_adm1_country_entry("North Holland", "NLD", conn)
     {'extracted_name': '', 'name': 'Provincie Noord-Holland', 'lat': '52.58333', 'lon': '4.91667', 'admin1_name': 'North Holland', 'admin2_name': '', 'country_code3': 'NLD', 'feature_code': 'ADM1', 'feature_class': 'A', 'geonameid': '2749879', 'start_char': '', 'end_char': ''}
     """
-    type_filter = Q("term", feature_code="ADM1") 
+    cache_key = ("adm1_country", adm1, iso3c)
+    if cache_key in _parent_cache:
+        return _parent_cache[cache_key]
+    type_filter = Q("term", feature_code="ADM1")
     q = {"multi_match": {"query": adm1,
                              "fields": ['name', 'asciiname', 'alternativenames'],
                              "type" : "phrase"}}
     if iso3c:
-        country_filter = Q("term", country_code3=iso3c) 
+        country_filter = Q("term", country_code3=iso3c)
         res = conn.query(q).filter(type_filter).filter(country_filter).execute()
     else:
         res = conn.query(q).filter(type_filter).execute()
     r = _format_country_results(res)
+    _parent_cache[cache_key] = r
     return r
 
