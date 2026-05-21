@@ -122,6 +122,77 @@ class GeonamesService:
         r = _format_country_results(res)
         return r
 
+    def search_by_name(self, 
+                       search_name: str, 
+                       max_results: int=50, 
+                       fuzzy: int=0,
+                       limit_types: bool=False,
+                       known_country: str | None=None) -> list[dict]:
+        """
+        Run an Elasticsearch/geonames query for a single example and add the results
+        to the object.
+
+        Parameters
+        ---------
+        search_name: str
+            search string
+        max_results: int
+            Maximum results to bring back from ES
+        fuzzy: int
+            Allow fuzzy results? 0=exact matches. Higher numbers will increase 
+            the fuzziness of the search. 
+        limit_types: bool
+            Limit types to Q and A types
+        known_country: str
+            ISO 3 letter country code to restrict results by
+
+        Examples
+        --------
+        ex = {"search_name": ent.text,
+            "tensor": tensor,
+            "doc_tensor": doc_tensor,
+            "locs_tensor": locs_tensor,
+            "sent": ent.sent.text,
+            "in_rel": in_rel,    # this comes from the heuristic `guess_in_rel` fuction defined in geoparse.py
+            "start_char": ent[0].idx,
+            "end_char": ent[-1].idx + len(ent.text)}
+        d_es = add_es_data(d)
+        # d_es now has a "es_choices" key and a "correct" key that indicates which geonames 
+        # entry was the correct one.
+        """
+        max_results = int(max_results)
+        fuzzy = int(fuzzy)
+        search_name = _clean_search_name(search_name)
+        
+        # Construct query
+        if fuzzy:
+            q = {"multi_match": {"query": search_name,
+                                "fields": ['name', 'alternativenames', 'asciiname'],
+                                "fuzziness" : fuzzy,
+                                }}
+        else:
+            q = {"multi_match": {"query": search_name,
+                                    "fields": ['name', 'asciiname', 'alternativenames'],
+                                    "type" : "phrase"}}
+
+        # Add optional filters
+        if limit_types:
+            p_filter = Q("term", feature_class="P")
+            a_filter = Q("term", feature_class="A")
+            combined_filter = p_filter | a_filter
+            res = self.search.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+        if known_country:
+            country_filter = Q("term", country_code3=known_country)
+            res = self.search.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+        else:
+            res = self.search.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
+        
+        return res
+
+
+
+
+
 
 def normalize(ll: list[float]) -> npt.NDArray[np.float64]:    
     """Normalize an array to [0, 1]"""
@@ -292,7 +363,7 @@ def _clean_search_name(search_name):
 
 
 def add_es_data(ex, 
-                conn, 
+                geonames_service: GeonamesService, 
                 max_results=50, 
                 fuzzy=0, 
                 limit_types=False,
@@ -339,54 +410,22 @@ def add_es_data(ex,
     # check to see if that's a country or admin1. 
     if 'in_rel' in ex.keys():
         if ex['in_rel']:
-            parent_place = get_country_by_name(ex['in_rel'], conn)
+            parent_place = geonames_service.get_country_by_name(ex['in_rel'])
             if not parent_place:
-                parent_place = get_adm1_country_entry(ex['in_rel'], None, conn)
+                parent_place = geonames_service.get_adm1_country_entry(ex['in_rel'], None)
         else:
             parent_place = None 
     else:
         parent_place = None 
-    if fuzzy:
-        q = {"multi_match": {"query": search_name,
-                             "fields": ['name', 'alternativenames', 'asciiname'],
-                             "fuzziness" : fuzzy,
-                            }}
-    else:
-        q = {"multi_match": {"query": search_name,
-                                 "fields": ['name', 'asciiname', 'alternativenames'],
-                                "type" : "phrase"}}
-
-    if limit_types:
-        p_filter = Q("term", feature_class="P")
-        a_filter = Q("term", feature_class="A")
-        combined_filter = p_filter | a_filter
-        res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    if known_country:
-        country_filter = Q("term", country_code3=known_country)
-        res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    else:
-        res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
     
-    choices = res_formatter(res, search_name, parent_place)
+    search_res = geonames_service.search_by_name(search_name, max_results, fuzzy, limit_types, known_country)
+    choices = res_formatter(search_res, search_name, parent_place)
 
+    # Always try a fuzzy search if no results from previous search, to avoid 
+    # having no candidates for the ML model to choose from.
     if not choices:
-        # always do a fuzzy step if nothing came up the first time
-        q = {"multi_match": {"query": search_name,
-                             "fields": ['name', 'alternativenames', 'asciiname'],
-                             "fuzziness" : fuzzy+1,
-                            }}
-        if limit_types:
-            p_filter = Q("term", feature_class="P")
-            a_filter = Q("term", feature_class="A")
-            combined_filter = p_filter | a_filter
-            res = conn.query(q).filter(combined_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-        if known_country:
-            country_filter = Q("term", country_code3=known_country)
-            res = conn.query(q).filter(country_filter).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-        else:
-            res = conn.query(q).sort({"alt_name_length": {'order': "desc"}})[0:max_results].execute()
-    
-        choices = res_formatter(res, ex['search_name'], parent_place)
+        search_res = geonames_service.search_by_name(search_name, max_results, fuzzy+1, limit_types, known_country)
+        choices = res_formatter(search_res, ex['search_name'], parent_place)
 
     if remove_correct:
         choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]

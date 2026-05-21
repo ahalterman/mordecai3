@@ -44,6 +44,18 @@ def geonames_service_all_data(geonames_service):
     return geonames_service
 
 
+@pytest.fixture(scope="session")
+def geoparser_all_data(geonames_service_all_data):
+    from mordecai3.geoparse import Geoparser
+    return Geoparser(geonames=geonames_service_all_data)
+
+
+@pytest.fixture(scope="session")
+def geoparser_test_data(geonames_service_test_data):
+    from mordecai3.geoparse import Geoparser
+    return Geoparser(geonames=geonames_service_test_data)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def log_data_extent(es_client):
     extent, msg = check_es_and_geonames(es_client)

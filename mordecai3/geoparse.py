@@ -21,7 +21,7 @@ except ImportError:
 from torch.utils.data import DataLoader
 
 from .elasticsearch import setup_es_client
-from .geonames import GeonamesService
+from .geonames import GeonamesService, add_es_data_doc
 from .mordecai_utilities import spacy_doc_setup
 from .torch_model import ProductionData, geoparse_model
 
@@ -198,7 +198,7 @@ class Geoparser:
             self.conn = Search(using=es_client, index="geonames")
         
         if geonames is not None:
-            self.geonames = geoname
+            self.geonames = geonames
         else:
             self.geonames = GeonamesService(es_client=es_client)
 
@@ -302,7 +302,7 @@ class Geoparser:
 
         doc_ex = doc_to_ex_expanded(doc)
         if doc_ex:
-            es_data = add_es_data_doc(doc_ex, self.conn, max_results=max_choices,
+            es_data = add_es_data_doc(doc_ex, self.geonames, max_results=max_choices,
                                               known_country=known_country)
 
             dataset = ProductionData(es_data, max_choices=max_choices)
