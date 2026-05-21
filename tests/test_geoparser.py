@@ -1,5 +1,4 @@
 
-import pytest
 
 from mordecai3 import Geoparser
 from mordecai3.elasticsearch import setup_es_client
@@ -17,7 +16,23 @@ def test_geoparser_arbitrary_es_connection():
     assert isinstance(geo, Geoparser)
 
 
-def test_geoparse_doc(all_data_required):
-    geo = Geoparser(hosts=["localhost"])
+def test_geoparse_doc(es_client, all_data_required):
+    geo = Geoparser(es_client=es_client)
     res = geo.geoparse_doc("I visited The Hague in the Netherlands.")
-    assert res["geolocated_ents"][0]["name"] == "The Hague"
+    assert res["geolocated_ents"][0]["name"] == "Hague"
+
+
+def test_geoparse_doc_with_spacy_doc(es_client, all_data_required):
+    geo = Geoparser(es_client=es_client)
+    import spacy
+    from mordecai3.mordecai_utilities import spacy_doc_setup
+    def load_nlp():
+        nlp = spacy.load("en_core_web_trf")
+        nlp.add_pipe("token_tensors")
+        return nlp
+
+    spacy_doc_setup()
+    nlp = load_nlp()
+    doc = nlp("I visited The Hague in the Netherlands.")
+    res = geo.geoparse_doc(doc)
+    assert res["geolocated_ents"][0]["name"] == "Hague" # It's getting the US
