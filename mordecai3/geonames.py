@@ -31,26 +31,6 @@ class DataExtent(IntEnum):
     ALL  = 3
 
 
-def determine_geonames_data_extent(conn: Elasticsearch) -> DataExtent:
-    # TODO: this is a bit hacky, but it works for now. 
-    """Check what extent of data we have in the ES/Geonames index
-    
-    Returns
-    -------
-    DataExtent
-      Either "ALL" if the full Geonames dataset is present, "TEST" if only
-      the reduced test set is present, or "NONE" if no data appears to be present.
-    """
-    search_client = Search(using=conn, index="geonames")
-    usa = get_adm1_country_entry("New York", "USA", search_client)
-    nld = get_adm1_country_entry("North Holland", "NLD", search_client)
-    if usa and nld:
-        return DataExtent.ALL
-    elif nld:   
-        return DataExtent.TEST
-    else:
-        return DataExtent.NONE
-
 
 #
 #   Geonames service class: how to actually use Geonames in mordecai3
@@ -63,6 +43,32 @@ class GeonamesService:
     def __init__(self, es_client: Elasticsearch):
         self.conn = es_client
         self.search = Search(using=self.conn, index="geonames")
+
+    def determine_data_extent(self) -> DataExtent:
+        # TODO: this is a bit hacky, but it works for now. 
+        """Check what extent of data we have in the ES/Geonames index
+        
+        Returns
+        -------
+        DataExtent
+        Either "ALL" if the full Geonames dataset is present, "TEST" if only
+        the reduced test set is present, or "NONE" if no data appears to be present.
+        """
+        usa = self.get_adm1_country_entry("New York", "USA")
+        nld = self.get_adm1_country_entry("North Holland", "NLD")
+        if usa and nld:
+            return DataExtent.ALL
+        elif nld:   
+            return DataExtent.TEST
+        else:
+            return DataExtent.NONE
+
+    def get_entry_by_id(self, geonameid: str) -> dict | None:
+        """Return the Geonames result for a country given its three letter country code"""
+        id_filter = Q("term", geonameid=geonameid) 
+        res = self.search.filter(id_filter).execute()
+        r = _format_country_results(res)
+        return r
 
     def get_adm1_country_entry(self, 
                                adm1: str, 
@@ -98,6 +104,23 @@ class GeonamesService:
         r = _format_country_results(res)
         return r
 
+    def get_country_entry(self, iso3c: str):
+        """Return the Geonames result for a country given its three letter country code"""
+        name_filter = Q("term", country_code3=iso3c) 
+        type_filter = Q("term", feature_code="PCLI") 
+        res = self.search.filter(type_filter).filter(name_filter).execute()
+        r = _format_country_results(res)
+        return r
+
+    def get_country_by_name(self, country_name: str) -> dict | None:
+        """Return the Geonames result for a country given its three letter country code"""
+        type_filter = Q("term", feature_code="PCLI") 
+        q = {"multi_match": {"query": country_name,
+                            "fields": ['name', 'asciiname', 'alternativenames'],
+                            "type" : "phrase"}}
+        res = self.search.query(q).filter(type_filter).execute()
+        r = _format_country_results(res)
+        return r
 
 
 def normalize(ll: list[float]) -> npt.NDArray[np.float64]:    
@@ -444,60 +467,5 @@ def _format_country_results(res):
          "end_char": ""}
     return r
 
-def get_country_entry(iso3c: str, conn):
-    """Return the Geonames result for a country given its three letter country code"""
-    name_filter = Q("term", country_code3=iso3c) 
-    type_filter = Q("term", feature_code="PCLI") 
-    res = conn.filter(type_filter).filter(name_filter).execute()
-    r = _format_country_results(res)
-    return r
 
-def get_country_by_name(country_name: str, conn):
-    """Return the Geonames result for a country given its three letter country code"""
-    type_filter = Q("term", feature_code="PCLI") 
-    q = {"multi_match": {"query": country_name,
-                         "fields": ['name', 'asciiname', 'alternativenames'],
-                         "type" : "phrase"}}
-    res = conn.query(q).filter(type_filter).execute()
-    r = _format_country_results(res)
-    return r
-
-def get_entry_by_id(geonameid: str, conn):
-    """Return the Geonames result for a country given its three letter country code"""
-    id_filter = Q("term", geonameid=geonameid) 
-    res = conn.filter(id_filter).execute()
-    r = _format_country_results(res)
-    return r
-
-def get_adm1_country_entry(adm1: str, iso3c: str | None=None, 
-                           conn: Search=None) -> dict | None:
-    """
-    Return the Geonames entity for an ADM1 code.
-    
-    Parameters
-    ----------
-    adm1: str
-      Name of the ADM1 (state/province)
-    iso3c: str or None
-      Optional three letter country code to limit the search
-    conn: elasticsearch connection
-      An elasticsearch connection object, as returned by setup_es()
-
-    Examples
-    --------
-    >>> conn = setup_es()
-    >>> get_adm1_country_entry("North Holland", "NLD", conn)
-    {'extracted_name': '', 'name': 'Provincie Noord-Holland', 'lat': '52.58333', 'lon': '4.91667', 'admin1_name': 'North Holland', 'admin2_name': '', 'country_code3': 'NLD', 'feature_code': 'ADM1', 'feature_class': 'A', 'geonameid': '2749879', 'start_char': '', 'end_char': ''}
-    """
-    type_filter = Q("term", feature_code="ADM1") 
-    q = {"multi_match": {"query": adm1,
-                             "fields": ['name', 'asciiname', 'alternativenames'],
-                             "type" : "phrase"}}
-    if iso3c:
-        country_filter = Q("term", country_code3=iso3c) 
-        res = conn.query(q).filter(type_filter).filter(country_filter).execute()
-    else:
-        res = conn.query(q).filter(type_filter).execute()
-    r = _format_country_results(res)
-    return r
 

@@ -16,14 +16,14 @@ def test_geoparser_arbitrary_es_connection():
     assert isinstance(geo, Geoparser)
 
 
-def test_geoparse_doc(es_client, all_data_required):
-    geo = Geoparser(es_client=es_client)
+def test_geoparse_doc(geonames_service_all_data):
+    geo = Geoparser(es_client=geonames_service_all_data.conn)
     res = geo.geoparse_doc("I visited The Hague in the Netherlands.")
     assert res["geolocated_ents"][0]["name"] == "Hague"
 
 
-def test_geoparse_doc_with_spacy_doc(es_client, all_data_required):
-    geo = Geoparser(es_client=es_client)
+def test_geoparse_doc_with_spacy_doc(geonames_service_all_data):
+    geo = Geoparser(es_client=geonames_service_all_data.conn)
     import spacy
     from mordecai3.mordecai_utilities import spacy_doc_setup
     def load_nlp():

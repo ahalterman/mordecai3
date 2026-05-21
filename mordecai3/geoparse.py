@@ -21,12 +21,7 @@ except ImportError:
 from torch.utils.data import DataLoader
 
 from .elasticsearch import setup_es_client
-from .geonames import (
-    add_es_data_doc,
-    get_adm1_country_entry,
-    get_country_entry,
-    get_entry_by_id,
-)
+from .geonames import GeonamesService
 from .mordecai_utilities import spacy_doc_setup
 from .torch_model import ProductionData, geoparse_model
 
@@ -51,9 +46,6 @@ def load_model(model_path, device=None):
     model.eval()
     return model
 
-def load_trf():
-    trf = setup_qa()
-    return trf
 
 
 def guess_in_rel(ent):
@@ -169,6 +161,7 @@ class Geoparser:
     def __init__(self, 
                  model_path: str | Traversable | None=None, 
                  geo_asset_path: str | Traversable | None=None,
+                 geonames: GeonamesService | None=None,
                  nlp=None,
                  debug: bool=False,
                  trim=None,
@@ -204,6 +197,11 @@ class Geoparser:
             es_client = setup_es_client(hosts=hosts, port=port, use_ssl=use_ssl)
             self.conn = Search(using=es_client, index="geonames")
         
+        if geonames is not None:
+            self.geonames = geoname
+        else:
+            self.geonames = GeonamesService(es_client=es_client)
+
         if check_es:
             logger.info("Checking Elasticsearch connection...")
             try:
@@ -231,7 +229,7 @@ class Geoparser:
         if entry['feature_code'] == 'PPLX':
             try:
                 parent_id = self.hierarchy[entry['geonameid']]
-                parent_res = get_entry_by_id(parent_id, self.conn)
+                parent_res = self.geonames.get_entry_by_id(parent_id)
                 if parent_res['feature_class'] == "P":
                     city_id = parent_id
                     city_name = parent_res['name']
@@ -241,7 +239,7 @@ class Geoparser:
         elif entry['feature_class'] == 'S':
             try:
                 parent_id = self.hierarchy[entry['geonameid']]
-                parent_res = get_entry_by_id(parent_id, self.conn)
+                parent_res = self.geonames.get_entry_by_id(parent_id)
                 if parent_res['feature_class'] == "P":
                     city_id = parent_id
                     city_name = parent_res['name']
@@ -272,10 +270,6 @@ class Geoparser:
         ----------
         text : str or spacy Doc (with ._.tensor attributes)
             The text to geoparse.
-        plover_cat : str
-            The PLOVER category of the event you'd like to geolocated. If provided, the event geoparsing
-            will identify the place name in the document that is most likely to be the event location.
-            If not provided, the event geoparsing will be skipped.
         debug : bool
             If True, returns the top 4 results for each geoparsed location, rather than the single best.
             This is useful for debugging or collecting new annotations.

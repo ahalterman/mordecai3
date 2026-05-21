@@ -6,7 +6,7 @@ from typing import Any
 from urllib3.exceptions import NewConnectionError
 
 
-from .geonames import DataExtent, determine_geonames_data_extent
+from .geonames import DataExtent, GeonamesService
 
 
 def setup_es_client(hosts: str | list[str] | None | Any = "localhost",
@@ -54,7 +54,9 @@ def check_es_and_geonames(es_client: Elasticsearch) -> tuple[DataExtent, str]:
     if not es_has_geonames_index(es_client):
         return DataExtent.NA, "Can connect to ES, but geonames index missing"
     
-    extent = determine_geonames_data_extent(es_client)
+    geonames = GeonamesService(es_client=es_client)
+
+    extent = geonames.determine_data_extent()
     if extent == DataExtent.NONE:
         return DataExtent.NONE, "Can connect to ES, geonames index present, but empty"
     elif extent == DataExtent.TEST:

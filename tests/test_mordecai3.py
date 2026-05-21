@@ -5,27 +5,15 @@ from mordecai3 import geonames as es_utils
 from mordecai3 import geoparse
 from mordecai3.geoparse import Geoparser
 from mordecai3.utils import check_spacy_model
-from mordecai3.geonames import (DataExtent)
 
 
 if not check_spacy_model():
     pytest.skip("spaCy model not available", allow_module_level=True)
 
 
-@pytest.fixture(scope='module', autouse=True)
-def check_data_extent(geonames_data_extent):
-    extent = geonames_data_extent[0]
-    
-    if extent < DataExtent.ALL:
-        pytest.skip(
-            f"Geonames data not available (extent: {extent})",
-            allow_module_level=True
-        )
-
-
 @pytest.fixture(scope='session', autouse=True)
-def geo():
-    return Geoparser()
+def geo(geonames_service_all_data):
+    return Geoparser(es_client=geonames_service_all_data.conn)
 
 def test_statement_event_loc(geo):
     text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
