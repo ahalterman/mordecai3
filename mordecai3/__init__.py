@@ -1,5 +1,6 @@
 
 from .geoparse import Geoparser
+from .exceptions import SpacyModelError, ElasticsearchConnectionError, GeonamesIndexError
 
 __version__ = "3.0.0"
 
@@ -19,6 +20,9 @@ def run_streamlit_app():
 
 __all__ = [
     "Geoparser",
+    "SpacyModelError",
+    "ElasticsearchConnectionError",
+    "GeonamesIndexError",
     "run_streamlit_app",
     "__version__",
 ]

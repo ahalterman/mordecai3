@@ -39,6 +39,21 @@ class GeonamesService:
     def __init__(self, es_client: Elasticsearch):
         self.conn = es_client
         self.search = Search(using=self.conn, index="geonames")
+        # Caches to avoid redundant ES queries when the same place names recur,
+        # which happens a lot within and across documents in a batch.
+        # `_es_cache` holds full candidate lists from add_es_data (see geoparse.py);
+        # `_parent_cache` holds the country/ADM1 lookups used to resolve "in" relations.
+        # Both are per-instance rather than module-level so that separate Geoparsers
+        # (or parallel workers) don't share state, and so the cache is garbage
+        # collected with the service rather than growing for the life of the process.
+        self._es_cache: dict[tuple, list] = {}
+        self._parent_cache: dict[tuple, dict | None] = {}
+
+    def clear_cache(self):
+        """Clear the ES result and parent lookup caches."""
+        self._es_cache.clear()
+        self._parent_cache.clear()
+        logger.debug("Geonames caches cleared")
 
     def determine_data_extent(self) -> DataExtent:
         # TODO: this is a bit hacky, but it works for now. 
@@ -88,16 +103,20 @@ class GeonamesService:
         >>> get_adm1_country_entry("North Holland", "NLD", conn)
         {'extracted_name': '', 'name': 'Provincie Noord-Holland', 'lat': '52.58333', 'lon': '4.91667', 'admin1_name': 'North Holland', 'admin2_name': '', 'country_code3': 'NLD', 'feature_code': 'ADM1', 'feature_class': 'A', 'geonameid': '2749879', 'start_char': '', 'end_char': ''}
         """
-        type_filter = Q("term", feature_code="ADM1") 
+        cache_key = ("adm1_country", adm1, iso3c)
+        if cache_key in self._parent_cache:
+            return self._parent_cache[cache_key]
+        type_filter = Q("term", feature_code="ADM1")
         q = {"multi_match": {"query": adm1,
                                 "fields": ['name', 'asciiname', 'alternativenames'],
                                 "type" : "phrase"}}
         if iso3c:
-            country_filter = Q("term", country_code3=iso3c) 
+            country_filter = Q("term", country_code3=iso3c)
             res = self.search.query(q).filter(type_filter).filter(country_filter).execute()
         else:
             res = self.search.query(q).filter(type_filter).execute()
         r = _format_country_results(res)
+        self._parent_cache[cache_key] = r
         return r
 
     def get_country_entry(self, iso3c: str):
@@ -110,12 +129,16 @@ class GeonamesService:
 
     def get_country_by_name(self, country_name: str) -> dict | None:
         """Return the Geonames result for a country given its three letter country code"""
-        type_filter = Q("term", feature_code="PCLI") 
+        cache_key = ("country_by_name", country_name)
+        if cache_key in self._parent_cache:
+            return self._parent_cache[cache_key]
+        type_filter = Q("term", feature_code="PCLI")
         q = {"multi_match": {"query": country_name,
                             "fields": ['name', 'asciiname', 'alternativenames'],
                             "type" : "phrase"}}
         res = self.search.query(q).filter(type_filter).execute()
         r = _format_country_results(res)
+        self._parent_cache[cache_key] = r
         return r
 
     def search_by_name(self, 

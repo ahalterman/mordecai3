@@ -1,5 +1,7 @@
 
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+import copy
 import logging
 import numpy as np
 import os
@@ -25,19 +27,40 @@ import jellyfish
 import numpy as np
 import numpy.typing as npt
 
-from .elasticsearch import setup_es_client
+from tqdm import tqdm
+
+from .elasticsearch import (
+    setup_es_client,
+    es_is_accepting_connection,
+    es_has_geonames_index,
+)
+from .exceptions import (
+    SpacyModelError,
+    ElasticsearchConnectionError,
+    GeonamesIndexError,
+)
 from .geonames import GeonamesService
 from .mordecai_utilities import spacy_doc_setup
 from .torch_model import ProductionData, geoparse_model
 
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 spacy_doc_setup()
 
-def load_nlp():
-    nlp = spacy.load("en_core_web_trf")
+def load_nlp(use_gpu=False):
+    if use_gpu:
+        activated = spacy.prefer_gpu()
+        if activated:
+            logger.info("spaCy: GPU activated")
+        else:
+            logger.info("spaCy: GPU requested but not available, using CPU")
+    try:
+        nlp = spacy.load("en_core_web_trf")
+    except OSError:
+        raise SpacyModelError()
     nlp.add_pipe("token_tensors")
     return nlp
 
@@ -173,15 +196,20 @@ class Geoparser:
                  check_es: bool=True,
                  hosts: list[str] | None = None,
                  port: int = 9200,
-                 device='cpu',
+                 device=None,
                  use_ssl: bool=False,
                  es_client: Elasticsearch | None=None):
-        if device != "cpu":
+        # device=None (the default) auto-detects CUDA. Pass device='cpu' to force CPU.
+        if device is None:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        else:
+            device = torch.device(device)
+        use_gpu = (device.type != "cpu")
+        logger.info(f"Using device: {device}")
         self.debug = debug
         self.trim = trim
         if not nlp:
-            self.nlp = load_nlp()
+            self.nlp = load_nlp(use_gpu=use_gpu)
         else:
             if 'token_tensors' not in nlp.pipe_names:
                 try:
@@ -196,12 +224,16 @@ class Geoparser:
         
         # Handle ES and GeonamesService connection
 
-        if es_client is not None:
-            self.conn = Search(using=es_client, index="geonames")
-        else:
-            es_client = setup_es_client(hosts=hosts, port=port, use_ssl=use_ssl)
-            self.conn = Search(using=es_client, index="geonames")
-        
+        if es_client is None:
+            if geonames is not None:
+                # Reuse the client the caller's GeonamesService already holds, so we
+                # don't open a second connection (and so check_es validates the same
+                # client that lookups will actually go through).
+                es_client = geonames.conn
+            else:
+                es_client = setup_es_client(hosts=hosts, port=port, use_ssl=use_ssl)
+        self.conn = Search(using=es_client, index="geonames")
+
         if geonames is not None:
             self.geonames = geonames
         else:
@@ -209,13 +241,12 @@ class Geoparser:
 
         if check_es:
             logger.info("Checking Elasticsearch connection...")
-            try:
-                assert len(list(self.conn[1])) > 0
-                logger.info("Successfully connected to Elasticsearch.")
-            except:
-                logger.warning("Could not connect to Elasticsearch, but the logic of this code path may be wrong...")
-                ConnectionError("Could not locate Elasticsearch. Are you sure it's running?")
-        
+            if not es_is_accepting_connection(es_client):
+                raise ElasticsearchConnectionError()
+            if not es_has_geonames_index(es_client):
+                raise GeonamesIndexError()
+            logger.info("Successfully connected to Elasticsearch.")
+
         
         if not model_path:
             model_path =  resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt"
@@ -262,14 +293,202 @@ class Geoparser:
         return city_id, city_name
 
 
-    def geoparse_doc(self, 
-                     text, 
-                     debug=False, 
-                     trim=True, 
+    def _resolve_results(self, es_data, pred_val, debug=False):
+        """Select the best geonames candidates based on model predictions.
+
+        Parameters
+        ----------
+        es_data : list of dicts
+            ES-enriched entity data for a single document.
+        pred_val : torch.Tensor
+            Model predictions, shape (num_entities, max_choices).
+        debug : bool
+            If True, return the top 4 candidates per entity instead of just the best.
+
+        Returns
+        -------
+        best_list : list of dicts
+        """
+        best_list = []
+        for (ent, pred) in zip(es_data, pred_val):
+            logger.debug("**Place name**: {}".format(ent['search_name']))
+            # if the last one is the argmax, then the model thinks that no answer is
+            # correct, so return blank
+            if pred[-1] == pred.max():
+                logger.debug("Model predicts no answer")
+                best = {"search_name": ent['search_name'],
+                    "start_char": ent['start_char'],
+                    "end_char": ent['end_char']}
+                best_list.append(best)
+                continue
+
+            for n, score in enumerate(pred):
+                if n < len(ent['es_choices']):
+                    ent['es_choices'][n]['score'] = score.item()  # torch tensor --> float
+            results = [e for e in ent['es_choices'] if 'score' in e.keys()]
+
+            # this is what the elements of "results" look like
+             #  {'feature_code': 'PPL',
+             #  'feature_class': 'P',
+             #  'country_code3': 'BRA',
+             #  'lat': -22.99835,
+             #  'lon': -43.36545,
+             #  'name': 'Barra da Tijuca',
+             #  'admin1_code': '21',
+             #  'admin1_name': 'Rio de Janeiro',
+             #  'admin2_code': '3304557',
+             #  'admin2_name': 'Rio de Janeiro',
+             #  'geonameid': '7290718',
+             #  'score': 1.0,
+             #  'search_name': 'Barra da Tijuca',
+             #  'start_char': 557,
+             #  'end_char': 581
+             #  }
+            if not results:
+                logger.debug("(no results)")
+            best = {"search_name": ent['search_name'],
+                    "start_char": ent['start_char'],
+                    "end_char": ent['end_char']}
+            scores = np.array([r['score'] for r in results])
+            if len(scores) == 0:
+                logger.debug("No scores found.")
+                continue
+            if np.argmax(scores) == len(scores) - 1:
+                logger.debug("Picking final ''null'' result.")
+                # print the next best result:
+                if len(scores) == 1:
+                    logger.debug(f"Only one score found: {results[0]}")
+                if len(scores) > 1:
+                    second_best_idx = np.argsort(scores)[-2]
+                    second_best = results[second_best_idx]
+                    logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
+                continue
+            results = sorted(results, key=lambda k: -k['score'])
+            if results and (not debug):
+                logger.debug("Picking top predicted result")
+                best = results[0]
+                best["search_name"] = ent['search_name']
+                best["start_char"] = ent['start_char']
+                best["end_char"] = ent['end_char']
+                ## Add in city info here
+                best['city_id'], best['city_name'] = self.lookup_city(best)
+                best_list.append(best)
+            if results and debug:
+                logger.debug("Returning top 4 predicted results for each location")
+                for b in results[0:4]:
+                    b["search_name"] = ent['search_name']
+                    b["start_char"] = ent['start_char']
+                    b["end_char"] = ent['end_char']
+                    b['city_id'], b['city_name'] = self.lookup_city(b)
+                    best_list.append(b)
+        return best_list
+
+    @staticmethod
+    def _trim_results(best_list):
+        """Remove the internal-only keys that are used to pick the best result."""
+        trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
+                    'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
+        for entry in best_list:
+            for key in trim_keys:
+                entry.pop(key, None)
+
+    def _geoparse_docs(self, docs, max_choices=100, known_country=None,
+                       trim=True, debug=False, es_workers=4):
+        """Core geoparsing pipeline for a list of spaCy docs.
+
+        Handles entity extraction, ES lookups (threaded across all documents),
+        cross-document model batching, and result resolution. This is the shared
+        implementation behind both geoparse_doc() and geoparse_batch().
+
+        Parameters
+        ----------
+        docs : list of spacy.tokens.doc.Doc
+        max_choices : int
+            Maximum ES candidates per entity.
+        known_country : str or None
+            Restrict results to a single country (ISO 3166-1 alpha-3).
+        trim : bool
+            Remove internal keys from output.
+        debug : bool
+            Return the top 4 candidates per entity.
+        es_workers : int
+            Thread pool size for ES lookups.
+
+        Returns
+        -------
+        list of dicts
+            One result dict per input document.
+        """
+        # 1. Entity extraction
+        all_doc_ex = []
+        for doc in docs:
+            try:
+                doc_ex = doc_to_ex_expanded(doc)
+            except Exception as e:
+                logger.warning(f"Entity extraction failed for document: {e}")
+                doc_ex = []
+            all_doc_ex.append(doc_ex)
+
+        # 2. ES lookups across all documents via a shared thread pool
+        all_es_data = add_es_data_batch(
+            all_doc_ex, self.geonames, max_results=max_choices,
+            known_country=known_country, es_workers=es_workers)
+
+        # 3. Cross-document model batching: pool all entities into one inference pass
+        pooled_es_data = []
+        entity_counts = []
+        for es_data in all_es_data:
+            entity_counts.append(len(es_data))
+            pooled_es_data.extend(es_data)
+
+        all_preds = None
+        if pooled_es_data:
+            dataset = ProductionData(pooled_es_data, max_choices=max_choices)
+            data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
+            with torch.no_grad():
+                self.model.eval()
+                pred_val_list = []
+                for input_batch in data_loader:
+                    # Move the entire input batch to the model's device
+                    input_batch_on_device = {k: v.to(self.model.device) for k, v in input_batch.items()}
+                    pred_val_list.append(self.model(input_batch_on_device))
+                all_preds = torch.cat(pred_val_list, dim=0)
+
+        # 4. Split the predictions back out by document and resolve results
+        results = []
+        pred_offset = 0
+        for doc, es_data, n_ents in zip(docs, all_es_data, entity_counts):
+            output = {"doc_text": doc.text,
+                     "event_location_raw": "",
+                     "geolocated_ents": []}
+
+            if n_ents == 0 or not es_data:
+                results.append(output)
+                continue
+
+            pred_val = all_preds[pred_offset:pred_offset + n_ents]
+            pred_offset += n_ents
+
+            best_list = self._resolve_results(es_data, pred_val, debug)
+            if (self.trim or trim) and best_list:
+                self._trim_results(best_list)
+            output["geolocated_ents"] = best_list
+            results.append(output)
+
+        return results
+
+    def geoparse_doc(self,
+                     text,
+                     debug=False,
+                     trim=True,
                      known_country=None,
                      max_choices=100):
         """
-        Geoparse a document.
+        Geoparse a single document.
+
+        This is a convenience wrapper around the same pipeline that backs
+        geoparse_batch(). For multiple documents, use geoparse_batch() instead:
+        it batches the spaCy and model forward passes and shares ES lookups.
 
         Parameters
         ----------
@@ -290,7 +509,9 @@ class Geoparser:
         output : dict
             Includes the following keys:
             - "doc_text": a string of the input text
-            - "event_location_raw": str, the place name of the 'event location' (if provided)
+            - "event_location_raw": str, always empty. Retained for backwards
+              compatibility; event geolocation was removed in favor of the
+              standalone event geolocation models.
             - "geolocated_ents": list of dicts, each dict is a geoparsed location
 
         Example
@@ -298,131 +519,88 @@ class Geoparser:
         >>> text = "The earthquake struck in the city of Christchurch, New Zealand."
         >>> geoparser.geoparse_doc(text)
         """
-        if type(text) is str:   
-            doc = self.nlp(text)
-        elif type(text) is spacy.tokens.doc.Doc:
+        if isinstance(text, spacy.tokens.doc.Doc):
             doc = text
+        elif isinstance(text, str):
+            doc = self.nlp(text)
         else:
             raise ValueError("Text must be either of type 'str' or 'spacy.tokens.doc.Doc'.")
 
-        doc_ex = doc_to_ex_expanded(doc)
-        if doc_ex:
-            es_data = add_es_data_doc(doc_ex, self.geonames, max_results=max_choices,
-                                              known_country=known_country)
+        return self._geoparse_docs(
+            [doc], max_choices=max_choices, known_country=known_country,
+            trim=trim, debug=debug)[0]
 
-            dataset = ProductionData(es_data, max_choices=max_choices)
+    def geoparse_batch(self, texts, batch_size=32, chunk_size=200,
+                       es_workers=4, max_choices=100, known_country=None,
+                       trim=True, debug=False, show_progress=False):
+        """
+        Geoparse multiple documents with optimized batching.
 
-            data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
-            with torch.no_grad():
-                self.model.eval()
-                pred_val_list = []
-                for input_batch in data_loader:
-                    # Move the entire input batch to the model's device
-                    input_batch_on_device = {k: v.to(self.model.device) for k, v in input_batch.items()}
-                    pred_val_list.append(self.model(input_batch_on_device))
-                pred_val = torch.cat(pred_val_list, dim=0)
+        Uses three layers of optimization:
+        1. spaCy batching via nlp.pipe() for transformer forward passes
+        2. Cross-document threaded ES lookups via a shared thread pool
+        3. Cross-document model batching (all entities from a chunk in one inference pass)
 
+        Parameters
+        ----------
+        texts : list of str
+            Documents to geoparse.
+        batch_size : int
+            Batch size for spaCy's nlp.pipe() transformer inference. Default: 32.
+        chunk_size : int
+            Number of documents per processing chunk (bounds memory). Default: 200.
+        es_workers : int
+            Thread pool size for parallel ES lookups. Default: 4.
+        max_choices : int
+            Maximum ES candidates per entity. Default: 100.
+        known_country : str or None
+            Restrict results to a single country (ISO 3166-1 alpha-3).
+        trim : bool
+            Remove internal keys from output. Default: True.
+        debug : bool
+            Return the top 4 candidates per entity. Default: False.
+        show_progress : bool
+            Show tqdm progress bar. Default: False.
 
-        event_doc = doc
+        Returns
+        -------
+        list of dicts
+            One result dict per input document. Each dict has the same structure
+            as the output of geoparse_doc(): keys "doc_text", "event_location_raw",
+            and "geolocated_ents".
+        """
+        all_results = []
+        self.geonames.clear_cache()  # fresh cache per geoparse_batch() run
+        progress = tqdm(total=len(texts), desc="Geoparsing",
+                        disable=not show_progress)
 
-        best_list = []
-        output = {"doc_text": doc.text,
-                 "event_location": '',
-                 "geolocated_ents": []}
-        if len(doc_ex) == 0:
-            return output
-        elif len(es_data) == 0:
-            return output
-        else:
-            # Iterate over all the entities in the document
-            for (ent, pred) in zip(es_data, pred_val):
-                logger.debug("**Place name**: {}".format(ent['search_name']))
-                # if the last one is the argmax, then the model thinks that no answer is correct
-                # so return blank
-                if pred[-1] == pred.max():
-                    logger.debug("Model predicts no answer")
-                    best = {"search_name": ent['search_name'],
-                        "start_char": ent['start_char'],
-                        "end_char": ent['end_char']}
-                    best_list.append(best)
-                    continue
+        for chunk_start in range(0, len(texts), chunk_size):
+            chunk_texts = texts[chunk_start:chunk_start + chunk_size]
 
-                for n, score in enumerate(pred):
-                    if n < len(ent['es_choices']):
-                        ent['es_choices'][n]['score'] = score.item() # torch tensor --> float
-                results = [e for e in ent['es_choices'] if 'score' in e.keys()]
+            # Layer 1: spaCy batching
+            docs = []
+            for doc in self.nlp.pipe(chunk_texts, batch_size=batch_size):
+                docs.append(doc)
+                progress.update(1)
 
-                # this is what the elements of "results" look like
-                 #  {'feature_code': 'PPL',
-                 #  'feature_class': 'P',
-                 #  'country_code3': 'BRA',
-                 #  'lat': -22.99835,
-                 #  'lon': -43.36545,
-                 #  'name': 'Barra da Tijuca',
-                 #  'admin1_code': '21',
-                 #  'admin1_name': 'Rio de Janeiro',
-                 #  'admin2_code': '3304557',
-                 #  'admin2_name': 'Rio de Janeiro',
-                 #  'geonameid': '7290718',
-                 #  'score': 1.0,
-                 #  'search_name': 'Barra da Tijuca',
-                 #  'start_char': 557,
-                 #  'end_char': 581
-                 #  }
-                if not results:
-                    logger.debug("(no results)")
-                best = {"search_name": ent['search_name'],
-                        "start_char": ent['start_char'],
-                        "end_char": ent['end_char']}
-                scores = np.array([r['score'] for r in results])
-                if len(scores) == 0:
-                    logger.debug("No scores found.")
-                    continue
-                if np.argmax(scores) == len(scores) - 1:
-                    logger.debug("Picking final ''null'' result.")
-                    # print the next best result:
-                    if len(scores) == 1:
-                        logger.debug(f"Only one score found: {results[0]}")
-                    if len(scores) > 1:
-                        second_best_idx = np.argsort(scores)[-2]
-                        second_best = results[second_best_idx]
-                        logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
-                    continue
-                results = sorted(results, key=lambda k: -k['score'])
-                if results and (not debug):
-                    logger.debug("Picking top predicted result")
-                    best = results[0]
-                    best["search_name"] = ent['search_name']
-                    best["start_char"] = ent['start_char']
-                    best["end_char"] = ent['end_char']
-                    ## Add in city info here
-                    best['city_id'], best['city_name'] = self.lookup_city(best)
-                    best_list.append(best)
-                if results and debug:
-                    logger.debug("Returning top 4 predicted results for each location")
-                    best = results[0:4]
-                    for b in best:
-                        b["search_name"] = ent['search_name']
-                        b["start_char"] = ent['start_char']
-                        b["end_char"] = ent['end_char']
-                        b['city_id'], b['city_name'] = self.lookup_city(b)
-                        best_list.append(best)
+            # Layers 2-3: ES lookups, model inference, result resolution
+            try:
+                chunk_results = self._geoparse_docs(
+                    docs, max_choices=max_choices, known_country=known_country,
+                    trim=trim, debug=debug, es_workers=es_workers)
+            except Exception as e:
+                logger.error(f"Chunk processing failed: {e}")
+                chunk_results = [
+                    {"doc_text": doc.text, "event_location_raw": "",
+                     "geolocated_ents": [], "error": str(e)}
+                    for doc in docs
+                ]
 
-        if (self.trim or trim) and best_list:
-            trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
-                        'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
-            for i in best_list:
-                i = [i.pop(key) for key in trim_keys if key in i.keys()]
-            output = {"doc_text": doc.text,
-                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
-                 "geolocated_ents": best_list} 
-        else:
-            output = {"doc_text": doc.text,
-                 "event_location_raw": ''.join([i.text_with_ws for i in event_doc.ents if i.label_ == "EVENT_LOC"]).strip(),
-                 "geolocated_ents": best_list}
-        return output
+            all_results.extend(chunk_results)
 
-            
+        progress.close()
+        return all_results
+
 
 def add_es_data(ex, 
                 geonames_service: GeonamesService, 
@@ -467,8 +645,23 @@ def add_es_data(ex,
     max_results = int(max_results)
     fuzzy = int(fuzzy)
     search_name = ex['search_name']
+
+    # Build a cache key from the inputs that determine the ES query. Repeated place
+    # names are extremely common within and across documents, so this saves a lot of
+    # round trips in batch mode. Note the cached value is the full candidate list
+    # *before* `remove_correct` is applied, so it stays reusable either way.
+    in_rel_value = ex.get('in_rel', '') or ''
+    cache_key = (search_name, in_rel_value, known_country or '',
+                 max_results, fuzzy, limit_types)
+
+    cache = geonames_service._es_cache
+    if cache_key in cache:
+        # Deep-copy because downstream code mutates choices (adm1_count, country_count)
+        logger.debug(f"ES cache hit for '{search_name}'")
+        return _finish_es_example(ex, copy.deepcopy(cache[cache_key]), remove_correct)
+
     # if we detect a parent location using our heuristic (see `guess_in_rel` in geoparse.py),
-    # check to see if that's a country or admin1. 
+    # check to see if that's a country or admin1.
     if 'in_rel' in ex.keys():
         if ex['in_rel']:
             parent_place = geonames_service.get_country_by_name(ex['in_rel'])
@@ -487,9 +680,6 @@ def add_es_data(ex,
     if not choices:
         search_res = geonames_service.search_by_name(search_name, max_results, fuzzy+1, limit_types, known_country)
         choices = res_formatter(search_res, ex['search_name'], parent_place)
-
-    if remove_correct:
-        choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]
 
     # Always add a final "NULL" choice at the end
     logger.debug("Adding NULL choice")
@@ -511,9 +701,25 @@ def add_es_data(ex,
             'max_dist': 99.0, 
             'avg_dist': 99.0, 
             'ascii_dist': 99.0, 
-            'adm1_count': 0.0, 
+            'adm1_count': 0.0,
             'country_count': 0.0}
     choices.append(null_choice)
+
+    # Cache a deep copy (downstream code mutates dicts via adm1_count/country_count)
+    cache[cache_key] = copy.deepcopy(choices)
+    logger.debug(f"ES cache miss for '{search_name}', cached {len(choices)} choices")
+
+    return _finish_es_example(ex, choices, remove_correct)
+
+
+def _finish_es_example(ex, choices, remove_correct):
+    """Attach candidate choices to an example and mark which one is correct.
+
+    Split out of add_es_data so the cache-hit and cache-miss paths stay identical.
+    """
+    if remove_correct:
+        choices = [c for c in choices if c['geonameid'] != ex['correct_geonamesid']]
+
     ex['es_choices'] = choices
 
     if remove_correct:
@@ -524,27 +730,128 @@ def add_es_data(ex,
     return ex
 
 
+def _add_cross_entity_counts(doc_es):
+    """Add the within-document admin1/country co-occurrence counts to each candidate.
 
-def add_es_data_doc(doc_ex, conn, max_results=50, fuzzy=0, limit_types=False,
-                    remove_correct=False, known_country=None):
+    These are features for the model, so they can only be computed once every entity
+    in the document has its ES results back.
+    """
+    admin1_count = make_admin1_counts(doc_es)
+    country_count = make_country_counts(doc_es)
+    for i in doc_es:
+        for e in i['es_choices']:
+            e['adm1_count'] = admin1_count[e['admin1_name']]
+            e['country_count'] = country_count[e['country_code3']]
+
+
+def add_es_data_doc(doc_ex, geonames_service: GeonamesService, max_results=50, fuzzy=0,
+                    limit_types=False, remove_correct=False, known_country=None,
+                    es_workers=4):
+    if es_workers > 1 and len(doc_ex) > 1:
+        return _add_es_data_doc_threaded(doc_ex, geonames_service, max_results, fuzzy,
+                                         limit_types, remove_correct,
+                                         known_country, es_workers)
+    # Sequential fallback for single entities or when threading is disabled
     doc_es = []
     for ex in doc_ex:
         with warnings.catch_warnings():
             try:
-                es = add_es_data(ex, conn, max_results, fuzzy, limit_types, remove_correct, known_country)
+                es = add_es_data(ex, geonames_service, max_results, fuzzy, limit_types,
+                                 remove_correct, known_country)
                 doc_es.append(es)
             except Warning:
                 continue
     if not doc_es:
         return []
-    admin1_count = make_admin1_counts(doc_es)
-    country_count = make_country_counts(doc_es)
-
-    for i in doc_es:
-        for e in i['es_choices']:
-            e['adm1_count'] = admin1_count[e['admin1_name']]
-            e['country_count'] = country_count[e['country_code3']]
+    _add_cross_entity_counts(doc_es)
     return doc_es
+
+
+def _add_es_data_doc_threaded(doc_ex, geonames_service, max_results, fuzzy, limit_types,
+                              remove_correct, known_country, es_workers):
+    """Thread-parallel version of add_es_data_doc for multiple entities."""
+    def _lookup(idx, ex):
+        with warnings.catch_warnings():
+            try:
+                return idx, add_es_data(ex, geonames_service, max_results, fuzzy,
+                                        limit_types, remove_correct, known_country)
+            except Warning:
+                return idx, None
+
+    results_by_idx = {}
+    with ThreadPoolExecutor(max_workers=es_workers) as pool:
+        for idx, result in pool.map(lambda p: _lookup(*p), enumerate(doc_ex)):
+            if result is not None:
+                results_by_idx[idx] = result
+
+    # Preserve original ordering
+    doc_es = [results_by_idx[i] for i in sorted(results_by_idx)]
+    if not doc_es:
+        return []
+
+    # Cross-entity features can only be computed after all lookups complete
+    _add_cross_entity_counts(doc_es)
+    return doc_es
+
+
+def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results=50,
+                      fuzzy=0, limit_types=False, remove_correct=False,
+                      known_country=None, es_workers=4):
+    """Process ES lookups for multiple documents using a shared thread pool.
+
+    All entity lookups across all documents are submitted to a single thread pool,
+    then results are reassembled by document for cross-entity feature computation.
+    Using one pool for the whole batch keeps the workers busy even when individual
+    documents have only one or two place names in them.
+
+    Parameters
+    ----------
+    all_doc_ex : list of list of dicts
+        Entity dicts per document (output of doc_to_ex_expanded for each doc).
+    geonames_service : GeonamesService
+    es_workers : int
+        Number of threads for parallel ES queries.
+
+    Returns
+    -------
+    list of list of dicts
+        ES-enriched entity data, one list per document.
+    """
+    # Flatten all entities, tagged with their document and within-document index
+    tasks = []
+    for doc_idx, doc_ex in enumerate(all_doc_ex):
+        for ent_idx, ex in enumerate(doc_ex):
+            tasks.append((doc_idx, ent_idx, ex))
+
+    if not tasks:
+        return [[] for _ in all_doc_ex]
+
+    def _lookup(task):
+        doc_idx, ent_idx, ex = task
+        with warnings.catch_warnings():
+            try:
+                result = add_es_data(ex, geonames_service, max_results, fuzzy,
+                                     limit_types, remove_correct, known_country)
+                return doc_idx, ent_idx, result
+            except Warning:
+                return doc_idx, ent_idx, None
+
+    results_by_doc = {i: [] for i in range(len(all_doc_ex))}
+    with ThreadPoolExecutor(max_workers=es_workers) as pool:
+        for doc_idx, ent_idx, data in pool.map(_lookup, tasks):
+            if data is not None:
+                results_by_doc[doc_idx].append((ent_idx, data))
+
+    # Reassemble by document, preserving entity order within each doc
+    all_doc_es = []
+    for doc_idx in range(len(all_doc_ex)):
+        entries = sorted(results_by_doc[doc_idx], key=lambda x: x[0])
+        doc_es = [r for _, r in entries]
+        if doc_es:
+            _add_cross_entity_counts(doc_es)
+        all_doc_es.append(doc_es)
+
+    return all_doc_es
 
 
 def res_formatter(res, search_name, parent=None):

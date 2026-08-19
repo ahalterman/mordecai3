@@ -1,7 +1,6 @@
 import pytest
 import spacy
 
-from mordecai3 import geonames as es_utils
 from mordecai3 import geoparse
 from mordecai3.geoparse import Geoparser
 from mordecai3.utils import check_spacy_model
@@ -13,33 +12,14 @@ if not check_spacy_model():
 
 @pytest.fixture(scope='session', autouse=True)
 def geo(geonames_service_all_data):
-    return Geoparser(es_client=geonames_service_all_data.conn)
+    return Geoparser(geonames=geonames_service_all_data)
 
-def test_statement_event_loc(geo):
-    text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
-    #text = "President Obama expressed his hope for a peaceful resolution to the fighting."
-    icews_cat = "Make statement"
-    out = geo.geoparse_doc(text, icews_cat) 
-    assert out['event_location_raw'] == 'Berlin'
 
-def test_fight_event_loc(geo):
-    text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
-    icews_cat = "Use conventional military force"
-    out = geo.geoparse_doc(text, icews_cat) 
-    assert out['event_location_raw'] == 'Homs and Aleppo'
 
-def test_no_event_given(geo):
-    text = "Speaking from Berlin, President Obama expressed his hope for a peaceful resolution to the fighting in Homs and Aleppo."
-    out = geo.geoparse_doc(text) 
-    assert out['event_location_raw'] == ''
 
 def test_no_locs(geo):
     text = "President Obama expressed his hope for a peaceful resolution to the fighting."
     out = geo.geoparse_doc(text)
-    assert out['geolocated_ents'] == []
-
-    icews_cat = "Make statement"
-    out = geo.geoparse_doc(text, icews_cat) 
     assert out['geolocated_ents'] == []
 
 def test_three_locs(geo):
@@ -113,31 +93,6 @@ def test_pragues(geo):
     assert out['geolocated_ents'][0]['geonameid'] == "4548393"
     assert out['geolocated_ents'][0]['admin1_name'] == "Oklahoma"
 
-def test_double_event(geo):
-    """
-    Make sure it's picking the latter location when two of the same event type are
-    reported in different sentences.
-    """
-    text = """A group of bandits were arrested in Nigeria earlier this month."""
-    out = geo.geoparse_doc(text, "arrest")
-    assert out['event_location_raw'] == "Nigeria" 
-    text = """A group of bandits were arrested in Nigeria earlier this month. "We are working together to see what we can do. We don't know what the bandits will say. "They may call for a ransom and will go for negotiation. We have agreed with parents to supervise in prayers and look up to God in this matter."
-Jangadi also said the management of the school had informed the government about the incident adding that the government had assured that everything will be done to rescue the students. Later on, police arrested a group of rebels in Liberia."""
-    out = geo.geoparse_doc(text, "arrest")
-    assert out['event_location_raw'] == "Liberia" 
-
-
-def test_event_loc2(geo):
-    text = """'Many Injured As Urchins Engage Security Men in Shootout in Lagos.
-
-Many persons were said to have been injured yesterday in a shootout between urchins popularly known as "Area Boys" and Joint Security Task Force Team at Tin Can Island, Lagos.
-
-The crisis started when the security team led by the police was deployed to dislodge the miscreants in the area."""
-    out = geo.geoparse_doc(text, "make statement")
-    assert out['event_location_raw'] == "Tin Can Island"
-    assert out['geolocated_ents'][0]['geonameid'] == "2332459"
-    assert out['geolocated_ents'][1]['geonameid'] == "2566635"
-    assert out['geolocated_ents'][2]['geonameid'] == "2332459"
 
 
 def test_index_error(geo):
@@ -146,7 +101,6 @@ def test_index_error(geo):
 
 VILNIUS, Jul 07, BNS – Lithuanian and Ukrainian President Gitanas Nauseda and Volodymyr Zelensky will open the Ukraine Reform Conference in Vilnius on Wednesday.\nInternational partners and Ukraine's representatives will discuss the country's reform achievements and challenges, as well as confirm the international community's support for Ukraine's sovereignty, territorial integrity and the reform process.\nPlans for Ukraine's European integrations up to 2030 should also be defined.\nDuring the event, the presidents will turn to the international community, seeking its attention and support for Ukraine's reforms on its path towards the European Union and NATO.\nThis year's conference will also discuss ways to bolster democratic institutions, the rule of law, fight against corruption, social and economic development issues.\nThe conference will take place two days and will be attended by Ukrainian Prime Minister Denys Shmyhal, other politicians and officials, experts, European Commissioner for Neighborhood and Enlargement Oliver Varhelyi, Matti Maasik, head of the EU Delegation to Ukraine, representatives of the US administration, NATO, etc."""
     out = geo.geoparse_doc(text)
-    out = geo.geoparse_doc(text, "express intent to meet")
 
 
 def test_geneva(geo):
@@ -172,7 +126,7 @@ def test_adm1_count(geo):
             {"es_choices":[
                 {"admin1_name": "MA"}]},
             {"es_choices":[{"admin1_name": "MA"}]}]
-    adm1_counts = es_utils.make_admin1_counts(out) 
+    adm1_counts = geoparse.make_admin1_counts(out) 
     assert adm1_counts['MA'] == 1.0
     assert adm1_counts['England'] == float(1/3)
 
@@ -201,15 +155,15 @@ def test_rel(geo):
     assert geoparse.guess_in_rel([doc.ents[0][0]]) == ""
 
 def test_adm1_country_lookup(geo):
-    res = es_utils.get_adm1_country_entry("Maine", None, geo.conn)
+    res = geo.geonames.get_adm1_country_entry("Maine", None)
     assert res['geonameid'] == '4971068'
-    res = es_utils.get_adm1_country_entry("Maine", "USA", geo.conn)
+    res = geo.geonames.get_adm1_country_entry("Maine", "USA")
     assert res['geonameid'] == '4971068'
-    res = es_utils.get_country_by_name("Cuba", geo.conn)
+    res = geo.geonames.get_country_by_name("Cuba")
     assert res['feature_code'] == 'PCLI'
     assert res['geonameid'] == '3562981'
-    res = es_utils.get_country_by_name("Atlantis", geo.conn)
+    res = geo.geonames.get_country_by_name("Atlantis")
     assert res is None
-    res = es_utils.get_country_by_name("Syria", geo.conn)
+    res = geo.geonames.get_country_by_name("Syria")
     assert res['country_code3'] == "SYR"
     assert res['feature_code'] == "PCLI"
