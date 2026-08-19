@@ -31,6 +31,11 @@ dependencies = [
 
 [project.optional-dependencies]
 streamlit = ["streamlit>=1.0.0"]
+# Without cupy, spacy.prefer_gpu() returns False and the transformer runs on
+# CPU -- no error, just ~5x slower. Capped below 14 because thinc 8.3's
+# xp2torch still uses cupy's deprecated toDlpack(), which cupy 14 hands to
+# torch in a form it rejects ("invalid capsule").
+gpu = ["cupy-cuda12x>=13,<14"]
 
 [project.scripts]
 mordecai3-app = "mordecai3:run_streamlit_app"
@@ -54,9 +59,25 @@ mordecai3 = [
 ]
 
 [dependency-groups]
+# The spaCy model is a direct-URL wheel, so it lives in a group rather than in
+# [project.dependencies] (PyPI rejects direct URLs). Without it declared
+# somewhere, `uv sync` prunes it out of the venv and spacy.load() starts failing.
+models = [
+    "en_core_web_trf",
+]
 dev = [
     "pytest>=8.3.4",
+    {include-group = "models"},
 ]
 es-data = [
     "textacy>=0.13.0",
 ]
+train = [
+    "wandb>=0.16",
+    "haversine>=2.8",
+    "mordecai3[gpu]",
+    {include-group = "models"},
+]
+
+[tool.uv.sources]
+en_core_web_trf = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.8.0/en_core_web_trf-3.8.0-py3-none-any.whl" }
