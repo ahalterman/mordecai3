@@ -79,3 +79,58 @@ Two things to be aware of if you touch this code:
 
 The `es_workers` argument is still accepted but ignored -- concurrency now
 happens inside Elasticsearch rather than in a client-side thread pool.
+
+## Training the model
+
+Three commands, run in order, each caching its output to disk so the next one
+can be re-run on its own. `raw_data/` holds both the corpora and the caches:
+
+```bash
+cd tools
+python train.py nlp-docs  ../raw_data     # spaCy  -> raw_data/spacyed/*.spacy
+python train.py add-es    ../raw_data     # ES     -> raw_data/pickled_es/*.pkl
+python train.py train --data-dir ../raw_data --epochs 30 --mix-dim 512
+```
+
+Timings for the full 7,674-document corpus on a 4090 with local Elasticsearch:
+
+| stage | time | output |
+|---|---|---|
+| `nlp-docs` | 44s | 3.4 GB |
+| `add-es` | 47s | 536 MB |
+| `train` (30 epochs) | 34s | one `.pt` |
+
+Only `train` normally needs re-running. Re-run `add-es` when the candidate
+query or the gazetteer features change, and `nlp-docs` when the spaCy pipeline
+changes or a corpus is added -- neither checks whether its output is already
+current, so it always redoes the whole corpus.
+
+`train` requires wandb. Set `WANDB_MODE=offline` for runs you don't want logged.
+
+### Things that make this fast, and are easy to lose
+
+- **`cupy` must be installed or spaCy silently runs the transformer on CPU.**
+  `spacy.prefer_gpu()` returns False rather than raising, and the only sign is
+  an INFO line. This is worth ~5x on `nlp-docs` and ~2x on production
+  geoparsing. It has to be `cupy-cuda12x<14`: thinc 8.3's `xp2torch` goes
+  through the deprecated `cupy.ndarray.toDlpack()`, which cupy 14 no longer
+  hands over in a form torch will accept ("invalid capsule").
+- **`token_tensors` averages wordpiece vectors per token in one pass**
+  (`_segment_means`), not with a slice-and-mean per token. On GPU the old
+  version launched a kernel per token and cost more than the transformer
+  forward pass it was reading from.
+- **`nlp-docs` writes DocBins uncompressed** (`fast_docbin_io`). Docs carry a
+  768-float tensor per token, so zlib spent 93s to save 10% of the file size.
+  Files stay valid `.spacy` and load with an unmodified `DocBin.from_disk`.
+- **`add-es` looks up a chunk of documents at a time**, so duplicate place
+  names collapse across documents and the ES round trips are `_msearch`-batched.
+- **`train` uses the GPU** and moves each batch there. The model is tiny, but
+  it is ~50x the difference over 30 epochs.
+
+### Known rough edges
+
+- `limit_types` still has no effect on the candidate set (see MERGE_NOTES.md).
+- A whitespace-only document crashes the spaCy pipeline on GPU, inside the
+  tagger, before any of our code runs. Filter empty texts before `nlp.pipe`.
+- `tests/test_miss_oxford` and `tests/test_prague` fail, and did before this
+  work -- they are geoparsing accuracy problems, not pipeline problems.
