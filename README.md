@@ -53,7 +53,6 @@ results = geo.geoparse_batch(
     texts,               # list of strings
     batch_size=32,       # spaCy transformer batch size
     chunk_size=200,      # docs per processing chunk (bounds memory)
-    es_workers=4,        # thread pool size for ES lookups
     show_progress=True,  # tqdm progress bar
 )
 ```

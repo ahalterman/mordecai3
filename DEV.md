@@ -50,12 +50,32 @@ def check_data_extent(geonames_service):
 ## Batch processing
 
 `Geoparser.geoparse_batch()` is the entry point for processing many documents. It
-batches the spaCy transformer pass, runs the Elasticsearch lookups for every
-document in a chunk through one shared thread pool, and pools all the entities in
-a chunk into a single model forward pass. `geoparse_doc()` is a thin wrapper over
+batches the spaCy transformer pass, bundles the Elasticsearch lookups for a whole
+chunk into a small number of `_msearch` requests, and pools all the entities in a
+chunk into a single model forward pass. `geoparse_doc()` is a thin wrapper over
 the same code path, so the two return identical results.
 
 Repeated place names are cached per `GeonamesService` instance
 (`_es_cache`/`_parent_cache`). `geoparse_batch()` clears the cache at the start of
 each run; call `geo.geonames.clear_cache()` yourself if you need to drop it
 between `geoparse_doc()` calls.
+
+### A note on the ES lookups
+
+Each `_msearch` sub-query is executed by Elasticsearch exactly as if it had been
+sent on its own, so batching them changes throughput and nothing else --
+`tests/test_msearch.py` asserts the batched path returns the same candidates,
+in the same order, with the same features, as looping over `add_es_data`.
+
+Two things to be aware of if you touch this code:
+
+- A sub-query that fails comes back as a response with a status and *no* `hits`.
+  Treating that as "no candidates" would be indistinguishable from a genuine
+  miss, so `GeonamesService._msearch` raises `GeonamesQueryError` instead.
+- Lookups are deduplicated by cache key *before* anything is sent. The old
+  one-at-a-time path got this for free because the cache filled in as it went;
+  when every lookup is planned up front, duplicates have to be collapsed
+  explicitly or a batch re-queries every repeated name.
+
+The `es_workers` argument is still accepted but ignored -- concurrency now
+happens inside Elasticsearch rather than in a client-side thread pool.

@@ -1,7 +1,5 @@
 
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
-import copy
 import logging
 import numpy as np
 import os
@@ -39,7 +37,7 @@ from .exceptions import (
     ElasticsearchConnectionError,
     GeonamesIndexError,
 )
-from .geonames import GeonamesService
+from .geonames import GeonamesService, hit_sources
 from .mordecai_utilities import spacy_doc_setup
 from .torch_model import ProductionData, geoparse_model
 
@@ -646,19 +644,12 @@ def add_es_data(ex,
     fuzzy = int(fuzzy)
     search_name = ex['search_name']
 
-    # Build a cache key from the inputs that determine the ES query. Repeated place
-    # names are extremely common within and across documents, so this saves a lot of
-    # round trips in batch mode. Note the cached value is the full candidate list
-    # *before* `remove_correct` is applied, so it stays reusable either way.
-    in_rel_value = ex.get('in_rel', '') or ''
-    cache_key = (search_name, in_rel_value, known_country or '',
-                 max_results, fuzzy, limit_types)
-
+    cache_key = _es_cache_key(ex, max_results, fuzzy, limit_types, known_country)
     cache = geonames_service._es_cache
     if cache_key in cache:
         # Deep-copy because downstream code mutates choices (adm1_count, country_count)
         logger.debug(f"ES cache hit for '{search_name}'")
-        return _finish_es_example(ex, copy.deepcopy(cache[cache_key]), remove_correct)
+        return _finish_es_example(ex, _copy_choices(cache[cache_key]), remove_correct)
 
     # if we detect a parent location using our heuristic (see `guess_in_rel` in geoparse.py),
     # check to see if that's a country or admin1.
@@ -668,48 +659,74 @@ def add_es_data(ex,
             if not parent_place:
                 parent_place = geonames_service.get_adm1_country_entry(ex['in_rel'], None)
         else:
-            parent_place = None 
+            parent_place = None
     else:
-        parent_place = None 
-    
+        parent_place = None
+
     search_res = geonames_service.search_by_name(search_name, max_results, fuzzy, limit_types, known_country)
     choices = res_formatter(search_res, search_name, parent_place)
 
-    # Always try a fuzzy search if no results from previous search, to avoid 
+    # Always try a fuzzy search if no results from previous search, to avoid
     # having no candidates for the ML model to choose from.
     if not choices:
         search_res = geonames_service.search_by_name(search_name, max_results, fuzzy+1, limit_types, known_country)
         choices = res_formatter(search_res, ex['search_name'], parent_place)
 
-    # Always add a final "NULL" choice at the end
     logger.debug("Adding NULL choice")
-    null_choice = {'feature_code': 'NULL', 
-            'feature_class': 'NULL', 
-            'country_code3': 'NULL', 
-            'lat': 0, 
-            'lon': 0, 
-            'name': 'NULL', 
-            'admin1_code': 'NULL', 
-            'admin1_name': 'NULL', 
-            'admin2_code': 'NULL', 
-            'admin2_name': 'NULL', 
-            'geonameid': 'NULL', 
-            'admin1_parent_match': -1, 
-            'country_code_parent_match': -1, 
-            'alt_name_length': 0, 
-            'min_dist': 99.0, 
-            'max_dist': 99.0, 
-            'avg_dist': 99.0, 
-            'ascii_dist': 99.0, 
-            'adm1_count': 0.0,
-            'country_count': 0.0}
-    choices.append(null_choice)
+    choices.append(_null_choice())
 
-    # Cache a deep copy (downstream code mutates dicts via adm1_count/country_count)
-    cache[cache_key] = copy.deepcopy(choices)
+    # Cache a copy (downstream code mutates dicts via adm1_count/country_count)
+    cache[cache_key] = _copy_choices(choices)
     logger.debug(f"ES cache miss for '{search_name}', cached {len(choices)} choices")
 
     return _finish_es_example(ex, choices, remove_correct)
+
+
+def _es_cache_key(ex, max_results, fuzzy, limit_types, known_country):
+    """The inputs that determine an entity's ES candidate list.
+
+    Repeated place names are extremely common within and across documents, so
+    this is what lets both the cache and the batched path collapse duplicate
+    work. The value it keys is the candidate list *before* `remove_correct` is
+    applied, so it stays reusable either way.
+    """
+    return (ex['search_name'], ex.get('in_rel', '') or '', known_country or '',
+            int(max_results), int(fuzzy), limit_types)
+
+
+def _copy_choices(choices):
+    """Copy a candidate list so callers can mutate it independently.
+
+    Candidate dicts are flat -- every value is a str/int/float -- so a per-dict
+    shallow copy is equivalent to a deepcopy here and much cheaper. This is on
+    the hot path: every entity gets its own copy of ~100 candidates, which was
+    the single largest cost in the lookup stage once queries were batched.
+    """
+    return [dict(c) for c in choices]
+
+
+def _null_choice():
+    """A fresh "none of the above" candidate, always appended last."""
+    return {'feature_code': 'NULL',
+            'feature_class': 'NULL',
+            'country_code3': 'NULL',
+            'lat': 0,
+            'lon': 0,
+            'name': 'NULL',
+            'admin1_code': 'NULL',
+            'admin1_name': 'NULL',
+            'admin2_code': 'NULL',
+            'admin2_name': 'NULL',
+            'geonameid': 'NULL',
+            'admin1_parent_match': -1,
+            'country_code_parent_match': -1,
+            'alt_name_length': 0,
+            'min_dist': 99.0,
+            'max_dist': 99.0,
+            'avg_dist': 99.0,
+            'ascii_dist': 99.0,
+            'adm1_count': 0.0,
+            'country_count': 0.0}
 
 
 def _finish_es_example(ex, choices, remove_correct):
@@ -744,105 +761,133 @@ def _add_cross_entity_counts(doc_es):
             e['country_count'] = country_count[e['country_code3']]
 
 
+def _resolve_parents_batch(in_rel_names, geonames_service):
+    """Resolve "in" relations to a parent place, batching the lookups.
+
+    Mirrors the sequential logic in add_es_data: try country first, fall back to
+    ADM1 with no country filter. Returns {in_rel value: parent entry or None}.
+    """
+    names = [n for n in in_rel_names if n]
+    if not names:
+        return {}
+    countries = geonames_service.get_country_by_name_batch(names)
+    missing = [n for n, v in countries.items() if not v]
+    adm1s = geonames_service.get_adm1_country_entry_batch(missing) if missing else {}
+    return {n: (countries[n] or adm1s.get(n)) for n in countries}
+
+
 def add_es_data_doc(doc_ex, geonames_service: GeonamesService, max_results=50, fuzzy=0,
                     limit_types=False, remove_correct=False, known_country=None,
-                    es_workers=4):
-    if es_workers > 1 and len(doc_ex) > 1:
-        return _add_es_data_doc_threaded(doc_ex, geonames_service, max_results, fuzzy,
-                                         limit_types, remove_correct,
-                                         known_country, es_workers)
-    # Sequential fallback for single entities or when threading is disabled
-    doc_es = []
-    for ex in doc_ex:
-        with warnings.catch_warnings():
-            try:
-                es = add_es_data(ex, geonames_service, max_results, fuzzy, limit_types,
-                                 remove_correct, known_country)
-                doc_es.append(es)
-            except Warning:
-                continue
-    if not doc_es:
+                    es_workers=None):
+    """Add ES candidates for every entity in one document.
+
+    Thin wrapper over add_es_data_batch so there is a single lookup path.
+
+    es_workers is accepted for backwards compatibility and ignored: lookups are
+    now batched into _msearch requests, so concurrency is handled by ES rather
+    than by a client-side thread pool.
+    """
+    if not doc_ex:
         return []
-    _add_cross_entity_counts(doc_es)
-    return doc_es
-
-
-def _add_es_data_doc_threaded(doc_ex, geonames_service, max_results, fuzzy, limit_types,
-                              remove_correct, known_country, es_workers):
-    """Thread-parallel version of add_es_data_doc for multiple entities."""
-    def _lookup(idx, ex):
-        with warnings.catch_warnings():
-            try:
-                return idx, add_es_data(ex, geonames_service, max_results, fuzzy,
-                                        limit_types, remove_correct, known_country)
-            except Warning:
-                return idx, None
-
-    results_by_idx = {}
-    with ThreadPoolExecutor(max_workers=es_workers) as pool:
-        for idx, result in pool.map(lambda p: _lookup(*p), enumerate(doc_ex)):
-            if result is not None:
-                results_by_idx[idx] = result
-
-    # Preserve original ordering
-    doc_es = [results_by_idx[i] for i in sorted(results_by_idx)]
-    if not doc_es:
-        return []
-
-    # Cross-entity features can only be computed after all lookups complete
-    _add_cross_entity_counts(doc_es)
-    return doc_es
+    return add_es_data_batch([doc_ex], geonames_service, max_results, fuzzy,
+                             limit_types, remove_correct, known_country)[0]
 
 
 def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results=50,
                       fuzzy=0, limit_types=False, remove_correct=False,
-                      known_country=None, es_workers=4):
-    """Process ES lookups for multiple documents using a shared thread pool.
+                      known_country=None, es_workers=None):
+    """Look up ES candidates for every entity across many documents.
 
-    All entity lookups across all documents are submitted to a single thread pool,
-    then results are reassembled by document for cross-entity feature computation.
-    Using one pool for the whole batch keeps the workers busy even when individual
-    documents have only one or two place names in them.
+    All lookups for the batch are bundled into a small number of _msearch
+    requests. Each sub-query is executed by ES exactly as it would have been on
+    its own, so results are identical to looping over add_es_data -- the win is
+    that per-request overhead (HTTP, JSON parsing, client object construction)
+    is paid once per chunk rather than once per entity.
+
+    Work is deduplicated by cache key before anything is sent. The sequential
+    path got that for free, because the cache filled in as it went; here every
+    lookup is planned up front, so duplicates have to be collapsed explicitly.
 
     Parameters
     ----------
     all_doc_ex : list of list of dicts
         Entity dicts per document (output of doc_to_ex_expanded for each doc).
     geonames_service : GeonamesService
-    es_workers : int
-        Number of threads for parallel ES queries.
+    es_workers : ignored
+        Accepted for backwards compatibility. See add_es_data_doc.
 
     Returns
     -------
     list of list of dicts
         ES-enriched entity data, one list per document.
     """
-    # Flatten all entities, tagged with their document and within-document index
-    tasks = []
-    for doc_idx, doc_ex in enumerate(all_doc_ex):
-        for ent_idx, ex in enumerate(doc_ex):
-            tasks.append((doc_idx, ent_idx, ex))
-
+    tasks = [(doc_idx, ent_idx, ex)
+             for doc_idx, doc_ex in enumerate(all_doc_ex)
+             for ent_idx, ex in enumerate(doc_ex)]
     if not tasks:
         return [[] for _ in all_doc_ex]
 
-    def _lookup(task):
-        doc_idx, ent_idx, ex = task
-        with warnings.catch_warnings():
-            try:
-                result = add_es_data(ex, geonames_service, max_results, fuzzy,
-                                     limit_types, remove_correct, known_country)
-                return doc_idx, ent_idx, result
-            except Warning:
-                return doc_idx, ent_idx, None
+    cache = geonames_service._es_cache
 
+    # 1. Collapse duplicate lookups. Many entities across a batch share a name.
+    by_key = {}
+    for doc_idx, ent_idx, ex in tasks:
+        key = _es_cache_key(ex, max_results, fuzzy, limit_types, known_country)
+        by_key.setdefault(key, []).append((doc_idx, ent_idx, ex))
+
+    todo = [k for k in by_key if k not in cache]
+    logger.debug(f"{len(tasks)} entities -> {len(by_key)} unique lookups, "
+                 f"{len(todo)} not cached")
+
+    if todo:
+        # 2. Parent lookups. These only feed res_formatter, never the name query
+        #    itself, so they are independent of the searches below.
+        reps = [by_key[k][0][2] for k in todo]
+        parents = _resolve_parents_batch([ex.get('in_rel') for ex in reps],
+                                         geonames_service)
+
+        def parent_for(ex):
+            return parents.get(ex.get('in_rel') or '')
+
+        # 3. One batched round of name searches.
+        specs = [(k[0], max_results, fuzzy, limit_types, known_country) for k in todo]
+        responses = geonames_service.search_by_names(specs)
+
+        fresh = {}
+        retry = []
+        for k, ex, res in zip(todo, reps, responses):
+            choices = res_formatter(res, k[0], parent_for(ex))
+            if choices:
+                fresh[k] = choices
+            else:
+                retry.append((k, ex))
+
+        # 4. Fuzzy retry for names that came back empty, so the model always has
+        #    something to choose from. In practice this is ~1% of entities.
+        if retry:
+            logger.debug(f"fuzzy retry for {len(retry)} names")
+            specs = [(k[0], max_results, fuzzy + 1, limit_types, known_country)
+                     for k, _ in retry]
+            for (k, ex), res in zip(retry, geonames_service.search_by_names(specs)):
+                fresh[k] = res_formatter(res, k[0], parent_for(ex))
+
+        for k, choices in fresh.items():
+            choices.append(_null_choice())
+            # Stored pristine; every consumer takes its own copy below, since
+            # downstream code mutates adm1_count/country_count in place.
+            cache[k] = choices
+
+    # 5. Hand each entity its own copy and reassemble per document.
     results_by_doc = {i: [] for i in range(len(all_doc_ex))}
-    with ThreadPoolExecutor(max_workers=es_workers) as pool:
-        for doc_idx, ent_idx, data in pool.map(_lookup, tasks):
-            if data is not None:
-                results_by_doc[doc_idx].append((ent_idx, data))
+    for key, members in by_key.items():
+        pristine = cache.get(key)
+        if pristine is None:
+            logger.warning(f"no ES candidates resolved for '{key[0]}', skipping")
+            continue
+        for doc_idx, ent_idx, ex in members:
+            done = _finish_es_example(ex, _copy_choices(pristine), remove_correct)
+            results_by_doc[doc_idx].append((ent_idx, done))
 
-    # Reassemble by document, preserving entity order within each doc
     all_doc_es = []
     for doc_idx in range(len(all_doc_ex)):
         entries = sorted(results_by_doc[doc_idx], key=lambda x: x[0])
@@ -879,9 +924,10 @@ def res_formatter(res, search_name, parent=None):
     max_dist = []
     avg_dist = []
     ascii_dist = []
-    # iterate through the docs returned by ES
-    for i in res['hits']['hits']:
-        i = i.to_dict()['_source']
+    # iterate through the docs returned by ES. hit_sources handles both the
+    # raw dicts from the batched _msearch path and the elasticsearch_dsl
+    # objects from a single .execute().
+    for i in hit_sources(res):
         names = [i['name']] + i['alternativenames'] 
         dists = [jellyfish.levenshtein_distance(search_name, j) for j in names]
         lat, lon = i['coordinates'].split(",")

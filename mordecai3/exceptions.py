@@ -39,3 +39,13 @@ class GeonamesIndexError(Exception):
                 "    https://github.com/ahalterman/mordecai3#setup\n"
             )
         super().__init__(message)
+
+
+class GeonamesQueryError(Exception):
+    """Raised when an Elasticsearch query against the geonames index fails.
+
+    Used for the batched (_msearch) path, where a failed sub-query comes back as
+    a response object with no 'hits' rather than raising. Treating that as "no
+    candidates found" would be indistinguishable from a genuine miss, so it is
+    surfaced as an error instead.
+    """
