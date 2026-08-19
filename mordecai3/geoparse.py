@@ -65,10 +65,18 @@ def load_nlp(use_gpu=False):
 def load_model(model_path, device=None):
     if not device:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    state = torch.load(model_path, map_location=device)
+    # Read the layer sizes off the checkpoint instead of hardcoding them. The
+    # shipped model happens to use the defaults, but tools/train.py exposes
+    # --mix-dim, --country-size and --code-size, and a model trained with any
+    # of those changed used to fail here with a shape mismatch.
     model = geoparse_model(device=device,
-                           bert_size=768,
-                           num_feature_codes=54) 
-    model.load_state_dict(torch.load(model_path, map_location=device))
+                           bert_size=state['text_to_country.weight'].shape[1],
+                           num_feature_codes=state['code_emb.weight'].shape[0],
+                           country_size=state['text_to_country.weight'].shape[0],
+                           code_size=state['code_emb.weight'].shape[1],
+                           mix_dim=state['mix_linear.weight'].shape[0])
+    model.load_state_dict(state)
     model.eval()
     return model
 
@@ -115,7 +123,8 @@ def guess_in_rel(ent):
             if ent.doc[next_ent.end].text in [",", "and"]:
                 return ""
         except IndexError:
-            logger.warning("Error getting 'next_ent'.")
+            # next_ent is the last token in the doc; nothing follows it to check.
+            logger.debug("No token after next_ent; treating as no \"in\" relation.")
             return ""
         return next_ent.text
     else:
@@ -821,6 +830,12 @@ def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results
     list of list of dicts
         ES-enriched entity data, one list per document.
     """
+    # Callers reach this from a CLI as often as from library code, so coerce
+    # rather than trusting the caller: `fuzzy + 1` in the retry below turns a
+    # stringy "0" into a TypeError several hundred lookups deep.
+    max_results = int(max_results)
+    fuzzy = int(fuzzy)
+
     tasks = [(doc_idx, ent_idx, ex)
              for doc_idx, doc_ex in enumerate(all_doc_ex)
              for ent_idx, ex in enumerate(doc_ex)]
