@@ -187,3 +187,10 @@ raw_data/*
 !raw_data/README.txt
 tools/wandb/
 tools/mordecai_*.pt
+
+# Accuracy-campaign artifacts kept out of git: checkpoints, run logs, local wandb
+experiments/**/*.pt
+experiments/**/*.log
+/mordecai_*.pt
+/mordecai_*.json
+wandb/
