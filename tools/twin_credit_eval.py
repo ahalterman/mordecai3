@@ -58,8 +58,12 @@ def split_list(data, frac=TRAIN_FRAC):
     return data[0:split], data[split:]
 
 
-def load_val(source, stems, data_dir, suffix, max_results, limit_types, fuzzy):
-    """The held-out half of one source, exactly as tools/train.py splits it."""
+def load_val(source, stems, data_dir, suffix, max_results, limit_types, fuzzy,
+             with_train=False):
+    """The held-out half of one source, exactly as tools/train.py splits it.
+
+    `with_train=True` returns (held_out, train_half) instead.
+    """
     def load(stem):
         fn = pickle_path(data_dir, stem, suffix, max_results, limit_types, fuzzy)
         if not os.path.exists(fn):
@@ -76,7 +80,8 @@ def load_val(source, stems, data_dir, suffix, max_results, limit_types, fuzzy):
     else:
         es_data = load(stems[0])
     es_data = [i for i in es_data if len(i["tensor"]) > 1]
-    return split_list(es_data)[1]
+    train, val = split_list(es_data)
+    return (val, train) if with_train else val
 
 
 def gold_twin_gids(entity):
@@ -177,10 +182,49 @@ def build_model(checkpoint, sidecar, device):
     return model, cfg
 
 
+def write_twin_cache(path, data_dir, suffix, max_results, limit_types, fuzzy):
+    """Precompute the gold twin class of every held-out entity, once.
+
+    The twin class depends only on the pickles and the labels, never on the
+    model, and computing it needs the *uncompacted* enriched pickles (the
+    compact ones drop candidate `name`, which the name-stripping twin rule
+    reads). Caching it is what lets `tools/train.py` print twin-credit exact
+    match at the end of every run without loading 3.7 GB of dicts.
+    """
+    out = {"data_dir": data_dir, "suffix": suffix, "max_results": max_results,
+           "limit_types": limit_types, "fuzzy": fuzzy, "sources": {},
+           "train_pairs": []}
+    pairs = set()
+    for source, stems in SOURCES:
+        es_data, train_half = load_val(source, stems, data_dir, suffix,
+                                       max_results, limit_types, fuzzy,
+                                       with_train=True)
+        # The (mention, gold id) pairs the model was trained on: the novel-pair
+        # guardrail needs them, and recovering them from the compacted pickles
+        # inside a training run costs nothing but is not available to the
+        # standalone evaluators, so they are cached here too.
+        pairs.update((str(e.get("search_name")), str(e.get("correct_geonamesid")))
+                     for e in train_half)
+        del train_half
+        if EXPECTED_VAL.get(source) not in (None, len(es_data)):
+            sys.exit(f"{source}: held-out size {len(es_data)} != "
+                     f"{EXPECTED_VAL[source]}; the split drifted")
+        out["sources"][source] = [sorted(gold_twin_gids(e)) for e in es_data]
+        n_tw = sum(1 for r in out["sources"][source] if r)
+        print(f"{source}: {len(es_data)} held-out entities, {n_tw} with a twin class")
+        del es_data
+    out["train_pairs"] = sorted(pairs)
+    print(f"{len(pairs)} distinct (mention, gold id) training pairs")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(out, f)
+    print(f"wrote {path}")
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", required=True)
+    ap.add_argument("--checkpoint", default="")
     ap.add_argument("--sidecar", default="",
                     help="model config json (default: <checkpoint>.json, then "
                          "the checkpoint path with its extension replaced)")
@@ -193,7 +237,19 @@ def main():
     ap.add_argument("--fuzzy", type=int, default=0)
     ap.add_argument("--test-batch-size", type=int, default=64)
     ap.add_argument("--json-out", default="")
+    ap.add_argument("--cache-out", default="",
+                    help="write the per-entity gold twin classes here and "
+                         "exit; no checkpoint needed. tools/train.py reads "
+                         "this cache to print twin-credit EM every run.")
     args = ap.parse_args()
+
+    if args.cache_out:
+        write_twin_cache(args.cache_out, args.data_dir,
+                         f"_enriched{args.pickle_suffix}",
+                         args.max_results or 500, args.limit_types, args.fuzzy)
+        return
+    if not args.checkpoint:
+        ap.error("--checkpoint is required (or use --cache-out)")
 
     # `<checkpoint>.json` is the model config train.py writes; the file with the
     # extension swapped is usually the *metrics* sidecar, which is a different
