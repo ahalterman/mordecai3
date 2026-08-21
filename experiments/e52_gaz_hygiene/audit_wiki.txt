@@ -1,0 +1,94 @@
+sources: ['WikiDocs', 'Prodigy', 'Synth']
+  entities                     7256
+  unretrievable                  95
+  unretrievable_abbrev            0
+  gold_beyond_window100          41
+  gold_not_in_index              28
+  has_hist_candidate           3855
+  hist_in_top5                  507
+  gold_is_hist                    8
+  demote_h_fires                978
+  demote_h_rows                1854
+  demote_h_DELETES_GOLD           4
+  dedupe_fires                 4110
+  dedupe_rows                 13355
+  dedupe_p_DELETES_GOLD         177
+  dedupe_a_DELETES_GOLD         449
+  junk_fires                      0
+  junk_DELETES_GOLD               0
+
+golds whose geonameid is NOT in the index:
+   WikiDocs  Ireland                  2646052    x14
+   WikiDocs  Slavonia                 3205300    x5
+   WikiDocs  Darfur                   376731     x4
+   WikiDocs  Jounieh                  6941107    x4
+   WikiDocs  Yugoslavia               8505035    x1
+
+entities whose GOLD is a defunct row (a *H rule must not touch):
+   WikiDocs  Hirara                   1862504    ADM2H
+   WikiDocs  Naze                     1855539    ADM2H
+   WikiDocs  Košutarica               3197557    PPLW
+   WikiDocs  Dunedin                  2191561    ADM1H
+   WikiDocs  East Germany             8354410    PCLH
+   WikiDocs  Dunedin                  2191561    ADM1H
+   WikiDocs  Warsaw                   11524356   PPLH
+   WikiDocs  Okanagan                 7281931    PPLQ
+
+entities whose gold is the row `dedupe --keep p` would delete:
+   WikiDocs  Geneva                   7285902    ADM3
+   WikiDocs  Geneva                   7285902    ADM3
+   WikiDocs  Geneva                   7285902    ADM3
+   WikiDocs  Lausanne                 7286283    ADM3
+   WikiDocs  Davos                    2661041    ADM3
+   WikiDocs  Leuven                   2792483    ADM4
+   WikiDocs  Charleroi                2800482    ADM4
+   WikiDocs  Kortrijk                 2794056    ADM4
+   WikiDocs  Hasselt                  2796492    ADM4
+   WikiDocs  Paris                    2968815    ADM2
+   WikiDocs  Paris                    2968815    ADM2
+   WikiDocs  Paris                    2968815    ADM2
+   WikiDocs  Huy                      2795114    ADM4
+   WikiDocs  Mechelen                 2791538    ADM4
+   WikiDocs  Tokyo                    1850144    ADM1
+
+unretrievable golds that are NOT abbreviations:
+   Synth     San Martin                   12157008
+   WikiDocs  Lu County                    1801683
+   WikiDocs  Balochistan                  9062343
+   WikiDocs  Balochistan                  9062343
+   WikiDocs  Balochistan                  9062343
+   WikiDocs  Balochistan                  9062343
+   WikiDocs  Jati                         10300608
+   WikiDocs  Hakha                        1325442
+   WikiDocs  Hakha                        1325442
+   WikiDocs  Barranca                     8350660
+   WikiDocs  Dawu                         1801093
+   WikiDocs  Barat Daya Islands           1650027
+   WikiDocs  Damar Island                 1645775
+   WikiDocs  Jember Regency               1642588
+   WikiDocs  Barat Daya Islands           1650027
+   WikiDocs  Damar Island                 1645775
+   WikiDocs  Sainyabuli province          1652210
+   WikiDocs  South                        7729895
+   WikiDocs  South                        7729895
+   WikiDocs  Hatiya Island                1191868
+   WikiDocs  West Africa                  7729885
+   WikiDocs  West Africa                  7729885
+   WikiDocs  West Africa                  7729885
+   WikiDocs  Ireland                      2646052
+   WikiDocs  The Hague                    2747372
+   WikiDocs  Turin                        3165525
+   WikiDocs  North Atlantic Ocean         3373405
+   WikiDocs  North Atlantic Ocean         3373405
+   WikiDocs  Los Angeles City Hall        5368373
+   WikiDocs  New York City Hall           4833132
+   WikiDocs  Yabrud                       163843
+   WikiDocs  Yabrud                       163843
+   WikiDocs  Yabrud                       163843
+   WikiDocs  Yabrud                       163843
+   WikiDocs  Southern Africa              6255146
+   WikiDocs  Khosrowshah                  127219
+   WikiDocs  Yugoslavia                   8505035
+   WikiDocs  West Africa                  7729885
+   WikiDocs  Darfur                       376731
+   WikiDocs  The Hague                    2747372

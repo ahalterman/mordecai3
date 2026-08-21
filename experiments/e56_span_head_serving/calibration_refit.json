@@ -1,0 +1,340 @@
+{
+ "none": {
+  "n_mentions": 2159,
+  "n_answerable": 1541,
+  "T_refit": {
+   "T": 1.034,
+   "answer_everything_EM": 67.95,
+   "reserved_flag_coverage": 82.54,
+   "reserved_flag_selective_EM": 82.32,
+   "ECE_answered": 0.0689,
+   "AURC": 0.1209,
+   "auroc_wrong_p_pred": 0.881,
+   "auroc_wrong_p_no_match": 0.8786,
+   "auroc_unanswerable_p_no_match": 0.8945,
+   "risk_coverage": [
+    [
+     1.0,
+     67.95,
+     -1.0
+    ],
+    [
+     0.95,
+     71.53,
+     -1.0
+    ],
+    [
+     0.9,
+     75.5,
+     -1.0
+    ],
+    [
+     0.8,
+     84.54,
+     0.4394
+    ],
+    [
+     0.7,
+     88.62,
+     0.8009
+    ]
+   ],
+   "policies": [
+    {
+     "policy": "reserved flag only",
+     "coverage": 82.54,
+     "selective_EM": 82.32,
+     "unanswerable_caught": 361,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.5 or flag",
+     "coverage": 79.25,
+     "selective_EM": 84.92,
+     "unanswerable_caught": 407,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.6 or flag",
+     "coverage": 76.29,
+     "selective_EM": 86.46,
+     "unanswerable_caught": 430,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.7 or flag",
+     "coverage": 73.46,
+     "selective_EM": 87.14,
+     "unanswerable_caught": 439,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.8 or flag",
+     "coverage": 69.99,
+     "selective_EM": 88.62,
+     "unanswerable_caught": 462,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.9 or flag",
+     "coverage": 60.49,
+     "selective_EM": 89.66,
+     "unanswerable_caught": 494,
+     "unanswerable_total": 618
+    }
+   ]
+  },
+  "nll": 0.6399,
+  "T_old": {
+   "T": 0.874,
+   "answer_everything_EM": 67.95,
+   "reserved_flag_coverage": 82.54,
+   "reserved_flag_selective_EM": 82.32,
+   "ECE_answered": 0.1037,
+   "AURC": 0.1172,
+   "auroc_wrong_p_pred": 0.8846,
+   "auroc_wrong_p_no_match": 0.8804,
+   "auroc_unanswerable_p_no_match": 0.895,
+   "risk_coverage": [
+    [
+     1.0,
+     67.95,
+     -1.0
+    ],
+    [
+     0.95,
+     71.53,
+     -1.0
+    ],
+    [
+     0.9,
+     75.5,
+     -1.0
+    ],
+    [
+     0.8,
+     84.48,
+     0.5125
+    ],
+    [
+     0.7,
+     88.35,
+     0.8716
+    ]
+   ],
+   "policies": [
+    {
+     "policy": "reserved flag only",
+     "coverage": 82.54,
+     "selective_EM": 82.32,
+     "unanswerable_caught": 361,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.5 or flag",
+     "coverage": 80.04,
+     "selective_EM": 84.49,
+     "unanswerable_caught": 400,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.6 or flag",
+     "coverage": 77.67,
+     "selective_EM": 85.63,
+     "unanswerable_caught": 417,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.7 or flag",
+     "coverage": 75.64,
+     "selective_EM": 86.53,
+     "unanswerable_caught": 432,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.8 or flag",
+     "coverage": 72.81,
+     "selective_EM": 87.4,
+     "unanswerable_caught": 443,
+     "unanswerable_total": 618
+    },
+    {
+     "policy": "p >= 0.9 or flag",
+     "coverage": 68.18,
+     "selective_EM": 88.86,
+     "unanswerable_caught": 467,
+     "unanswerable_total": 618
+    }
+   ]
+  }
+ },
+ "gold": {
+  "n_mentions": 2173,
+  "n_answerable": 1752,
+  "T_refit": {
+   "T": 1.106,
+   "answer_everything_EM": 77.54,
+   "reserved_flag_coverage": 92.64,
+   "reserved_flag_selective_EM": 83.71,
+   "ECE_answered": 0.043,
+   "AURC": 0.1001,
+   "auroc_wrong_p_pred": 0.8072,
+   "auroc_wrong_p_no_match": 0.7848,
+   "auroc_unanswerable_p_no_match": 0.7967,
+   "risk_coverage": [
+    [
+     1.0,
+     77.54,
+     -1.0
+    ],
+    [
+     0.95,
+     81.64,
+     -1.0
+    ],
+    [
+     0.9,
+     85.63,
+     0.4156
+    ],
+    [
+     0.8,
+     88.67,
+     0.7506
+    ],
+    [
+     0.7,
+     89.15,
+     0.8679
+    ]
+   ],
+   "policies": [
+    {
+     "policy": "reserved flag only",
+     "coverage": 92.64,
+     "selective_EM": 83.71,
+     "unanswerable_caught": 149,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.5 or flag",
+     "coverage": 87.99,
+     "selective_EM": 86.51,
+     "unanswerable_caught": 202,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.6 or flag",
+     "coverage": 85.09,
+     "selective_EM": 87.4,
+     "unanswerable_caught": 218,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.7 or flag",
+     "coverage": 81.41,
+     "selective_EM": 88.36,
+     "unanswerable_caught": 237,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.8 or flag",
+     "coverage": 76.99,
+     "selective_EM": 88.88,
+     "unanswerable_caught": 251,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.9 or flag",
+     "coverage": 62.95,
+     "selective_EM": 89.99,
+     "unanswerable_caught": 292,
+     "unanswerable_total": 421
+    }
+   ]
+  },
+  "nll": 0.6991,
+  "T_old": {
+   "T": 0.874,
+   "answer_everything_EM": 77.54,
+   "reserved_flag_coverage": 92.64,
+   "reserved_flag_selective_EM": 83.71,
+   "ECE_answered": 0.0941,
+   "AURC": 0.0956,
+   "auroc_wrong_p_pred": 0.8108,
+   "auroc_wrong_p_no_match": 0.7897,
+   "auroc_unanswerable_p_no_match": 0.7991,
+   "risk_coverage": [
+    [
+     1.0,
+     77.54,
+     -1.0
+    ],
+    [
+     0.95,
+     81.64,
+     -1.0
+    ],
+    [
+     0.9,
+     85.43,
+     0.5164
+    ],
+    [
+     0.8,
+     88.43,
+     0.8478
+    ],
+    [
+     0.7,
+     89.35,
+     0.951
+    ]
+   ],
+   "policies": [
+    {
+     "policy": "reserved flag only",
+     "coverage": 92.64,
+     "selective_EM": 83.71,
+     "unanswerable_caught": 149,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.5 or flag",
+     "coverage": 90.43,
+     "selective_EM": 85.34,
+     "unanswerable_caught": 180,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.6 or flag",
+     "coverage": 87.57,
+     "selective_EM": 86.44,
+     "unanswerable_caught": 200,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.7 or flag",
+     "coverage": 85.69,
+     "selective_EM": 87.06,
+     "unanswerable_caught": 211,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.8 or flag",
+     "coverage": 82.1,
+     "selective_EM": 88.06,
+     "unanswerable_caught": 230,
+     "unanswerable_total": 421
+    },
+    {
+     "policy": "p >= 0.9 or flag",
+     "coverage": 77.17,
+     "selective_EM": 88.91,
+     "unanswerable_caught": 249,
+     "unanswerable_total": 421
+    }
+   ]
+  }
+ }
+}

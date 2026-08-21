@@ -1,0 +1,44 @@
+{
+ "pooled": {
+  "em_nested": 316,
+  "det_tp": 2073,
+  "em": 1739,
+  "n_nested": 405,
+  "n_emitted_correct": 1739,
+  "n_gold": 2084,
+  "n_pred": 2073,
+  "n_emitted": 1943
+ },
+ "per_source": {
+  "tr": {
+   "n_gold": 331,
+   "n_pred": 321,
+   "em": 254,
+   "em_nested": 32,
+   "n_nested": 47,
+   "n_emitted": 288,
+   "n_emitted_correct": 254,
+   "det_tp": 321
+  },
+  "lgl": {
+   "n_gold": 1230,
+   "n_pred": 1229,
+   "em": 1046,
+   "em_nested": 228,
+   "n_nested": 276,
+   "n_emitted": 1176,
+   "n_emitted_correct": 1046,
+   "det_tp": 1229
+  },
+  "gwn": {
+   "n_gold": 523,
+   "n_pred": 523,
+   "em": 439,
+   "em_nested": 56,
+   "n_nested": 82,
+   "n_emitted": 479,
+   "n_emitted_correct": 439,
+   "det_tp": 523
+  }
+ }
+}

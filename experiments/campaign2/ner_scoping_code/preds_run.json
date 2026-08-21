@@ -1,0 +1,119 @@
+{
+ "meta": {
+  "chunks": {
+   "train": 1244,
+   "dev": 211,
+   "test": 542
+  },
+  "positives": {
+   "train": 4343.0,
+   "dev": 687.0,
+   "test": 2072.0
+  },
+  "candidates": {
+   "train": 1527013,
+   "dev": 262500,
+   "test": 645674
+  },
+  "max_span": 8,
+  "chunk_pieces": 384
+ },
+ "frozen|42": {
+  "info": {
+   "dev_f1": 88.28956706884314,
+   "threshold": 0.3,
+   "epochs": 20,
+   "seconds": 50.715107440948486
+  },
+  "scores": {
+   "pooled": {
+    "P": 84.68877782825989,
+    "R": 89.44337811900192,
+    "F1": 87.00116686114352,
+    "P_ov": 86.96047251249432,
+    "R_ov": 91.8426103646833,
+    "F1_ov": 89.33488914819137,
+    "R_nested": 71.60493827160494,
+    "R_flat": 93.74627754615842,
+    "fp_on_demonym": 66,
+    "tp_exact": 1864,
+    "n_gold_nested": 405,
+    "n_gold": 2084,
+    "n_pred": 2201,
+    "tp_nested": 290,
+    "tp_overlap": 1914,
+    "fp_on_unlinked": 68,
+    "tp_flat": 1574,
+    "n_gold_unalignable": 11,
+    "n_gold_flat": 1679,
+    "fp_other": 153
+   },
+   "tr": {
+    "P": 82.72727272727273,
+    "R": 82.4773413897281,
+    "F1": 82.60211800302572,
+    "P_ov": 91.81818181818183,
+    "R_ov": 91.54078549848943,
+    "F1_ov": 91.67927382753405,
+    "R_nested": 55.319148936170215,
+    "R_flat": 86.97183098591549,
+    "n_gold": 331,
+    "n_pred": 330,
+    "tp_exact": 273,
+    "tp_overlap": 303,
+    "n_gold_nested": 47,
+    "tp_nested": 26,
+    "n_gold_flat": 284,
+    "tp_flat": 247,
+    "fp_on_demonym": 0,
+    "fp_on_unlinked": 0,
+    "fp_other": 27,
+    "n_gold_unalignable": 10
+   },
+   "lgl": {
+    "P": 86.91660290742158,
+    "R": 92.35772357723577,
+    "F1": 89.55459203783998,
+    "P_ov": 87.83473603672533,
+    "R_ov": 93.33333333333333,
+    "F1_ov": 90.5005912495073,
+    "R_nested": 77.53623188405797,
+    "R_flat": 96.64570230607967,
+    "n_gold": 1230,
+    "n_pred": 1307,
+    "tp_exact": 1136,
+    "tp_overlap": 1148,
+    "n_gold_nested": 276,
+    "tp_nested": 214,
+    "n_gold_flat": 954,
+    "tp_flat": 922,
+    "fp_on_demonym": 3,
+    "fp_on_unlinked": 49,
+    "fp_other": 107,
+    "n_gold_unalignable": 1
+   },
+   "gwn": {
+    "P": 80.67375886524822,
+    "R": 86.9980879541109,
+    "F1": 83.71665133394664,
+    "P_ov": 82.09219858156028,
+    "R_ov": 88.52772466539197,
+    "F1_ov": 85.18859245630176,
+    "R_nested": 60.97560975609756,
+    "R_flat": 91.83673469387755,
+    "n_gold": 523,
+    "n_pred": 564,
+    "tp_exact": 455,
+    "tp_overlap": 463,
+    "n_gold_nested": 82,
+    "tp_nested": 50,
+    "n_gold_flat": 441,
+    "tp_flat": 405,
+    "fp_on_demonym": 63,
+    "fp_on_unlinked": 19,
+    "fp_other": 19,
+    "n_gold_unalignable": 0
+   }
+  }
+ }
+}

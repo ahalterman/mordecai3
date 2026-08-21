@@ -1,0 +1,9 @@
+[
+ {"name":"wa_mask_w1",   "seeds":[42], "wiki":true, "wiki_loss":"mask",      "wiki_weight":1.0, "epochs":8},
+ {"name":"wa_naive_w1",  "seeds":[42], "wiki":true, "wiki_loss":"naive",     "wiki_weight":1.0, "epochs":8},
+ {"name":"wa_pu_w1",     "seeds":[42], "wiki":true, "wiki_loss":"pu",        "wiki_weight":1.0, "epochs":8},
+ {"name":"wa_prop_w1",   "seeds":[42], "wiki":true, "wiki_loss":"mask_prop", "wiki_weight":1.0, "epochs":8},
+ {"name":"wa_cap_w1",    "seeds":[42], "wiki":true, "wiki_loss":"mask_cap",  "wiki_weight":1.0, "epochs":8},
+ {"name":"wa_mask_w03",  "seeds":[42], "wiki":true, "wiki_loss":"mask",      "wiki_weight":0.3, "epochs":8},
+ {"name":"wa_mask_w1_g4","seeds":[42], "wiki":true, "wiki_loss":"mask",      "wiki_weight":1.0, "epochs":8, "gold_repeat":4}
+]

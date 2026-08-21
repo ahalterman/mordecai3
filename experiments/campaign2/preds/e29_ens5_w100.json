@@ -1,0 +1,77 @@
+{
+  "checkpoints": [
+    "experiments/e29_swa_ep15/seed101.pt",
+    "experiments/e29_swa_ep15/seed1848.pt",
+    "experiments/e29_swa_ep15/seed202.pt",
+    "experiments/e29_swa_ep15/seed42.pt",
+    "experiments/e29_swa_ep15/seed617.pt"
+  ],
+  "window": 100,
+  "n": 8977,
+  "em_group_a": 0.9346210995542348,
+  "em_all": 0.9108833686086666,
+  "ece_pooled": 0.033178908732744324,
+  "ece_pooled_full": 0.04047088708240163,
+  "global_T": 0.7908003891704652,
+  "global_T_full": 0.8177654339579425,
+  "loso_ece_before": 0.044918709059195205,
+  "loso_ece_after": 0.021929067380336006,
+  "auroc": {
+    "p_top1": {
+      "all": 0.9044861348905466,
+      "group_a": 0.9277721025458582,
+      "unanswerable": 0.8219575971589735
+    },
+    "margin": {
+      "all": 0.9029039531613061,
+      "group_a": 0.9268505128233635,
+      "unanswerable": 0.8153656157194907
+    },
+    "logit_margin": {
+      "all": 0.8961255656108598,
+      "group_a": 0.9172311728872815,
+      "unanswerable": 0.8137516468047477
+    },
+    "entropy": {
+      "all": 0.8901403326403327,
+      "group_a": 0.9105315010292386,
+      "unanswerable": 0.8199017231041944
+    },
+    "p_pred_full": {
+      "all": 0.9102961049284579,
+      "group_a": 0.9272084158961987,
+      "unanswerable": 0.8466125451931349
+    },
+    "p_reserved": {
+      "all": 0.7697497554115201,
+      "group_a": 0.723080087333481,
+      "unanswerable": 0.878380085543611
+    },
+    "p_nullrow": {
+      "all": 0.6876248080528474,
+      "group_a": 0.630997150997151,
+      "unanswerable": 0.8952972625856842
+    },
+    "vote_top_frac": {
+      "all": 0.7167971902898373,
+      "group_a": 0.7355144396999601,
+      "unanswerable": 0.6545537535116795
+    },
+    "vote_n_distinct": {
+      "all": 0.7160559343279932,
+      "group_a": 0.7345833358276798,
+      "unanswerable": 0.6546099002793302
+    },
+    "p_top1_std": {
+      "all": 0.8695177020912315,
+      "group_a": 0.8885123376073603,
+      "unanswerable": 0.7981498637438263
+    }
+  },
+  "auroc_combo": {
+    "all": 0.9135315519139049,
+    "group_a": 0.9256200873847933,
+    "unanswerable": 0.8661130194327973
+  },
+  "reserved_argmax_rate": 0.014592848390330846
+}

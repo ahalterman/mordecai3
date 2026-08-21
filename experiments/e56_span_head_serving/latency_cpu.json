@@ -1,0 +1,22 @@
+{
+ "default (spaCy filter)": {
+  "ms_per_doc": 195.25,
+  "docs_per_s": 5.12,
+  "mentions": 309
+ },
+ "nested_gazetteer_pass": {
+  "ms_per_doc": 209.36,
+  "docs_per_s": 4.78,
+  "mentions": 442
+ },
+ "span head: gold": {
+  "ms_per_doc": 184.7,
+  "docs_per_s": 5.41,
+  "mentions": 294
+ },
+ "span head: all": {
+  "ms_per_doc": 191.28,
+  "docs_per_s": 5.23,
+  "mentions": 311
+ }
+}

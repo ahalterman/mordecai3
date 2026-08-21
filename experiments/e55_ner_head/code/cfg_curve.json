@@ -1,0 +1,6 @@
+[
+ {"name":"A_wiki100", "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "wiki_frac":1.0,   "epochs":4, "stage2_epochs":20, "save_preds":true},
+ {"name":"A_wiki50",  "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "wiki_frac":0.5,   "epochs":4, "stage2_epochs":20},
+ {"name":"A_wiki25",  "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "wiki_frac":0.25,  "epochs":4, "stage2_epochs":20},
+ {"name":"A_wiki12",  "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "wiki_frac":0.125, "epochs":4, "stage2_epochs":20}
+]

@@ -1,0 +1,4 @@
+[
+ {"name":"A_ctrl_2s", "seeds":[42,101,202,617,1848], "epochs":4, "stage2_epochs":20},
+ {"name":"gold_ep24", "seeds":[42,101,202,617,1848], "epochs":24}
+]

@@ -1,0 +1,3043 @@
+{
+ "rows": [
+  {
+   "mention": "Richmond",
+   "n_err": 15,
+   "sources": {
+    "LGL": 15
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 15
+   },
+   "gold_gid": "2639389",
+   "pred_gid": "4781708",
+   "n_this_pair": 4,
+   "gold_name": "Richmond",
+   "gold_fc": "PPL",
+   "gold_cc": "GBR",
+   "gold_pop": 21469,
+   "pred_name": "Richmond",
+   "pred_fc": "PPLA",
+   "pred_cc": "USA",
+   "pred_pop": 226610,
+   "median_km": 692.4228999499753,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Paris",
+   "n_err": 9,
+   "sources": {
+    "TR": 5,
+    "LGL": 4
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 8,
+    "retr_other": 1
+   },
+   "gold_gid": "4647963",
+   "pred_gid": "2988507",
+   "n_this_pair": 3,
+   "gold_name": "Paris",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 10150,
+   "pred_name": "Paris",
+   "pred_fc": "PPLC",
+   "pred_cc": "FRA",
+   "pred_pop": 2138551,
+   "median_km": 6902.965150332643,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Hanover",
+   "n_err": 6,
+   "sources": {
+    "LGL": 6
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 6
+   },
+   "gold_gid": "5087168",
+   "pred_gid": "4558475",
+   "n_this_pair": 6,
+   "gold_name": "Hanover",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 8636,
+   "pred_name": "Hanover",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 15496,
+   "median_km": 582.7342630784224,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Ind.",
+   "n_err": 5,
+   "sources": {
+    "LGL": 5
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 5
+   },
+   "gold_gid": "4921868",
+   "pred_gid": "4259418",
+   "n_this_pair": 4,
+   "gold_name": "Indiana",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 6265933,
+   "pred_name": "Indianapolis",
+   "pred_fc": "PPLA",
+   "pred_cc": "USA",
+   "pred_pop": 887642,
+   "median_km": NaN,
+   "n_unretrievable": 5
+  },
+  {
+   "mention": "Lancaster",
+   "n_err": 5,
+   "sources": {
+    "LGL": 5
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 5
+   },
+   "gold_gid": "5197079",
+   "pred_gid": "2644972",
+   "n_this_pair": 3,
+   "gold_name": "Lancaster",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 59339,
+   "pred_name": "Lancaster",
+   "pred_fc": "PPL",
+   "pred_cc": "GBR",
+   "pred_pop": 47162,
+   "median_km": 5513.185635451629,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Meadow Grove",
+   "n_err": 5,
+   "sources": {
+    "LGL": 5
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 5
+   },
+   "gold_gid": "5072850",
+   "pred_gid": "11392594",
+   "n_this_pair": 5,
+   "gold_name": "Meadow Grove",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 300,
+   "pred_name": "Meadow Grove",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 1253.7954756795898,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Springfield",
+   "n_err": 5,
+   "sources": {
+    "LGL": 5
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 5
+   },
+   "gold_gid": "4409896",
+   "pred_gid": "4951788",
+   "n_this_pair": 3,
+   "gold_name": "Springfield",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 166810,
+   "pred_name": "Springfield",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 154341,
+   "median_km": 1848.7734361843877,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Tipperary",
+   "n_err": 5,
+   "sources": {
+    "LGL": 5
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 5
+   },
+   "gold_gid": "2961192",
+   "pred_gid": "2961191",
+   "n_this_pair": 5,
+   "gold_name": "Tipperary",
+   "gold_fc": "PPL",
+   "gold_cc": "IRL",
+   "gold_pop": 4979,
+   "pred_name": "County Tipperary",
+   "pred_fc": "ADM2",
+   "pred_cc": "IRL",
+   "pred_pop": 159553,
+   "median_km": 30.61422834732584,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "COLUMBUS",
+   "n_err": 4,
+   "sources": {
+    "LGL": 4
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 4
+   },
+   "gold_gid": "5066001",
+   "pred_gid": "4509177",
+   "n_this_pair": 3,
+   "gold_name": "Columbus",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 22797,
+   "pred_name": "Columbus",
+   "pred_fc": "PPLA",
+   "pred_cc": "USA",
+   "pred_pop": 905748,
+   "median_km": 1220.9586951289557,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Charles City",
+   "n_err": 4,
+   "sources": {
+    "LGL": 4
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 4
+   },
+   "gold_gid": "4752001",
+   "pred_gid": "4752002",
+   "n_this_pair": 4,
+   "gold_name": "Charles City",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 133,
+   "pred_name": "Charles City County",
+   "pred_fc": "ADM2",
+   "pred_cc": "USA",
+   "pred_pop": 7256,
+   "median_km": 1.7235484354006274,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Columbus",
+   "n_err": 4,
+   "sources": {
+    "LGL": 4
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 4
+   },
+   "gold_gid": "4188985",
+   "pred_gid": "4509177",
+   "n_this_pair": 2,
+   "gold_name": "Columbus",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 206922,
+   "pred_name": "Columbus",
+   "pred_fc": "PPLA",
+   "pred_cc": "USA",
+   "pred_pop": 905748,
+   "median_km": 1036.8749251209108,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Edmonton",
+   "n_err": 4,
+   "sources": {
+    "TR": 4
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 4
+   },
+   "gold_gid": "2650209",
+   "pred_gid": "5946768",
+   "n_this_pair": 3,
+   "gold_name": "Edmonton",
+   "gold_fc": "PPL",
+   "gold_cc": "GBR",
+   "gold_pop": 82000,
+   "pred_name": "Edmonton",
+   "pred_fc": "PPLA",
+   "pred_cc": "CAN",
+   "pred_pop": 1010899,
+   "median_km": 6788.316618457976,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "North Africa",
+   "n_err": 4,
+   "sources": {
+    "GWN": 4
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 4
+   },
+   "gold_gid": "7729887",
+   "pred_gid": "5816605",
+   "n_this_pair": 4,
+   "gold_name": "Northern Africa",
+   "gold_fc": "RGN",
+   "gold_cc": "NA",
+   "gold_pop": 210800000,
+   "pred_name": "Yakima",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 93701,
+   "median_km": 9874.01957671945,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Logan",
+   "n_err": 3,
+   "sources": {
+    "LGL": 3
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 3
+   },
+   "gold_gid": "4395995",
+   "pred_gid": "4812867",
+   "n_this_pair": 2,
+   "gold_name": "Logan",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Logan",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 1649,
+   "median_km": 1029.756321901115,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "London",
+   "n_err": 3,
+   "sources": {
+    "TR": 3
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 3
+   },
+   "gold_gid": "6058560",
+   "pred_gid": "2643743",
+   "n_this_pair": 1,
+   "gold_name": "London",
+   "gold_fc": "PPL",
+   "gold_cc": "CAN",
+   "gold_pop": 346765,
+   "pred_name": "London",
+   "pred_fc": "PPLC",
+   "pred_cc": "GBR",
+   "pred_pop": 8961989,
+   "median_km": 5875.734643540915,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "New York",
+   "n_err": 3,
+   "sources": {
+    "TR": 1,
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 3
+   },
+   "gold_gid": "5128638",
+   "pred_gid": "5128581",
+   "n_this_pair": 2,
+   "gold_name": "New York",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 19274244,
+   "pred_name": "New York City",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 8804190,
+   "median_km": 282.6992524100164,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Shanghai",
+   "n_err": 3,
+   "sources": {
+    "TR": 3
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 3
+   },
+   "gold_gid": "1796236",
+   "pred_gid": "1796231",
+   "n_this_pair": 3,
+   "gold_name": "Shanghai",
+   "gold_fc": "PPLA",
+   "gold_cc": "CHN",
+   "gold_pop": 22315474,
+   "pred_name": "Shanghai Shi",
+   "pred_fc": "ADM1",
+   "pred_cc": "CHN",
+   "pred_pop": 18880000,
+   "median_km": 7.3248438626423145,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "South Africa",
+   "n_err": 3,
+   "sources": {
+    "GWN": 3
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 3
+   },
+   "gold_gid": "1007311",
+   "pred_gid": "953987",
+   "n_this_pair": 3,
+   "gold_name": "Durban",
+   "gold_fc": "PPLA2",
+   "gold_cc": "ZAF",
+   "gold_pop": 3120282,
+   "pred_name": "South Africa",
+   "pred_fc": "PCLI",
+   "pred_cc": "ZAF",
+   "pred_pop": 57779622,
+   "median_km": NaN,
+   "n_unretrievable": 3
+  },
+  {
+   "mention": "Twickenham",
+   "n_err": 3,
+   "sources": {
+    "LGL": 3
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 3
+   },
+   "gold_gid": "2635308",
+   "pred_gid": "4068590",
+   "n_this_pair": 3,
+   "gold_name": "Twickenham",
+   "gold_fc": "PPLA3",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Huntsville",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 215006,
+   "median_km": 6824.8532995245705,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Berea",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "4283974",
+   "pred_gid": "5147097",
+   "n_this_pair": 2,
+   "gold_name": "Berea",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 14882,
+   "pred_name": "Berea",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 18874,
+   "median_km": 471.3755074525899,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Hagerstown",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "4258413",
+   "pred_gid": "4357141",
+   "n_this_pair": 2,
+   "gold_name": "Hagerstown",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 1728,
+   "pred_name": "Hagerstown",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 40432,
+   "median_km": 636.4724117295943,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Hinton",
+   "n_err": 2,
+   "sources": {
+    "TR": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "4860738",
+   "pred_gid": "4808945",
+   "n_this_pair": 1,
+   "gold_name": "Hinton",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 938,
+   "pred_name": "Hinton",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 2528,
+   "median_km": 1695.2914998377873,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Hopkinton",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "5087639",
+   "pred_gid": "5222680",
+   "n_this_pair": 2,
+   "gold_name": "Hopkinton",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 5676,
+   "pred_name": "Hopkinton",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 8261,
+   "median_km": 192.57978318491897,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "McKee",
+   "n_err": 2,
+   "sources": {
+    "TR": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "4300339",
+   "pred_gid": "4901695",
+   "n_this_pair": 1,
+   "gold_name": "McKee",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 789,
+   "pred_name": "McKee School (historical)",
+   "pred_fc": "SCH",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 614.1701500374302,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Miami Beach",
+   "n_err": 2,
+   "sources": {
+    "GWN": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "4164143",
+   "pred_gid": "5803237",
+   "n_this_pair": 2,
+   "gold_name": "Miami Beach",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 92312,
+   "pred_name": "Miami Beach",
+   "pred_fc": "BCH",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 4435.877312608014,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Mich.",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 2
+   },
+   "gold_gid": "5001836",
+   "pred_gid": "3995955",
+   "n_this_pair": 2,
+   "gold_name": "Michigan",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 9883360,
+   "pred_name": "Estado de Michoac\u00e1n de Ocampo",
+   "pred_fc": "ADM1",
+   "pred_cc": "MEX",
+   "pred_pop": 4748846,
+   "median_km": NaN,
+   "n_unretrievable": 2
+  },
+  {
+   "mention": "Minn.",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 2
+   },
+   "gold_gid": "5037779",
+   "pred_gid": "4640873",
+   "n_this_pair": 2,
+   "gold_name": "Minnesota",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 5141953,
+   "pred_name": "McMinn County",
+   "pred_fc": "ADM2",
+   "pred_cc": "USA",
+   "pred_pop": 53794,
+   "median_km": NaN,
+   "n_unretrievable": 2
+  },
+  {
+   "mention": "Moscow",
+   "n_err": 2,
+   "sources": {
+    "TR": 1,
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 2
+   },
+   "gold_gid": "524901",
+   "pred_gid": "524894",
+   "n_this_pair": 1,
+   "gold_name": "Moscow",
+   "gold_fc": "PPLC",
+   "gold_cc": "RUS",
+   "gold_pop": 10381222,
+   "pred_name": "Moskva",
+   "pred_fc": "ADM1",
+   "pred_cc": "RUS",
+   "pred_pop": 13010112,
+   "median_km": 1.1889398749687234,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "N.C.",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 2
+   },
+   "gold_gid": "4482348",
+   "pred_gid": "NULL",
+   "n_this_pair": 2,
+   "gold_name": "North Carolina",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 10488084,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 2
+  },
+  {
+   "mention": "N.M.",
+   "n_err": 2,
+   "sources": {
+    "GWN": 2
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 2
+   },
+   "gold_gid": "5481136",
+   "pred_gid": "NULL",
+   "n_this_pair": 2,
+   "gold_name": "New Mexico",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 1912684,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 2
+  },
+  {
+   "mention": "Neb.",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 2
+   },
+   "gold_gid": "5073708",
+   "pred_gid": "NULL",
+   "n_this_pair": 2,
+   "gold_name": "Nebraska",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 1757399,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 2
+  },
+  {
+   "mention": "North Shore",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "5203760",
+   "pred_gid": "4335506",
+   "n_this_pair": 1,
+   "gold_name": "North Shore",
+   "gold_fc": "PPLX",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "North Shore",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 7575.223401147167,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Red Sea",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "gold_row_gone",
+   "causes": {
+    "gold_row_gone": 2
+   },
+   "gold_gid": "235615",
+   "pred_gid": "350155",
+   "n_this_pair": 2,
+   "gold_name": null,
+   "gold_fc": null,
+   "gold_cc": null,
+   "gold_pop": null,
+   "pred_name": "Red Sea",
+   "pred_fc": "SEA",
+   "pred_cc": "NA",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 2
+  },
+  {
+   "mention": "River Lune",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "2643380",
+   "pred_gid": "9883867",
+   "n_this_pair": 2,
+   "gold_name": "River Lune",
+   "gold_fc": "STM",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "River Lune",
+   "pred_fc": "STMX",
+   "pred_cc": "GBR",
+   "pred_pop": 0,
+   "median_km": 74.33747321704766,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Snetterton",
+   "n_err": 2,
+   "sources": {
+    "GWN": 2
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 2
+   },
+   "gold_gid": "7301855",
+   "pred_gid": "2637582",
+   "n_this_pair": 2,
+   "gold_name": "Snetterton",
+   "gold_fc": "ADM4",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Snetterton",
+   "pred_fc": "PPLA4",
+   "pred_cc": "GBR",
+   "pred_pop": 0,
+   "median_km": 1.1322357442839346,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Tunis",
+   "n_err": 2,
+   "sources": {
+    "GWN": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "2464470",
+   "pred_gid": "2464461",
+   "n_this_pair": 2,
+   "gold_name": "Tunis",
+   "gold_fc": "PPLC",
+   "gold_cc": "TUN",
+   "gold_pop": 693210,
+   "pred_name": "Republic of Tunisia",
+   "pred_fc": "PCLI",
+   "pred_cc": "TUN",
+   "pred_pop": 11565204,
+   "median_km": 330.7734907700588,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Turkey",
+   "n_err": 2,
+   "sources": {
+    "TR": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "5532627",
+   "pred_gid": "298795",
+   "n_this_pair": 2,
+   "gold_name": "Turkey",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 396,
+   "pred_name": "Republic of Turkey",
+   "pred_fc": "PCLI",
+   "pred_cc": "TUR",
+   "pred_pop": 82319724,
+   "median_km": 10677.95002767997,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Washington",
+   "n_err": 2,
+   "sources": {
+    "LGL": 2
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 2
+   },
+   "gold_gid": "4140963",
+   "pred_gid": "5815135",
+   "n_this_pair": 2,
+   "gold_name": "Washington",
+   "gold_fc": "PPLC",
+   "gold_cc": "USA",
+   "gold_pop": 689545,
+   "pred_name": "Washington",
+   "pred_fc": "ADM1",
+   "pred_cc": "USA",
+   "pred_pop": 6271775,
+   "median_km": 3599.9219679523817,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Alton",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5082602",
+   "pred_gid": "4232679",
+   "n_this_pair": 1,
+   "gold_name": "Alton",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 501,
+   "pred_name": "Alton",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 27003,
+   "median_km": 1662.2762614201945,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "America",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "6255149",
+   "pred_gid": "6252001",
+   "n_this_pair": 1,
+   "gold_name": "North America",
+   "gold_fc": "CONT",
+   "gold_cc": "NA",
+   "gold_pop": 580000000,
+   "pred_name": "United States",
+   "pred_fc": "PCLI",
+   "pred_cc": "USA",
+   "pred_pop": 327167434,
+   "median_km": 721.4466431611523,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Amherst",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4929022",
+   "pred_gid": "5107129",
+   "n_this_pair": 1,
+   "gold_name": "Amherst",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 39833,
+   "pred_name": "Amherst",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 122366,
+   "median_km": 517.8720773187254,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Ark.",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "4099753",
+   "pred_gid": "10302757",
+   "n_this_pair": 1,
+   "gold_name": "Arkansas",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 2757631,
+   "pred_name": "Best Western Premier Ark Hotel",
+   "pred_fc": "HTL",
+   "pred_cc": "ALB",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Atlanta",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "4282799",
+   "pred_gid": "4180439",
+   "n_this_pair": 1,
+   "gold_name": "Atlanta",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Atlanta",
+   "pred_fc": "PPLA",
+   "pred_cc": "USA",
+   "pred_pop": 463878,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "B.C.",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "5909050",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "British Columbia",
+   "gold_fc": "ADM1",
+   "gold_cc": "CAN",
+   "gold_pop": 4413973,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Beijing",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "1816670",
+   "pred_gid": "2038349",
+   "n_this_pair": 1,
+   "gold_name": "Beijing",
+   "gold_fc": "PPLC",
+   "gold_cc": "CHN",
+   "gold_pop": 18960744,
+   "pred_name": "Beijing Shi",
+   "pred_fc": "ADM1",
+   "pred_cc": "CHN",
+   "pred_pop": 14933274,
+   "median_km": 1.0464461586987563,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Bethel",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5233794",
+   "pred_gid": "5282297",
+   "n_this_pair": 1,
+   "gold_name": "Bethel",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 569,
+   "pred_name": "Bethel",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 9549,
+   "median_km": 281.1244987093716,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Black Sea",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "gold_row_gone",
+   "causes": {
+    "gold_row_gone": 1
+   },
+   "gold_gid": "6640396",
+   "pred_gid": "630673",
+   "n_this_pair": 1,
+   "gold_name": null,
+   "gold_fc": null,
+   "gold_cc": null,
+   "gold_pop": null,
+   "pred_name": "Black Sea",
+   "pred_fc": "SEA",
+   "pred_cc": "NA",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Brussels",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "dup_row",
+   "causes": {
+    "dup_row": 1
+   },
+   "gold_gid": "2800866",
+   "pred_gid": "2800867",
+   "n_this_pair": 1,
+   "gold_name": "Brussels",
+   "gold_fc": "PPLC",
+   "gold_cc": "BEL",
+   "gold_pop": 1019022,
+   "pred_name": "Bruxelles-Capitale",
+   "pred_fc": "ADM1",
+   "pred_cc": "BEL",
+   "pred_pop": 1222637,
+   "median_km": 0.36974748788151973,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Cambridge City",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "4255339",
+   "pred_gid": "7143329",
+   "n_this_pair": 1,
+   "gold_name": "Cambridge City",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 1784,
+   "pred_name": "Cambridge Health Alliance-Whidden Memorial Hospital",
+   "pred_fc": "HSP",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Camden",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5182848",
+   "pred_gid": "4501018",
+   "n_this_pair": 1,
+   "gold_name": "Camden",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Camden",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 76119,
+   "median_km": 408.69246413981494,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Canton",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5149222",
+   "pred_gid": "5148192",
+   "n_this_pair": 1,
+   "gold_name": "Canton",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 71885,
+   "pred_name": "Bridgeport",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 1794,
+   "median_km": 97.43107066141427,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Centerville",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4255627",
+   "pred_gid": "4508204",
+   "n_this_pair": 1,
+   "gold_name": "Centerville",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 2576,
+   "pred_name": "Centerville",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 23882,
+   "median_km": 74.61611980448659,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Charlotte",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "4887254",
+   "pred_gid": "4988584",
+   "n_this_pair": 1,
+   "gold_name": "Charlotte",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Charlotte",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 9054,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Cheshire",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "7290537",
+   "pred_gid": "9851070",
+   "n_this_pair": 1,
+   "gold_name": "Cheshire West and Chester",
+   "gold_fc": "ADM2",
+   "gold_cc": "GBR",
+   "gold_pop": 335680,
+   "pred_name": "Comfort Suites Cheshire",
+   "pred_fc": "HTL",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 5216.273805195726,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Chongqing",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "1814906",
+   "pred_gid": "1814905",
+   "n_this_pair": 1,
+   "gold_name": "Chongqing",
+   "gold_fc": "PPLA",
+   "gold_cc": "CHN",
+   "gold_pop": 7457599,
+   "pred_name": "Chongqing Shi",
+   "pred_fc": "ADM1",
+   "pred_cc": "CHN",
+   "pred_pop": 28390000,
+   "median_km": 136.11080422699246,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Conn.",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "4831725",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "Connecticut",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 3527249,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Cordova",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4050552",
+   "pred_gid": "4012880",
+   "n_this_pair": 1,
+   "gold_name": "Cordova",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 68779,
+   "pred_name": "C\u00f3rdova",
+   "pred_fc": "PPL",
+   "pred_cc": "MEX",
+   "pred_pop": 0,
+   "median_km": 2060.545226077397,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Croft",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "7292068",
+   "pred_gid": "2651954",
+   "n_this_pair": 1,
+   "gold_name": "Croft-on-Tees",
+   "gold_fc": "ADM4",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Croft",
+   "pred_fc": "PPL",
+   "pred_cc": "GBR",
+   "pred_pop": 1770,
+   "median_km": 213.43941431452674,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Dallas County",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4853335",
+   "pred_gid": "4684904",
+   "n_this_pair": 1,
+   "gold_name": "Dallas County",
+   "gold_fc": "ADM2",
+   "gold_cc": "USA",
+   "gold_pop": 99678,
+   "pred_name": "Dallas County",
+   "pred_fc": "ADM2",
+   "pred_cc": "USA",
+   "pred_pop": 2368139,
+   "median_km": 1020.7096684045586,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Detroit",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4685987",
+   "pred_gid": "4990729",
+   "n_this_pair": 1,
+   "gold_name": "Detroit",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 705,
+   "pred_name": "Detroit",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 677116,
+   "median_km": 1438.1680769489205,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Eastern",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "7729884",
+   "pred_gid": "1085593",
+   "n_this_pair": 1,
+   "gold_name": "Eastern Europe",
+   "gold_fc": "RGN",
+   "gold_cc": "NA",
+   "gold_pop": 294600000,
+   "pred_name": "Eastern Cape",
+   "pred_fc": "ADM1",
+   "pred_cc": "ZAF",
+   "pred_pop": 7225784,
+   "median_km": 9312.959165101553,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "England",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "2649994",
+   "pred_gid": "6269131",
+   "n_this_pair": 1,
+   "gold_name": "England",
+   "gold_fc": "AREA",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "England",
+   "pred_fc": "ADM1",
+   "pred_cc": "GBR",
+   "pred_pop": 56286961,
+   "median_km": 128.03285797844364,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Fowlerville",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4993272",
+   "pred_gid": "5117788",
+   "n_this_pair": 1,
+   "gold_name": "Fowlerville",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 2895,
+   "pred_name": "Fowlerville",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 227,
+   "median_km": 508.8110377300837,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Garden City",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4579503",
+   "pred_gid": "4196688",
+   "n_this_pair": 1,
+   "gold_name": "Garden City",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 9209,
+   "pred_name": "Garden City",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 8999,
+   "median_km": 259.19856033128036,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Gaza",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "281133",
+   "pred_gid": "281132",
+   "n_this_pair": 1,
+   "gold_name": "Gaza",
+   "gold_fc": "PPLA",
+   "gold_cc": "PSE",
+   "gold_pop": 410000,
+   "pred_name": "Gaza Strip",
+   "pred_fc": "ADM1",
+   "pred_cc": "PSE",
+   "pred_pop": 2047969,
+   "median_km": 15.788701681745373,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Geneva",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "dup_row",
+   "causes": {
+    "dup_row": 1
+   },
+   "gold_gid": "2660646",
+   "pred_gid": "7285902",
+   "n_this_pair": 1,
+   "gold_name": "Gen\u00e8ve",
+   "gold_fc": "PPLA",
+   "gold_cc": "CHE",
+   "gold_pop": 183981,
+   "pred_name": "Gen\u00e8ve",
+   "pred_fc": "ADM3",
+   "pred_cc": "CHE",
+   "pred_pop": 203951,
+   "median_km": 0.5035197884081704,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Harare",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "890299",
+   "pred_gid": "1105844",
+   "n_this_pair": 1,
+   "gold_name": "Harare",
+   "gold_fc": "PPLC",
+   "gold_cc": "ZWE",
+   "gold_pop": 1542813,
+   "pred_name": "Harare Province",
+   "pred_fc": "ADM1",
+   "pred_cc": "ZWE",
+   "pred_pop": 2427209,
+   "median_km": 2.9876006329790106,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Hillsboro",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "gold_row_gone",
+   "causes": {
+    "gold_row_gone": 1
+   },
+   "gold_gid": "5087451",
+   "pred_gid": "5731371",
+   "n_this_pair": 1,
+   "gold_name": null,
+   "gold_fc": null,
+   "gold_cc": null,
+   "gold_pop": null,
+   "pred_name": "Hillsboro",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 102347,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Howland",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "dup_row",
+   "causes": {
+    "dup_row": 1
+   },
+   "gold_gid": "4699219",
+   "pred_gid": "4699219",
+   "n_this_pair": 1,
+   "gold_name": "Howland",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Howland",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 0.0,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Ill.",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "4896861",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "Illinois",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 12772888,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Jersey",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5101760",
+   "pred_gid": "8801354",
+   "n_this_pair": 1,
+   "gold_name": "New Jersey",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 8751436,
+   "pred_name": "Jersey",
+   "pred_fc": "HMSD",
+   "pred_cc": "AUS",
+   "pred_pop": 0,
+   "median_km": 16294.893245614385,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Kasserine",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "2473460",
+   "pred_gid": "2473457",
+   "n_this_pair": 1,
+   "gold_name": "Gouvernorat de Kasserine",
+   "gold_fc": "ADM1",
+   "gold_cc": "TUN",
+   "gold_pop": 439243,
+   "pred_name": "Kasserine",
+   "pred_fc": "PPLA",
+   "pred_cc": "TUN",
+   "pred_pop": 81987,
+   "median_km": 10.36028518619952,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Ky.",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "6254925",
+   "pred_gid": "1655194",
+   "n_this_pair": 1,
+   "gold_name": "Kentucky",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 4206074,
+   "pred_name": "Ban Muangkhi",
+   "pred_fc": "PPL",
+   "pred_cc": "LAO",
+   "pred_pop": 0,
+   "median_km": 13677.97341275434,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Laconia",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5088438",
+   "pred_gid": "258657",
+   "n_this_pair": 1,
+   "gold_name": "Laconia",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 16227,
+   "pred_name": "Nom\u00f3s Lakon\u00edas",
+   "pred_fc": "ADM2",
+   "pred_cc": "GRC",
+   "pred_pop": 92811,
+   "median_km": 7568.584819653118,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Latin America",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "6255150",
+   "pred_gid": "7730009",
+   "n_this_pair": 1,
+   "gold_name": "South America",
+   "gold_fc": "CONT",
+   "gold_cc": "NA",
+   "gold_pop": 385742554,
+   "pred_name": "Latin America and the Caribbean",
+   "pred_fc": "RGN",
+   "pred_cc": "NA",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Limassol",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "146383",
+   "pred_gid": "146384",
+   "n_this_pair": 1,
+   "gold_name": "Limassol District",
+   "gold_fc": "ADM1",
+   "gold_cc": "CYP",
+   "gold_pop": 235330,
+   "pred_name": "Limassol",
+   "pred_fc": "PPLA",
+   "pred_cc": "CYP",
+   "pred_pop": 154000,
+   "median_km": 13.258186604637979,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Long Island",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5125120",
+   "pred_gid": "5125123",
+   "n_this_pair": 1,
+   "gold_name": "Long Island",
+   "gold_fc": "ISL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Long Island",
+   "pred_fc": "ISL",
+   "pred_cc": "USA",
+   "pred_pop": 7838822,
+   "median_km": 357.62492732105886,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Loop Head",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "2962823",
+   "pred_gid": "3831883",
+   "n_this_pair": 1,
+   "gold_name": "Loop Head",
+   "gold_fc": "CAPE",
+   "gold_cc": "IRL",
+   "gold_pop": 0,
+   "pred_name": "Loop Head",
+   "pred_fc": "HDLD",
+   "pred_cc": "FLK",
+   "pred_pop": 0,
+   "median_km": 12536.828424024488,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Loup City",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5072374",
+   "pred_gid": "6456675",
+   "n_this_pair": 1,
+   "gold_name": "Loup City",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 1012,
+   "pred_name": "La Colle-sur-Loup",
+   "pred_fc": "ADM4",
+   "pred_cc": "FRA",
+   "pred_pop": 7866,
+   "median_km": 8031.562716501181,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Manhattan",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "5128594",
+   "pred_gid": "5125771",
+   "n_this_pair": 1,
+   "gold_name": "New York County",
+   "gold_fc": "ADM2",
+   "gold_cc": "USA",
+   "gold_pop": 1585873,
+   "pred_name": "Manhattan",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 1487536,
+   "median_km": 1.061739670147643,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Mannheim",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "2873891",
+   "pred_gid": "3220722",
+   "n_this_pair": 1,
+   "gold_name": "Mannheim",
+   "gold_fc": "PPLA3",
+   "gold_cc": "DEU",
+   "gold_pop": 307960,
+   "pred_name": "Stadtkreis Mannheim",
+   "pred_fc": "ADM3",
+   "pred_cc": "DEU",
+   "pred_pop": 311831,
+   "median_km": 2.521638663379394,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Mesa",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5339840",
+   "pred_gid": "5304391",
+   "n_this_pair": 1,
+   "gold_name": "Costa Mesa",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 113204,
+   "pred_name": "Mesa",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 471825,
+   "median_km": 565.4829374064807,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Mont.",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "5667009",
+   "pred_gid": "3026205",
+   "n_this_pair": 1,
+   "gold_name": "Montana",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 930698,
+   "pred_name": "Ch\u00e2teauroux-les-Alpes",
+   "pred_fc": "PPL",
+   "pred_cc": "FRA",
+   "pred_pop": 993,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Mount Chaambi",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "2496952",
+   "pred_gid": "782440",
+   "n_this_pair": 1,
+   "gold_name": "Eulb ech Chaambi",
+   "gold_fc": "AREA",
+   "gold_cc": "DZA",
+   "gold_pop": 0,
+   "pred_name": "Mali i Lunxh\u00ebris\u00eb",
+   "pred_fc": "RDGE",
+   "pred_cc": "ALB",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "N.B.",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "6087430",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "New Brunswick/Nouveau-Brunswick",
+   "gold_fc": "ADM1",
+   "gold_cc": "CAN",
+   "gold_pop": 751250,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "N.D.",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "5690763",
+   "pred_gid": "1174520",
+   "n_this_pair": 1,
+   "gold_name": "North Dakota",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 630529,
+   "pred_name": "Kaura Nala",
+   "pred_fc": "STMI",
+   "pred_cc": "PAK",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "N.J.",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "5101760",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "New Jersey",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 8751436,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Normandy",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "2990109",
+   "pred_gid": "11071621",
+   "n_this_pair": 1,
+   "gold_name": "Normandie",
+   "gold_fc": "RGN",
+   "gold_cc": "FRA",
+   "gold_pop": 0,
+   "pred_name": "Normandie",
+   "pred_fc": "ADM1",
+   "pred_cc": "FRA",
+   "pred_pop": 3499280,
+   "median_km": 42.59597949233226,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Oakland",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5204165",
+   "pred_gid": "5378538",
+   "n_this_pair": 1,
+   "gold_name": "Oakland",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Oakland",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 419267,
+   "median_km": 3626.5638705355427,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Overton",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "7294409",
+   "pred_gid": "12265641",
+   "n_this_pair": 1,
+   "gold_name": "Overton",
+   "gold_fc": "ADM3",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Overton",
+   "pred_fc": "PPL",
+   "pred_cc": "GBR",
+   "pred_pop": 0,
+   "median_km": 103.76616699913859,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "PARIS",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4402452",
+   "pred_gid": "4717560",
+   "n_this_pair": 1,
+   "gold_name": "Paris",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 1176,
+   "pred_name": "Paris",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 24782,
+   "median_km": 720.62727273193,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "PLYMOUTH CO.",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4871708",
+   "pred_gid": "710719",
+   "n_this_pair": 1,
+   "gold_name": "Plymouth County",
+   "gold_fc": "ADM2",
+   "gold_cc": "USA",
+   "gold_pop": 25698,
+   "pred_name": "Chernivtsi",
+   "pred_fc": "PPLA",
+   "pred_cc": "UKR",
+   "pred_pop": 265471,
+   "median_km": 8420.045086570262,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Paddock Hill Bend",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "6618982",
+   "pred_gid": "6452510",
+   "n_this_pair": 1,
+   "gold_name": "Brands Hatch",
+   "gold_fc": "RECR",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Aix-les-Bains",
+   "pred_fc": "ADM4",
+   "pred_cc": "FRA",
+   "pred_pop": 29799,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Palestine",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5166039",
+   "pred_gid": "4717232",
+   "n_this_pair": 1,
+   "gold_name": "Palestine",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 197,
+   "pred_name": "Palestine",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 18288,
+   "median_km": 1343.665699109559,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Para\u00f1aque City",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "1694782",
+   "pred_gid": "1694781",
+   "n_this_pair": 1,
+   "gold_name": "City of Para\u00f1aque",
+   "gold_fc": "ADM3",
+   "gold_cc": "PHL",
+   "gold_pop": 665822,
+   "pred_name": "Paranaque City",
+   "pred_fc": "PPLA3",
+   "pred_cc": "PHL",
+   "pred_pop": 689992,
+   "median_km": 4.210575687547061,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Penacook",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5090939",
+   "pred_gid": "5084868",
+   "n_this_pair": 1,
+   "gold_name": "Penacook",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Concord",
+   "pred_fc": "PPLA",
+   "pred_cc": "USA",
+   "pred_pop": 42620,
+   "median_km": 9.493011923169757,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Plymouth",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "4947597",
+   "pred_gid": "4947607",
+   "n_this_pair": 1,
+   "gold_name": "Plymouth",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 7494,
+   "pred_name": "Plymouth County",
+   "pred_fc": "ADM2",
+   "pred_cc": "USA",
+   "pred_pop": 530819,
+   "median_km": 6.610389519517494,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Poland",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5167196",
+   "pred_gid": "798544",
+   "n_this_pair": 1,
+   "gold_name": "Poland",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 2484,
+   "pred_name": "Republic of Poland",
+   "pred_fc": "PCLI",
+   "pred_cc": "POL",
+   "pred_pop": 37978548,
+   "median_km": 7163.869259296824,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Port Said",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "358619",
+   "pred_gid": "358617",
+   "n_this_pair": 1,
+   "gold_name": "Port Said",
+   "gold_fc": "PPLA",
+   "gold_cc": "EGY",
+   "gold_pop": 780515,
+   "pred_name": "Port Said",
+   "pred_fc": "ADM1",
+   "pred_cc": "EGY",
+   "pred_pop": 764499,
+   "median_km": 19.329958034944767,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Puge",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "1798517",
+   "pred_gid": "1798505",
+   "n_this_pair": 1,
+   "gold_name": "Puge Xian",
+   "gold_fc": "ADM3",
+   "gold_cc": "CHN",
+   "gold_pop": 0,
+   "pred_name": "Puji",
+   "pred_fc": "PPLA3",
+   "pred_cc": "CHN",
+   "pred_pop": 0,
+   "median_km": 16.850019824303146,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "RICHLAND",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "5076207",
+   "pred_gid": "5808276",
+   "n_this_pair": 1,
+   "gold_name": "Richland",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 73,
+   "pred_name": "Richland",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 54248,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Rathbeggan",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "unknown",
+   "causes": {
+    "unknown": 1
+   },
+   "gold_gid": "11777302",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "Rathbeggan Lakes",
+   "gold_fc": "PRK",
+   "gold_cc": "IRL",
+   "gold_pop": 0,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": 5975.722175824701,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Richland",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "5076207",
+   "pred_gid": "5379513",
+   "n_this_pair": 1,
+   "gold_name": "Richland",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 73,
+   "pred_name": "Orange",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 140992,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "River Moy",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "unknown",
+   "causes": {
+    "unknown": 1
+   },
+   "gold_gid": "2962448",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "River Moy",
+   "gold_fc": "STM",
+   "gold_cc": "IRL",
+   "gold_pop": 0,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": 6083.30879062718,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Rochester",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5043473",
+   "pred_gid": "5134086",
+   "n_this_pair": 1,
+   "gold_name": "Rochester",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 112225,
+   "pred_name": "Rochester",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 209802,
+   "median_km": 1198.6122924286365,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Rockingham",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "dup_row",
+   "causes": {
+    "dup_row": 1
+   },
+   "gold_gid": "7299049",
+   "pred_gid": "2639247",
+   "n_this_pair": 1,
+   "gold_name": "Rockingham",
+   "gold_fc": "ADM4",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Rockingham",
+   "pred_fc": "PPL",
+   "pred_cc": "GBR",
+   "pred_pop": 0,
+   "median_km": 0.2891578859987445,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "S.C.",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "4597040",
+   "pred_gid": "NULL",
+   "n_this_pair": 1,
+   "gold_name": "South Carolina",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 4229842,
+   "pred_name": null,
+   "pred_fc": null,
+   "pred_cc": null,
+   "pred_pop": null,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Shenzhen",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "1795565",
+   "pred_gid": "1795563",
+   "n_this_pair": 1,
+   "gold_name": "Shenzhen",
+   "gold_fc": "PPLA2",
+   "gold_cc": "CHN",
+   "gold_pop": 17494398,
+   "pred_name": "Shenzhen",
+   "pred_fc": "ADM2",
+   "pred_cc": "CHN",
+   "pred_pop": 10000000,
+   "median_km": 8.549681418422841,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Silverstone",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "7627299",
+   "pred_gid": "2637827",
+   "n_this_pair": 1,
+   "gold_name": "Silverstone Circuit",
+   "gold_fc": "RECR",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Silverstone",
+   "pred_fc": "PPL",
+   "pred_cc": "GBR",
+   "pred_pop": 1907,
+   "median_km": 2.086199436591871,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Singapore",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "1880252",
+   "pred_gid": "1880251",
+   "n_this_pair": 1,
+   "gold_name": "Singapore",
+   "gold_fc": "PPLC",
+   "gold_cc": "SGP",
+   "gold_pop": 5638700,
+   "pred_name": "Republic of Singapore",
+   "pred_fc": "PCLI",
+   "pred_cc": "SGP",
+   "pred_pop": 5638676,
+   "median_km": 10.212199761199658,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "South Florida",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_other",
+   "causes": {
+    "retr_other": 1
+   },
+   "gold_gid": "4155751",
+   "pred_gid": "7216152",
+   "n_this_pair": 1,
+   "gold_name": "Florida",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 17671452,
+   "pred_name": "University of South Florida Welcome Center",
+   "pred_fc": "BLDG",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "South Side",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4903363",
+   "pred_gid": "4409508",
+   "n_this_pair": 1,
+   "gold_name": "Near South Side",
+   "gold_fc": "PPLX",
+   "gold_cc": "USA",
+   "gold_pop": 22401,
+   "pred_name": "South Side Cemetery",
+   "pred_fc": "CMTY",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": 551.7156975927626,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "St. Petersburg",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "498817",
+   "pred_gid": "4171563",
+   "n_this_pair": 1,
+   "gold_name": "Saint Petersburg",
+   "gold_fc": "PPLA",
+   "gold_cc": "RUS",
+   "gold_pop": 5351935,
+   "pred_name": "St. Petersburg",
+   "pred_fc": "PPL",
+   "pred_cc": "USA",
+   "pred_pop": 257083,
+   "median_km": 8528.15902374267,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Steveston",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "dup_row",
+   "causes": {
+    "dup_row": 1
+   },
+   "gold_gid": "6156415",
+   "pred_gid": "7602285",
+   "n_this_pair": 1,
+   "gold_name": "Steveston",
+   "gold_fc": "AREA",
+   "gold_cc": "CAN",
+   "gold_pop": 0,
+   "pred_name": "Steveston",
+   "pred_fc": "PPL",
+   "pred_cc": "CAN",
+   "pred_pop": 0,
+   "median_km": 0.09809495899676576,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Tenn.",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "4662168",
+   "pred_gid": "4226075",
+   "n_this_pair": 1,
+   "gold_name": "Tennessee",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 5935099,
+   "pred_name": "Tennessee-Georgia Memorial Park Cemetery",
+   "pred_fc": "CMTY",
+   "pred_cc": "USA",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Thruxton",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "2635908",
+   "pred_gid": "2635907",
+   "n_this_pair": 1,
+   "gold_name": "Thruxton",
+   "gold_fc": "PPL",
+   "gold_cc": "GBR",
+   "gold_pop": 0,
+   "pred_name": "Thruxton",
+   "pred_fc": "PPLA3",
+   "pred_cc": "GBR",
+   "pred_pop": 0,
+   "median_km": 122.41378569568585,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Turtle Rock",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "5404106",
+   "pred_gid": "6627138",
+   "n_this_pair": 1,
+   "gold_name": "Turtle Rock",
+   "gold_fc": "",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Turtle Rock",
+   "pred_fc": "ISL",
+   "pred_cc": "ATA",
+   "pred_pop": 0,
+   "median_km": 13687.346664392562,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Urbana",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4914570",
+   "pred_gid": "5174897",
+   "n_this_pair": 1,
+   "gold_name": "Urbana",
+   "gold_fc": "PPLA2",
+   "gold_cc": "USA",
+   "gold_pop": 42311,
+   "pred_name": "Urbana",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 11547,
+   "median_km": 378.8162322253427,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Varzaqan",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "historical",
+   "causes": {
+    "historical": 1
+   },
+   "gold_gid": "112122",
+   "pred_gid": "112121",
+   "n_this_pair": 1,
+   "gold_name": "Varzaq\u0101n",
+   "gold_fc": "PPLQ",
+   "gold_cc": "IRN",
+   "gold_pop": 0,
+   "pred_name": "Varazq\u0101n",
+   "pred_fc": "PPLA2",
+   "pred_cc": "IRN",
+   "pred_pop": 0,
+   "median_km": 50.60834893294349,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Visbek",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "dup_row",
+   "causes": {
+    "dup_row": 1
+   },
+   "gold_gid": "2817139",
+   "pred_gid": "6553003",
+   "n_this_pair": 1,
+   "gold_name": "Visbek",
+   "gold_fc": "PPLA4",
+   "gold_cc": "DEU",
+   "gold_pop": 9164,
+   "pred_name": "Visbek",
+   "pred_fc": "ADM4",
+   "pred_cc": "DEU",
+   "pred_pop": 10047,
+   "median_km": 0.0033358524060494773,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "WA",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "2058645",
+   "pred_gid": "5815135",
+   "n_this_pair": 1,
+   "gold_name": "State of Western Australia",
+   "gold_fc": "ADM1",
+   "gold_cc": "AUS",
+   "gold_pop": 2773400,
+   "pred_name": "Washington",
+   "pred_fc": "ADM1",
+   "pred_cc": "USA",
+   "pred_pop": 6271775,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Waco",
+   "n_err": 1,
+   "sources": {
+    "LGL": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "4312500",
+   "pred_gid": "4739526",
+   "n_this_pair": 1,
+   "gold_name": "Waco",
+   "gold_fc": "PPL",
+   "gold_cc": "USA",
+   "gold_pop": 0,
+   "pred_name": "Waco",
+   "pred_fc": "PPLA2",
+   "pred_cc": "USA",
+   "pred_pop": 132356,
+   "median_km": 1372.4869760283038,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Wis.",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "retr_abbrev",
+   "causes": {
+    "retr_abbrev": 1
+   },
+   "gold_gid": "5279468",
+   "pred_gid": "6888099",
+   "n_this_pair": 1,
+   "gold_name": "Wisconsin",
+   "gold_fc": "ADM1",
+   "gold_cc": "USA",
+   "gold_pop": 5535168,
+   "pred_name": "Witsapsil",
+   "pred_fc": "PPL",
+   "pred_cc": "KOR",
+   "pred_pop": 0,
+   "median_km": NaN,
+   "n_unretrievable": 1
+  },
+  {
+   "mention": "Xinmo",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "6919455",
+   "pred_gid": "10149157",
+   "n_this_pair": 1,
+   "gold_name": "Xinmo",
+   "gold_fc": "PPL",
+   "gold_cc": "CHN",
+   "gold_pop": 0,
+   "pred_name": "Xinmo",
+   "pred_fc": "PPL",
+   "pred_cc": "CHN",
+   "pred_pop": 0,
+   "median_km": 285.73180849952706,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Yorkshire",
+   "n_err": 1,
+   "sources": {
+    "GWN": 1
+   },
+   "cause": "wrong_place",
+   "causes": {
+    "wrong_place": 1
+   },
+   "gold_gid": "11591951",
+   "pred_gid": "2633349",
+   "n_this_pair": 1,
+   "gold_name": "Yorkshire and The Humber",
+   "gold_fc": "RGN",
+   "gold_cc": "GBR",
+   "gold_pop": 5425741,
+   "pred_name": "Yorkshire",
+   "pred_fc": "ADMD",
+   "pred_cc": "GBR",
+   "pred_pop": 3978484,
+   "median_km": 15.811468603940225,
+   "n_unretrievable": 0
+  },
+  {
+   "mention": "Zurich",
+   "n_err": 1,
+   "sources": {
+    "TR": 1
+   },
+   "cause": "granularity",
+   "causes": {
+    "granularity": 1
+   },
+   "gold_gid": "2657896",
+   "pred_gid": "2657895",
+   "n_this_pair": 1,
+   "gold_name": "Z\u00fcrich",
+   "gold_fc": "PPLA",
+   "gold_cc": "CHE",
+   "gold_pop": 341730,
+   "pred_name": "Kanton Z\u00fcrich",
+   "pred_fc": "ADM1",
+   "pred_cc": "CHE",
+   "pred_pop": 1553423,
+   "median_km": 10.394454477529148,
+   "n_unretrievable": 0
+  }
+ ],
+ "n_errors": 219,
+ "cause_mix": {
+  "wrong_place": 141,
+  "retr_abbrev": 27,
+  "retr_other": 13,
+  "granularity": 25,
+  "historical": 1,
+  "dup_row": 6,
+  "gold_row_gone": 4,
+  "unknown": 2
+ }
+}

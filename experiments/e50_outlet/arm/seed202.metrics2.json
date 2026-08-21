@@ -1,0 +1,101 @@
+{
+  "tlg_hard": 0.8949883555942018,
+  "tlg_hard_n": 1219,
+  "novel_pair_em": 0.7904979965655409,
+  "novel_pair_n": 1747,
+  "seen_pair_em": 0.96121844591736,
+  "twin_credit_macro": 0.9326368757762566,
+  "em_conditioned_macro": 0.9202318509080152,
+  "em_all_macro": 0.9047640716504877,
+  "em_conditioned_macro_legacy6": 0.9307394744188868,
+  "em_conditioned_pooled": 0.9274722787961077,
+  "em_all_pooled": 0.9131112843934499,
+  "abstain_rate": 0.01336749470870001,
+  "abstain_precision": 0.6166666666666667,
+  "unanswerable_rate": 0.01548401470424418,
+  "per_source": {
+    "Prodigy": {
+      "n": 500,
+      "n_answerable": 500,
+      "em_conditioned": 0.88,
+      "em_all": 0.88,
+      "em_noncountry": 0.8201219512195121,
+      "n_noncountry": 328,
+      "novel_pair_em": 0.7089552238805971,
+      "n_novel": 134,
+      "twin_credit": 0.898,
+      "abstain_rate": 0.02,
+      "unanswerable_rate": 0.0
+    },
+    "TR": {
+      "n": 274,
+      "n_answerable": 271,
+      "em_conditioned": 0.915129151291513,
+      "em_all": 0.9051094890510949,
+      "em_noncountry": 0.8904761904761904,
+      "n_noncountry": 210,
+      "novel_pair_em": 0.85,
+      "n_novel": 80,
+      "twin_credit": 0.933579335793358,
+      "abstain_rate": 0.014598540145985401,
+      "unanswerable_rate": 0.010948905109489052
+    },
+    "LGL": {
+      "n": 973,
+      "n_answerable": 946,
+      "em_conditioned": 0.952431289640592,
+      "em_all": 0.9260020554984584,
+      "em_noncountry": 0.9447236180904522,
+      "n_noncountry": 796,
+      "novel_pair_em": 0.9259259259259259,
+      "n_novel": 432,
+      "twin_credit": 0.9534883720930233,
+      "abstain_rate": 0.02774922918807811,
+      "unanswerable_rate": 0.02774922918807811
+    },
+    "GWN": {
+      "n": 474,
+      "n_answerable": 460,
+      "em_conditioned": 0.9282608695652174,
+      "em_all": 0.9008438818565401,
+      "em_noncountry": 0.8497652582159625,
+      "n_noncountry": 213,
+      "novel_pair_em": 0.75,
+      "n_novel": 112,
+      "twin_credit": 0.941304347826087,
+      "abstain_rate": 0.014767932489451477,
+      "unanswerable_rate": 0.029535864978902954
+    },
+    "Synth": {
+      "n": 300,
+      "n_answerable": 299,
+      "em_conditioned": 0.9832775919732442,
+      "em_all": 0.98,
+      "em_noncountry": 0.9710144927536232,
+      "n_noncountry": 138,
+      "novel_pair_em": 0.96875,
+      "n_novel": 128,
+      "twin_credit": 0.9899665551839465,
+      "abstain_rate": 0.0,
+      "unanswerable_rate": 0.0033333333333333335
+    },
+    "WikiDocs": {
+      "n": 6456,
+      "n_answerable": 6362,
+      "em_conditioned": 0.9253379440427538,
+      "em_all": 0.9118649318463445,
+      "em_noncountry": 0.8778869126625962,
+      "n_noncountry": 3767,
+      "novel_pair_em": 0.7084785133565621,
+      "n_novel": 861,
+      "twin_credit": 0.9368123231688148,
+      "abstain_rate": 0.011152416356877323,
+      "unanswerable_rate": 0.014560099132589838
+    }
+  },
+  "_config": {
+    "seed": 202,
+    "split_mode": "entity",
+    "checkpoint": "/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/e50/ckpt/arm202.pt"
+  }
+}

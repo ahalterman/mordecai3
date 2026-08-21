@@ -1,0 +1,3 @@
+[
+ {"name":"gold_dem100", "seeds":[42,101,202], "epochs":20, "demonym_weight":100.0}
+]

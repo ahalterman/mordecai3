@@ -1,0 +1,53 @@
+e52 R1 — the one rule this experiment recommends adopting.
+
+Mention normalisation BEFORE the Elasticsearch query, in the single place that
+builds the name query.  Nothing else in the pipeline changes: `res_formatter`
+still measures edit distances against the ORIGINAL mention string (it is passed
+`ex['search_name']`, not the query), so every candidate feature keeps meaning
+what it meant at training time.  Cost is zero — the rule replaces one query
+with another; it does not add one.
+
+Guards live in `alias_targets` (lifted from experiments/e51_state_abbrev):
+a bare two-letter code expands only when the whole mention is that code, in
+caps, with no dots ("WA", "NC"), so "in LA" never becomes Louisiana; dotted AP
+forms ("Ind.", "W.Va.", "N.M.") expand unconditionally.  Measured on all six
+held-out sources: 65 firings in 8,977 mentions, 0 false expansions, 0 entities
+made worse.
+
+The `QUERY_OVERRIDE` line is load-bearing: `_clean_search_name` strips the
+token "District", so expanding "D.C." to "District of Columbia" would send the
+query "of Columbia".  The override sends "Washington, D.C." instead.
+
+--- a/mordecai3/geonames.py
++++ b/mordecai3/geonames.py
+@@
++from .place_aliases import alias_query
++
+@@ class GeonamesService.build_name_search
+         max_results = int(max_results)
+         fuzzy = int(fuzzy)
++        # e52: a mention that is a US-state / Canadian-province abbreviation
++        # phrase-matches `alternativenames` and, under the alt_name_length
++        # sort, returns countries -- "WA" -> DR Congo, "Ky." -> the United
++        # Kingdom, "N.M." -> a Santa Fe hotel.  61% of all unretrievable golds
++        # in held-out TR/LGL/GWN are this one defect.  Expand before querying.
++        expanded = alias_query(search_name)
++        if expanded:
++            search_name = expanded
+         search_name = _clean_search_name(search_name)
+
+new file: mordecai3/place_aliases.py
+    STATES / CA_PROV / AP / QUERY_OVERRIDE tables and alias_targets/alias_query,
+    copied verbatim from experiments/e52_gaz_hygiene/hygiene.py (which took the
+    tables from experiments/e51_state_abbrev/sizing.py).
+
+NOT recommended for the serving path, on the measurements in
+experiments/campaign2/gazetteer_hygiene_report.md:
+  * R2 demote_h  -- net +2 entities in 8,977 under the frozen ranker.
+  * R3 dedupe    -- a convention swap, -112 (keep P) / -1,500 (keep A) on a
+                    fixed denominator, while the campaign's conditioned metric
+                    goes UP because the deleted rows were golds.
+  * R4 demote_junk -- +0.003 TLG-hard on its own, +19 on `Mauna Kea`; worth
+                    folding in ONLY as part of an index rebuild, not as a
+                    serving-time drop, because it depends on a threshold this
+                    census sized on one string family.

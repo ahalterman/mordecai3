@@ -1,0 +1,50 @@
+sources: ['TR', 'LGL', 'GWN']
+  entities                     1721
+  unretrievable                  44
+  unretrievable_abbrev           27
+  gold_beyond_window100          47
+  gold_not_in_index               4
+  has_hist_candidate           1045
+  hist_in_top5                   59
+  gold_is_hist                    1
+  demote_h_fires                278
+  demote_h_rows                 440
+  demote_h_DELETES_GOLD           0
+  dedupe_fires                 1145
+  dedupe_rows                  4362
+  dedupe_p_DELETES_GOLD           3
+  dedupe_a_DELETES_GOLD         105
+  junk_fires                      0
+  junk_DELETES_GOLD               0
+
+golds whose geonameid is NOT in the index:
+   LGL       Red Sea                  235615     x2
+   LGL       Black Sea                6640396    x1
+   LGL       Hillsboro                5087451    x1
+
+entities whose GOLD is a defunct row (a *H rule must not touch):
+   TR        Varzaqan                 112122     PPLQ
+
+entities whose gold is the row `dedupe --keep p` would delete:
+   LGL       Powhatan County          4780225    ADM2
+   LGL       Steveston                6156415    AREA
+   GWN       Rockingham               7299049    ADM4
+
+unretrievable golds that are NOT abbreviations:
+   TR        Paris                        6942553
+   LGL       Charlotte                    4887254
+   LGL       Cambridge City               4255339
+   LGL       Atlanta                      4282799
+   LGL       Black Sea                    6640396
+   LGL       Red Sea                      235615
+   LGL       Red Sea                      235615
+   LGL       RICHLAND                     5076207
+   LGL       Richland                     5076207
+   LGL       Hillsboro                    5087451
+   GWN       Mount Chaambi                2496952
+   GWN       South Florida                4155751
+   GWN       Latin America                6255150
+   GWN       Paddock Hill Bend            6618982
+   GWN       South Africa                 1007311
+   GWN       South Africa                 1007311
+   GWN       South Africa                 1007311

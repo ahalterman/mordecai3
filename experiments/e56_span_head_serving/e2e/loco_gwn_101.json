@@ -1,0 +1,975 @@
+{
+ "model_path": "mordecai3/assets/mordecai_2026-08-20_e54_seed42.pt",
+ "max_choices": 100,
+ "all_docs": false,
+ "feature_blocks": "prom,name,cue,sib,geo,shape,outlet",
+ "outlet_sources": [],
+ "span_heads": {
+  "gold": [
+   "/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/e56/heads/loco_gold_not_gwn_101.pt",
+   0.25
+  ]
+ },
+ "corpora": {
+  "gwn": {
+   "split": {
+    "n_entities": 1580,
+    "split_index": 1106,
+    "n_doc_groups": 188,
+    "n_articles": 200,
+    "n_heldout_docs": 57,
+    "straddling_doc": [
+     138
+    ]
+   },
+   "variants": {
+    "head_gold": {
+     "n_docs": 57,
+     "n_gold": 523,
+     "n_pred": 569,
+     "n_demonym_excluded": 170,
+     "n_out": 536,
+     "out_precision": 0.7519,
+     "out_precision_overlap": 0.7631,
+     "det_exact_p": 0.7873,
+     "det_exact_r": 0.8566,
+     "det_overlap_p": 0.8049,
+     "det_overlap_r": 0.8757,
+     "e2e_em": 0.7706,
+     "e2e_161": 0.8031,
+     "e2e_overlap_em": 0.782,
+     "e2e_overlap_161": 0.8184,
+     "decomp": {
+      "boundary_ok": 0.0115,
+      "boundary_wrong": 0.0076,
+      "correct": 0.7706,
+      "ner_miss": 0.1243,
+      "null_answer": 0.0057,
+      "ranker_error": 0.0402,
+      "retrieval_miss": 0.0402
+     },
+     "decomp_counts": {
+      "boundary_ok": 6,
+      "boundary_wrong": 4,
+      "correct": 403,
+      "ner_miss": 65,
+      "null_answer": 3,
+      "ranker_error": 21,
+      "retrieval_miss": 21
+     },
+     "spurious": {
+      "double_count_resolved": 7,
+      "no_gold_null": 5,
+      "no_gold_resolved": 3,
+      "unlinked_gold_null": 9,
+      "unlinked_gold_resolved": 87
+     },
+     "gap": {},
+     "miss_by_class": {
+      "ORG": 42,
+      "FAC": 13,
+      "untagged": 4,
+      "GPE/LOC": 3,
+      "other label: WORK_OF_ART": 2,
+      "other label: EVENT": 1
+     },
+     "miss_by_kind": {
+      "nested in ORG": 29,
+      "same span, label ORG": 13,
+      "same span, label FAC": 8,
+      "nested in FAC": 5,
+      "no entity here": 4,
+      "same span, label LOC": 2,
+      "nested in EVENT": 1,
+      "nested in LOC": 1,
+      "same span, label WORK_OF_ART": 1,
+      "nested in WORK_OF_ART": 1
+     },
+     "by_class": {
+      "GPE/LOC": {
+       "n": 413,
+       "det_exact_r": 0.9927,
+       "det_overlap_r": 0.9927,
+       "e2e_em": 0.9031
+      },
+      "ORG": {
+       "n": 79,
+       "det_exact_r": 0.3671,
+       "det_overlap_r": 0.4684,
+       "e2e_em": 0.2785
+      },
+      "FAC": {
+       "n": 16,
+       "det_exact_r": 0.125,
+       "det_overlap_r": 0.1875,
+       "e2e_em": 0.125
+      },
+      "untagged": {
+       "n": 8,
+       "det_exact_r": 0.5,
+       "det_overlap_r": 0.5,
+       "e2e_em": 0.5
+      },
+      "other label: EVENT": {
+       "n": 3,
+       "det_exact_r": 0.3333,
+       "det_overlap_r": 0.6667,
+       "e2e_em": 0.0
+      },
+      "other label: LAW": {
+       "n": 2,
+       "det_exact_r": 1.0,
+       "det_overlap_r": 1.0,
+       "e2e_em": 1.0
+      },
+      "other label: WORK_OF_ART": {
+       "n": 2,
+       "det_exact_r": 0.0,
+       "det_overlap_r": 0.0,
+       "e2e_em": 0.0
+      }
+     },
+     "by_gtype": {
+      "Literal": {
+       "n": 220,
+       "det_exact_r": 0.9273,
+       "det_overlap_r": 0.9273,
+       "e2e_em": 0.8182
+      },
+      "Metonymic": {
+       "n": 118,
+       "det_exact_r": 0.9746,
+       "det_overlap_r": 0.9746,
+       "e2e_em": 0.9661
+      },
+      "Mixed": {
+       "n": 70,
+       "det_exact_r": 0.9857,
+       "det_overlap_r": 0.9857,
+       "e2e_em": 0.8143
+      },
+      "Embedded_Non_Lit": {
+       "n": 65,
+       "det_exact_r": 0.4154,
+       "det_overlap_r": 0.5385,
+       "e2e_em": 0.3231
+      },
+      "Literal_Modifier": {
+       "n": 36,
+       "det_exact_r": 0.8333,
+       "det_overlap_r": 0.8611,
+       "e2e_em": 0.8333
+      },
+      "Coercion": {
+       "n": 9,
+       "det_exact_r": 0.1111,
+       "det_overlap_r": 0.2222,
+       "e2e_em": 0.0
+      },
+      "Embedded_Literal": {
+       "n": 5,
+       "det_exact_r": 0.4,
+       "det_overlap_r": 0.4,
+       "e2e_em": 0.2
+      }
+     },
+     "det_exact_f1": 0.8205,
+     "det_overlap_f1": 0.8388,
+     "legacy_incl_demonym": {
+      "n_gold": 693,
+      "det_exact_p": 0.9262,
+      "det_exact_r": 0.7605,
+      "det_exact_f1": 0.8352,
+      "det_overlap_r": 0.7778,
+      "e2e_em": 0.6825,
+      "e2e_161": 0.7085,
+      "e2e_overlap_em": 0.6926,
+      "out_precision": 0.8825
+     },
+     "timing": {
+      "spacy_s": 1.12,
+      "es_s": 1.35,
+      "model_s": 0.16,
+      "gaz_s": 0.0,
+      "head_s": 0.41,
+      "ner_extra_s": 0.0,
+      "docs": 57,
+      "docs_per_s": 18.76
+     },
+     "miss_examples": [
+      {
+       "phrase": "Crossroads Correctional Center",
+       "start": 132,
+       "doc": 140,
+       "class": "ORG",
+       "gtype": "Literal",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "rivate prison company's contract to run Crossroads Correctional Center in Shelby. Montana Department of Correc"
+      },
+      {
+       "phrase": "Loyola University",
+       "start": 868,
+       "doc": 143,
+       "class": "ORG",
+       "gtype": "Coercion",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "aud is extremely rare . A researcher at Loyola University in Los Angeles reviewed a billion ballo"
+      },
+      {
+       "phrase": "Washington",
+       "start": 1506,
+       "doc": 143,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:The Washington Post",
+       "context": "s wrote in a court filing posted by The Washington Post that opposed a recount effort. The"
+      },
+      {
+       "phrase": "Indian",
+       "start": 1487,
+       "doc": 144,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the Centre for Monitoring Indian Economy",
+       "context": " according to the Centre for Monitoring Indian Economy (CMIE), an independent think-ta"
+      },
+      {
+       "phrase": "America",
+       "start": 443,
+       "doc": 145,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Bank of America",
+       "context": "harlotte. He did data entry for Bank of America for a long time. Then, he lost his job,"
+      },
+      {
+       "phrase": "Garden City",
+       "start": 585,
+       "doc": 145,
+       "class": "untagged",
+       "gtype": "Literal_Modifier",
+       "exact_ent_label": null,
+       "cover": null,
+       "context": " Eventually, Lord moved to the Surfside/Garden City area, but a job fell through. \u201cI do not"
+      },
+      {
+       "phrase": "Surfside",
+       "start": 576,
+       "doc": 145,
+       "class": "untagged",
+       "gtype": "Literal_Modifier",
+       "exact_ent_label": null,
+       "cover": null,
+       "context": " ran out. Eventually, Lord moved to the Surfside/Garden City area, but a job fell throug"
+      },
+      {
+       "phrase": "Mauritius",
+       "start": 1855,
+       "doc": 146,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:SME Mauritius Limited",
+       "context": "e up their businesses.  Speaking of SME Mauritius Limited, the Minister highlighted that "
+      },
+      {
+       "phrase": "Mauritius",
+       "start": 260,
+       "doc": 146,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:SME Mauritius Limited",
+       "context": "s.  The one-day event, organised by SME Mauritius Limited, was attended by the Minister o"
+      },
+      {
+       "phrase": "Mauritius",
+       "start": 757,
+       "doc": 146,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:SME Mauritius Limited",
+       "context": "ral Research & Extension Institute, SME Mauritius Limited, and Development Bank of Maurit"
+      },
+      {
+       "phrase": "University of St. Thomas",
+       "start": 294,
+       "doc": 149,
+       "class": "ORG",
+       "gtype": "Coercion",
+       "exact_ent_label": null,
+       "cover": "ORG:the University of St. Thomas",
+       "context": "r, a political science professor at the University of St. Thomas in Houston, Texas, said.  WTO rules and"
+      },
+      {
+       "phrase": "Carpinteria",
+       "start": 1291,
+       "doc": 150,
+       "class": "untagged",
+       "gtype": "Literal_Modifier",
+       "exact_ent_label": null,
+       "cover": null,
+       "context": " home with stunning Goleta-foothills-to-Carpinteria-coast views atop the Mesa, Allen recent"
+      },
+      {
+       "phrase": "Santa Barbara",
+       "start": 2584,
+       "doc": 150,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Epicurean Santa Barbara",
+       "context": "his facilitates that.\u201d 4\u00b71\u00b71. Epicurean Santa Barbara memberships are $195 for an individual,"
+      },
+      {
+       "phrase": "Santa Barbara",
+       "start": 2231,
+       "doc": 150,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Epicurean Santa Barbara",
+       "context": "aside from the wine and food, Epicurean Santa Barbara is about making connections between peo"
+      },
+      {
+       "phrase": "Turtle Rock",
+       "start": 1906,
+       "doc": 150,
+       "class": "FAC",
+       "gtype": "Literal_Modifier",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "s up-front, which winemakers like. (The Turtle Rock post-party dinner at Black Sheep, compl"
+      },
+      {
+       "phrase": "MetroHealth Medical Center",
+       "start": 386,
+       "doc": 151,
+       "class": "ORG",
+       "gtype": "Literal",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "re is available to all in the county at MetroHealth Medical Center, among many other services.  This year,"
+      },
+      {
+       "phrase": "MetroHealth Medical Center",
+       "start": 0,
+       "doc": 151,
+       "class": "ORG",
+       "gtype": "Mixed",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "MetroHealth Medical Center, the county hospital system, is one of "
+      },
+      {
+       "phrase": "Mediterranean",
+       "start": 805,
+       "doc": 153,
+       "class": "untagged",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": null,
+       "context": "rs. In 2014, 20 years after joining the Mediterranean Dialogue programme, Tunisia entered a N"
+      },
+      {
+       "phrase": "Arab",
+       "start": 5404,
+       "doc": 153,
+       "class": "other label: EVENT",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "EVENT:the Arab Spring",
+       "context": "bility affecting North Africa since the Arab Spring, security cooperation with neigh"
+      },
+      {
+       "phrase": "Tunisian",
+       "start": 4765,
+       "doc": 153,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Tunisian Special Forces",
+       "context": "ghters. Its main purpose was supporting Tunisian Special Forces in counter-terrorism act"
+      },
+      {
+       "phrase": "Washington",
+       "start": 3262,
+       "doc": 153,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the Washington Post",
+       "context": "the fiercest phase of the fighting, the Washington Post revealed that the US was conductin"
+      },
+      {
+       "phrase": "European Commission",
+       "start": 2277,
+       "doc": 157,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the European Commission",
+       "context": "cy priority. The EIB, together with the European Commission, supports the Member States in their tr"
+      },
+      {
+       "phrase": "Northern Europe",
+       "start": 1026,
+       "doc": 157,
+       "class": "GPE/LOC",
+       "gtype": "Literal",
+       "exact_ent_label": "LOC",
+       "cover": null,
+       "context": "r Stubb, responsible for EIB-lending in Northern Europe, said: \u201cEveryone knows that natural res"
+      },
+      {
+       "phrase": "European Commission",
+       "start": 329,
+       "doc": 157,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the European Commission",
+       "context": "h was launched by the EIB Group and the European Commission to boost the competitiveness of the Eur"
+      },
+      {
+       "phrase": "European Investment Bank",
+       "start": 1508,
+       "doc": 157,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the European Investment Bank",
+       "context": "he \u20ac40 million loan signed today by the European Investment Bank under the Investment Plan for Europe de"
+      },
+      {
+       "phrase": "European Investment Bank",
+       "start": 4,
+       "doc": 157,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:The European Investment Bank",
+       "context": "The European Investment Bank (EIB) has signed a USD 49.3 million (EU"
+      },
+      {
+       "phrase": "European Union",
+       "start": 2243,
+       "doc": 158,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the European Union",
+       "context": "l Erjavec reminded of the fact that the European Union adopted the same measure, by recalling "
+      },
+      {
+       "phrase": "EU",
+       "start": 2032,
+       "doc": 158,
+       "class": "ORG",
+       "gtype": "Coercion",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "that Slovenia is a specific case in the EU and NATO because of its relations with "
+      },
+      {
+       "phrase": "Woodman Point",
+       "start": 590,
+       "doc": 159,
+       "class": "FAC",
+       "gtype": "Literal_Modifier",
+       "exact_ent_label": null,
+       "cover": "FAC:the Woodman Point Wastewater Treatment Plant",
+       "context": " associated with a major upgrade of the Woodman Point Wastewater Treatment Plant. The outlet "
+      },
+      {
+       "phrase": "Northwestern Memorial Hospital",
+       "start": 712,
+       "doc": 160,
+       "class": "ORG",
+       "gtype": "Literal",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": " police said. He was pronounced dead at Northwestern Memorial Hospital. After the stabbing, Bassett ran away i"
+      },
+      {
+       "phrase": "Near North Side",
+       "start": 485,
+       "doc": 160,
+       "class": "GPE/LOC",
+       "gtype": "Literal",
+       "exact_ent_label": null,
+       "cover": "LOC:the Near North Side",
+       "context": " 400 block of North State Street on the Near North Side. Police say Bassett approached Beedle i"
+      },
+      {
+       "phrase": "Palais des Nations",
+       "start": 434,
+       "doc": 162,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": null,
+       "cover": "FAC:the Palais des Nations",
+       "context": "uted \u2013 at today's press briefing at the Palais des Nations in Geneva. UNHCR, the UN Refugee Agency"
+      },
+      {
+       "phrase": "Venice",
+       "start": 1891,
+       "doc": 164,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:The Venice Commission",
+       "context": "n partners called it a \"step back\". The Venice Commission stated that the requirements"
+      },
+      {
+       "phrase": "Venice",
+       "start": 1322,
+       "doc": 164,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the Venice Commission",
+       "context": "ts, in line with recommendations by the Venice Commission, and, in the interim, provid"
+      },
+      {
+       "phrase": "Kendale Lakes Elementary School",
+       "start": 309,
+       "doc": 167,
+       "class": "FAC",
+       "gtype": "Coercion",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "it. Nuiry, 53, was arrested Thursday at Kendale Lakes Elementary School in southwest Miami-Dade, according to S"
+      },
+      {
+       "phrase": "Zimbabwe",
+       "start": 3630,
+       "doc": 168,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Air Zimbabwe",
+       "context": "e don't know what is happening with Air Zimbabwe. We don't have anyone to talk to at Air"
+      },
+      {
+       "phrase": "Zimbabwe",
+       "start": 4104,
+       "doc": 168,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Air Zimbabwe",
+       "context": "e, and he is just a caretaker. \"So, Air Zimbabwe is a big problem; we don't know what is"
+      },
+      {
+       "phrase": "Zimbabwe",
+       "start": 3679,
+       "doc": 168,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Air Zimbabwe",
+       "context": " We don't have anyone to talk to at Air Zimbabwe. There is always some acting persons (C"
+      },
+      {
+       "phrase": "Zimbabwe",
+       "start": 3526,
+       "doc": 168,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Air Zimbabwe",
+       "context": "ZTA boss was however scathing about Air Zimbabwe. \"On air Zimbabwe, that is a million-do"
+      },
+      {
+       "phrase": "Korea",
+       "start": 129,
+       "doc": 176,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:The Korea Baseball Organization",
+       "context": "all league to postpone three games. The Korea Baseball Organization on Friday postpon"
+      },
+      {
+       "phrase": "Oulton Park",
+       "start": 2711,
+       "doc": 177,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "20 May: Thruxton, Hampshire. 9/10 June: Oulton Park, Cheshire. 23/24 June: Croft, Yorkshire"
+      },
+      {
+       "phrase": "Donington Park",
+       "start": 2636,
+       "doc": 177,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": ": Brands Hatch Indy, Kent. 28/29 April: Donington Park, Leicestershire. 19/20 May: Thruxton, H"
+      },
+      {
+       "phrase": "Brands Hatch",
+       "start": 2937,
+       "doc": 177,
+       "class": "ORG",
+       "gtype": "Embedded_Literal",
+       "exact_ent_label": null,
+       "cover": "ORG:Brands Hatch GP",
+       "context": "one, Northamptonshire. 29/30 September: Brands Hatch GP, Kent.  Seat is on a roll but can th"
+      },
+      {
+       "phrase": "Brands Hatch",
+       "start": 2598,
+       "doc": 177,
+       "class": "FAC",
+       "gtype": "Embedded_Literal",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "xth to 10th). 2018 calendar. 7/8 April: Brands Hatch Indy, Kent. 28/29 April: Donington Park"
+      },
+      {
+       "phrase": "Paddock Hill Bend",
+       "start": 201,
+       "doc": 177,
+       "class": "GPE/LOC",
+       "gtype": "Coercion",
+       "exact_ent_label": "LOC",
+       "cover": null,
+       "context": " 32-car field bumper bangs its way into Paddock Hill Bend, we run through eight key things to loo"
+      },
+      {
+       "phrase": "Cornell University",
+       "start": 4696,
+       "doc": 178,
+       "class": "ORG",
+       "gtype": "Embedded_Literal",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "ar Prasad, professor of trade policy at Cornell University. In China, some observers held out hope"
+      },
+      {
+       "phrase": "India",
+       "start": 91,
+       "doc": 179,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:Star India",
+       "context": " million deal with broadcast giant Star India for the media rights of the national te"
+      },
+      {
+       "phrase": "African National Congress",
+       "start": 356,
+       "doc": 183,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "ced out by the leadership of the ruling African National Congress, his own party.  Thousands of people tu"
+      },
+      {
+       "phrase": "Witwatersrand University",
+       "start": 2464,
+       "doc": 183,
+       "class": "ORG",
+       "gtype": "Coercion",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "mes Grant, a former professor of law at Witwatersrand University. A high-stakes fight. Legal experts bel"
+      },
+      {
+       "phrase": "Close Up Forever Summer",
+       "start": 413,
+       "doc": 184,
+       "class": "other label: WORK_OF_ART",
+       "gtype": "Coercion",
+       "exact_ent_label": "WORK_OF_ART",
+       "cover": null,
+       "context": " of selling the rave party drugs at the Close Up Forever Summer concert in the parking lot of the SM Ma"
+      },
+      {
+       "phrase": "SM Mall of Asia",
+       "start": 471,
+       "doc": 184,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": null,
+       "cover": "FAC:the SM Mall of Asia",
+       "context": "ummer concert in the parking lot of the SM Mall of Asia that resulted in the death of Ariel Lea"
+      },
+      {
+       "phrase": "New Bilibid Prison",
+       "start": 1198,
+       "doc": 184,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": null,
+       "cover": "FAC:the New Bilibid Prison",
+       "context": "he four male convicts to be sent to the New Bilibid Prison (NBP) in Muntinlupa, while the female c"
+      },
+      {
+       "phrase": "Barclays Center",
+       "start": 391,
+       "doc": 185,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "ws conference for UFC 223 at Brooklyn's Barclays Center. The New York Police Department says Mc"
+      },
+      {
+       "phrase": "Barclays Center",
+       "start": 746,
+       "doc": 185,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "took an elevator to the loading dock at Barclays Center. He can be seen tossing trash cans and "
+      },
+      {
+       "phrase": "American",
+       "start": 157,
+       "doc": 187,
+       "class": "other label: WORK_OF_ART",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "WORK_OF_ART:the Great American Song Book",
+       "context": " soul to R&B, and new wave to the Great American Song Book. Rod Stewart could have been "
+      },
+      {
+       "phrase": "Caesar's Palace",
+       "start": 361,
+       "doc": 187,
+       "class": "ORG",
+       "gtype": "Literal",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "cks off his eighth year in residency at Caesar's Palace in June. But fans who can't make it to "
+      },
+      {
+       "phrase": "Convention Centre",
+       "start": 2877,
+       "doc": 188,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": null,
+       "cover": "FAC:the Convention Centre",
+       "context": "nd followed it up with his debut at the Convention Centre, Dublin with a solo lunch-time concert "
+      },
+      {
+       "phrase": "KAZAKH",
+       "start": 1390,
+       "doc": 189,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:JSC \u201cNC \u201cKAZAKH INVEST\u201d",
+       "context": "d. \u201cTo date, the Ministry with JSC \u201cNC \u201cKAZAKH INVEST\u201d designed relevant approaches, a"
+      },
+      {
+       "phrase": "Craven Cottage",
+       "start": 672,
+       "doc": 190,
+       "class": "FAC",
+       "gtype": "Literal",
+       "exact_ent_label": "FAC",
+       "cover": null,
+       "context": "illa before holding Fulham to a draw at Craven Cottage. A 1-0 defeat to Reading could have see"
+      },
+      {
+       "phrase": "Sunderland",
+       "start": 610,
+       "doc": 190,
+       "class": "ORG",
+       "gtype": "Metonymic",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "lvanised his side, convincingly beating Sunderland and Aston Villa before holding Fulham t"
+      },
+      {
+       "phrase": "Fulham",
+       "start": 652,
+       "doc": 190,
+       "class": "ORG",
+       "gtype": "Metonymic",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "nderland and Aston Villa before holding Fulham to a draw at Craven Cottage. A 1-0 defe"
+      },
+      {
+       "phrase": "Reading",
+       "start": 704,
+       "doc": 190,
+       "class": "ORG",
+       "gtype": "Metonymic",
+       "exact_ent_label": "ORG",
+       "cover": null,
+       "context": "draw at Craven Cottage. A 1-0 defeat to Reading could have seen their season hit the bu"
+      },
+      {
+       "phrase": "European Union",
+       "start": 444,
+       "doc": 195,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the European Union",
+       "context": "e said that the UK\u2019s departure from the European Union meant Malta had lost a valuable ally, b"
+      },
+      {
+       "phrase": "University of California",
+       "start": 1062,
+       "doc": 197,
+       "class": "ORG",
+       "gtype": "Embedded_Non_Lit",
+       "exact_ent_label": null,
+       "cover": "ORG:the University of California, Los Angeles",
+       "context": "elipe Caro, a business professor at the University of California, Los Angeles, who has spent years study"
+      },
+      {
+       "phrase": "Republic",
+       "start": 555,
+       "doc": 198,
+       "class": "ORG",
+       "gtype": "Literal",
+       "exact_ent_label": null,
+       "cover": "ORG:Republic and",
+       "context": "stern Trust, as well as people from the Republic and Northern Trust area who are attendi"
+      }
+     ],
+     "boundary_examples": [
+      {
+       "gold": "Mexican Senate",
+       "pred": "Mexican",
+       "label": "HEAD",
+       "resolved_ok": true,
+       "class": "ORG"
+      },
+      {
+       "gold": "Arizona State University",
+       "pred": "Arizona",
+       "label": "HEAD",
+       "resolved_ok": true,
+       "class": "ORG"
+      },
+      {
+       "gold": "European Commission",
+       "pred": "European",
+       "label": "HEAD",
+       "resolved_ok": false,
+       "class": "ORG"
+      },
+      {
+       "gold": "Osun State",
+       "pred": "Osun",
+       "label": "HEAD",
+       "resolved_ok": true,
+       "class": "ORG"
+      },
+      {
+       "gold": "Illinois Capitol Complex",
+       "pred": "Illinois",
+       "label": "HEAD",
+       "resolved_ok": false,
+       "class": "FAC"
+      },
+      {
+       "gold": "Paranaque Regional Trial Court",
+       "pred": "Paranaque",
+       "label": "HEAD",
+       "resolved_ok": false,
+       "class": "ORG"
+      },
+      {
+       "gold": "Norwich City",
+       "pred": "Norwich",
+       "label": "HEAD",
+       "resolved_ok": true,
+       "class": "ORG"
+      },
+      {
+       "gold": "New York Auto Show",
+       "pred": "New York",
+       "label": "HEAD",
+       "resolved_ok": false,
+       "class": "other label: EVENT"
+      },
+      {
+       "gold": "Delhi High Court",
+       "pred": "Delhi",
+       "label": "HEAD",
+       "resolved_ok": true,
+       "class": "ORG"
+      },
+      {
+       "gold": "Harare City Council",
+       "pred": "Harare",
+       "label": "HEAD",
+       "resolved_ok": true,
+       "class": "ORG"
+      }
+     ],
+     "spurious_examples": [
+      {
+       "text": "Ben Guerdane",
+       "label": "HEAD",
+       "resolved": "Ben Guerdane (TUN/ADM2)"
+      },
+      {
+       "text": "and",
+       "label": "HEAD",
+       "resolved": null
+      },
+      {
+       "text": "Kemira",
+       "label": "HEAD",
+       "resolved": null
+      },
+      {
+       "text": "Amazon",
+       "label": "HEAD",
+       "resolved": null
+      },
+      {
+       "text": "Zimndaba",
+       "label": "HEAD",
+       "resolved": null
+      },
+      {
+       "text": "Porsche",
+       "label": "HEAD",
+       "resolved": "Porsche (DEU/MFG)"
+      },
+      {
+       "text": "Neb.",
+       "label": "HEAD",
+       "resolved": null
+      },
+      {
+       "text": "FL",
+       "label": "HEAD",
+       "resolved": "Florida (USA/ADM1)"
+      }
+     ],
+     "oracle_examples": []
+    }
+   },
+   "d2": {
+    "n_linked_gold": 693,
+    "n_demonym_excluded": 170,
+    "n_gold_after_d2": 523
+   }
+  }
+ }
+}

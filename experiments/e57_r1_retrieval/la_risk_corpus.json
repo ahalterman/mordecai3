@@ -1,0 +1,143 @@
+{
+ "n_docs": 260,
+ "n_gold_rows": 3992,
+ "gold_bare_codes": {
+  "KY": 1,
+  "SC": 1,
+  "WA": 1
+ },
+ "gold_rows": [
+  {
+   "src": "tr",
+   "doc": 108,
+   "phrase": "KY",
+   "gold_id": "6254925",
+   "context": "LOUISVILLE, KY--(Marketwire - December 23, 2010) -  (NYSE Amex: "
+  },
+  {
+   "src": "gwn",
+   "doc": 145,
+   "phrase": "SC",
+   "gold_id": "4597040",
+   "context": "HORRY COUNTY, SC (WMBF) - A homeless man and his yellow lab stand "
+  },
+  {
+   "src": "gwn",
+   "doc": 159,
+   "phrase": "WA",
+   "gold_id": "2058645",
+   "context": "r and not ecologically detrimental. Wastewater in WA is diluted through physical and chemical processe"
+  }
+ ],
+ "text_dateline": {
+  "PA": 1,
+  "SC": 1
+ },
+ "text_bare": {
+  "ID": 3,
+  "KY": 2,
+  "MD": 1,
+  "NC": 2,
+  "OK": 3,
+  "PA": 4,
+  "WA": 1
+ },
+ "text_rows": [
+  {
+   "src": "tr",
+   "doc": 106,
+   "code": "MD",
+   "context": "nd construction company Metix [[MD]] Reinier Meyjes. SMS"
+  },
+  {
+   "src": "lgl",
+   "doc": 418,
+   "code": "OK",
+   "context": "ion. \"He got beat, but that's [[OK]],\" said Ms. Goodman,"
+  },
+  {
+   "src": "lgl",
+   "doc": 444,
+   "code": "OK",
+   "context": "blic universities must get an [[OK]] from the Ohio Board"
+  },
+  {
+   "src": "lgl",
+   "doc": 459,
+   "code": "KY",
+   "context": "ee-vehicle injury accident on [[KY]] 52 occurred, but Sg"
+  },
+  {
+   "src": "lgl",
+   "doc": 459,
+   "code": "KY",
+   "context": "o turn right (westbound) onto [[KY]] 52 heading toward R"
+  },
+  {
+   "src": "lgl",
+   "doc": 482,
+   "code": "OK",
+   "context": "mera and giving the thumbs-up [[OK]] sign. At viewing st"
+  },
+  {
+   "src": "lgl",
+   "doc": 483,
+   "code": "ID",
+   "context": "ill unsolved. This is Flores' [[ID]] badge for Applied M"
+  },
+  {
+   "src": "lgl",
+   "doc": 533,
+   "code": "PA",
+   "context": "Analysis: [[PA]] officials welcome f"
+  },
+  {
+   "src": "lgl",
+   "doc": 533,
+   "code": "PA",
+   "context": "uthority there,\" he said. The [[PA]] was also worried th"
+  },
+  {
+   "src": "lgl",
+   "doc": 533,
+   "code": "PA",
+   "context": " for its security forces. The [[PA]] would have preferre"
+  },
+  {
+   "src": "lgl",
+   "doc": 533,
+   "code": "PA",
+   "context": "'s detention centers. Another [[PA]] official said the o"
+  },
+  {
+   "src": "lgl",
+   "doc": 584,
+   "code": "ID",
+   "context": " had his wallet, including an [[ID]] from Alaska. Clary "
+  },
+  {
+   "src": "gwn",
+   "doc": 143,
+   "code": "ID",
+   "context": "n rulings against state voter [[ID]] laws, courts have r"
+  },
+  {
+   "src": "gwn",
+   "doc": 159,
+   "code": "WA",
+   "context": "ly detrimental. Wastewater in [[WA]] is diluted through "
+  },
+  {
+   "src": "gwn",
+   "doc": 176,
+   "code": "NC",
+   "context": "ad been scheduled to host the [[NC]] Dinos before the ga"
+  },
+  {
+   "src": "gwn",
+   "doc": 189,
+   "code": "NC",
+   "context": " date, the Ministry with JSC \u201c[[NC]] \u201cKAZAKH INVEST\u201d des"
+  }
+ ]
+}

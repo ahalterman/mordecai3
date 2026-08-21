@@ -1,0 +1,271 @@
+{
+ "run": "e54_seed42_noout",
+ "variant": "head_gold",
+ "n_golds": 2084,
+ "gained": [
+  {
+   "src": "tr",
+   "doc": 93,
+   "phrase": "Ark.",
+   "gold_id": "4099753",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "tr",
+   "doc": 97,
+   "phrase": "N.J.",
+   "gold_id": "5101760",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 418,
+   "phrase": "Mich.",
+   "gold_id": "5001836",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 420,
+   "phrase": "Mich.",
+   "gold_id": "5001836",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 428,
+   "phrase": "Conn.",
+   "gold_id": "4831725",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 445,
+   "phrase": "Ind.",
+   "gold_id": "4921868",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 445,
+   "phrase": "Ind.",
+   "gold_id": "4921868",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 448,
+   "phrase": "Ind.",
+   "gold_id": "4921868",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 473,
+   "phrase": "B.C.",
+   "gold_id": "5909050",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 520,
+   "phrase": "S.C.",
+   "gold_id": "4597040",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 521,
+   "phrase": "N.C.",
+   "gold_id": "4482348",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 521,
+   "phrase": "S.C.",
+   "gold_id": "4597040",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 521,
+   "phrase": "S.C.",
+   "gold_id": "4597040",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 536,
+   "phrase": "Minn.",
+   "gold_id": "5037779",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 536,
+   "phrase": "Minn.",
+   "gold_id": "5037779",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 541,
+   "phrase": "N.D.",
+   "gold_id": "5690763",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 554,
+   "phrase": "Ind.",
+   "gold_id": "4921868",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 556,
+   "phrase": "Tenn.",
+   "gold_id": "4662168",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 557,
+   "phrase": "Ind.",
+   "gold_id": "4921868",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 557,
+   "phrase": "Neb.",
+   "gold_id": "5073708",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 557,
+   "phrase": "Neb.",
+   "gold_id": "5073708",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 581,
+   "phrase": "Vt.",
+   "gold_id": "5242283",
+   "from": "null_answer",
+   "to": "correct"
+  },
+  {
+   "src": "lgl",
+   "doc": 587,
+   "phrase": "N.C.",
+   "gold_id": "4482348",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "gwn",
+   "doc": 140,
+   "phrase": "Mont.",
+   "gold_id": "5667009",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "gwn",
+   "doc": 156,
+   "phrase": "N.M.",
+   "gold_id": "5481136",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "gwn",
+   "doc": 156,
+   "phrase": "N.M.",
+   "gold_id": "5481136",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "gwn",
+   "doc": 163,
+   "phrase": "Wis.",
+   "gold_id": "5279468",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "gwn",
+   "doc": 173,
+   "phrase": "N.B.",
+   "gold_id": "6087430",
+   "from": "retrieval_miss",
+   "to": "correct"
+  },
+  {
+   "src": "gwn",
+   "doc": 180,
+   "phrase": "Ill.",
+   "gold_id": "4896861",
+   "from": "retrieval_miss",
+   "to": "correct"
+  }
+ ],
+ "lost": [
+  {
+   "src": "tr",
+   "doc": 97,
+   "phrase": "Paris",
+   "gold_id": "2988507",
+   "from": "correct",
+   "to": "ranker_error"
+  },
+  {
+   "src": "lgl",
+   "doc": 458,
+   "phrase": "Richmond",
+   "gold_id": "4305974",
+   "from": "correct",
+   "to": "ranker_error"
+  },
+  {
+   "src": "lgl",
+   "doc": 458,
+   "phrase": "Richmond",
+   "gold_id": "4305974",
+   "from": "correct",
+   "to": "ranker_error"
+  }
+ ],
+ "transitions": {
+  "retrieval_miss->correct": 28,
+  "correct->ranker_error": 3,
+  "null_answer->correct": 1
+ },
+ "residual": {}
+}

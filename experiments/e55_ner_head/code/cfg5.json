@@ -1,0 +1,11 @@
+[
+ {"name":"C_dem3", "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "epochs":4, "stage2_epochs":20,
+  "demonym_weight":3.0,
+  "silver":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/silver_anchor1.json",
+  "save_preds":true,
+  "save_head":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/ship/span_head_C_dem3_SEED.pt"},
+ {"name":"C_dem10", "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "epochs":4, "stage2_epochs":20,
+  "demonym_weight":10.0,
+  "silver":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/silver_anchor1.json",
+  "save_preds":true}
+]

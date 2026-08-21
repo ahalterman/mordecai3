@@ -1,0 +1,8 @@
+[
+ {"name":"B_silver_an", "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "epochs":4, "stage2_epochs":20,
+  "silver":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/silver_anchor1.json"},
+ {"name":"B_silver_sa", "seeds":[42,101,202], "wiki":true, "wiki_loss":"mask2", "wiki_weight":1.0, "epochs":4, "stage2_epochs":20,
+  "silver":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/silver_standalone.json"},
+ {"name":"D_self", "seeds":[42,101,202], "wiki":true, "wiki_loss":"pseudo", "wiki_weight":1.0, "epochs":4, "stage2_epochs":20,
+  "teacher":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/ship/span_head_gold_42.pt"}
+]

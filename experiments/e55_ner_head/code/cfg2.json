@@ -1,0 +1,13 @@
+[
+ {"name":"gold_ship",      "seeds":[42,101,202], "epochs":20, "save_preds":true,
+  "save_head":"/tmp/claude-1000/-home-andy-projects-mordecai3/a19357d6-880a-4251-9cdd-97e2235f449c/scratchpad/ner_scale/ship/span_head_gold_SEED.pt"},
+ {"name":"wb_mask2_2s",    "seeds":[42], "wiki":true, "wiki_loss":"mask2",      "wiki_weight":1.0, "epochs":4, "stage2_epochs":20},
+ {"name":"wb_mask2_w1",    "seeds":[42], "wiki":true, "wiki_loss":"mask2",      "wiki_weight":1.0, "epochs":8},
+ {"name":"wb_mask2_only",  "seeds":[42], "wiki":true, "wiki_loss":"mask2",      "wiki_weight":1.0, "epochs":8, "gold_repeat":0},
+ {"name":"wb_mask_2s",     "seeds":[42], "wiki":true, "wiki_loss":"mask",       "wiki_weight":1.0, "epochs":4, "stage2_epochs":20},
+ {"name":"wb_naive_2s",    "seeds":[42], "wiki":true, "wiki_loss":"naive",      "wiki_weight":1.0, "epochs":4, "stage2_epochs":20},
+ {"name":"wb_pu2_2s",      "seeds":[42], "wiki":true, "wiki_loss":"pu2",        "wiki_weight":1.0, "epochs":4, "stage2_epochs":20},
+ {"name":"wb_mask2p_2s",   "seeds":[42], "wiki":true, "wiki_loss":"mask2_prop", "wiki_weight":1.0, "epochs":4, "stage2_epochs":20},
+ {"name":"wb_mask2_w01",   "seeds":[42], "wiki":true, "wiki_loss":"mask2",      "wiki_weight":0.1, "epochs":8},
+ {"name":"wb_mask2_w1_g8", "seeds":[42], "wiki":true, "wiki_loss":"mask2",      "wiki_weight":1.0, "epochs":8, "gold_repeat":8}
+]

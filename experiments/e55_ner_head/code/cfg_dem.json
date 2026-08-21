@@ -1,0 +1,5 @@
+[
+ {"name":"gold_dem3",  "seeds":[42,101,202], "epochs":20, "demonym_weight":3.0},
+ {"name":"gold_dem10", "seeds":[42,101,202], "epochs":20, "demonym_weight":10.0},
+ {"name":"gold_dem30", "seeds":[42,101,202], "epochs":20, "demonym_weight":30.0}
+]
