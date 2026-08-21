@@ -8,6 +8,7 @@ from elasticsearch_dsl import Q, Search
 from enum import IntEnum
 
 from .exceptions import GeonamesQueryError
+from .place_aliases import alias_query
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -37,11 +38,34 @@ class DataExtent(IntEnum):
 
 
 class GeonamesService:
-    """Class to encapsulate Geonames functionality needed for mordecai3"""
-    def __init__(self, es_client: Elasticsearch):
+    """Class to encapsulate Geonames functionality needed for mordecai3
+
+    Parameters
+    ----------
+    es_client : Elasticsearch
+        The client every lookup goes through.
+    normalize_place_abbrevs : bool
+        Expand a mention that is a US-state / Canadian-province abbreviation
+        into the full ADM1 name before querying (`place_aliases`, e52 rule R1).
+        **Defaults to True: this fixes a retrieval bug, not a preference.**
+        Under the `alt_name_length` sort a bare abbreviation retrieves
+        countries -- "Ky." returns the United Kingdom and no Kentucky -- and
+        61% of every unretrievable gold in held-out TR/LGL/GWN is that one
+        defect. Measured worth +0.020 TLG-hard exact match on a fixed
+        denominator, 28 entities gained and **0 lost**, with WikiDocs, Prodigy
+        and Synth digit-for-digit unchanged
+        (`experiments/campaign2/r1_retrieval_report.md`).
+
+        Set it False to get the pre-e57 query byte for byte -- which is what
+        the pickles under `raw_data/` were built with, so anything that has to
+        reproduce a frozen candidate list wants it off.
+    """
+    def __init__(self, es_client: Elasticsearch,
+                 normalize_place_abbrevs: bool = True):
         self.conn = es_client
         self.index = "geonames"
         self.search = Search(using=self.conn, index=self.index)
+        self._normalize_place_abbrevs = bool(normalize_place_abbrevs)
         # Cap on sub-queries per _msearch request. Responses are the constraint,
         # not the request body: 100 queries x 100 results is roughly 8MB back.
         self.msearch_chunk_size = 100
@@ -60,6 +84,22 @@ class GeonamesService:
         self._es_cache.clear()
         self._parent_cache.clear()
         logger.debug("Geonames caches cleared")
+
+    @property
+    def normalize_place_abbrevs(self) -> bool:
+        """Whether R1 abbreviation expansion is on. See the class docstring."""
+        return self._normalize_place_abbrevs
+
+    @normalize_place_abbrevs.setter
+    def normalize_place_abbrevs(self, value: bool):
+        # `_es_cache` is keyed on the mention, not on the query the mention
+        # produces, so flipping the flag on a live service would otherwise serve
+        # candidate lists built under the other setting. Anyone comparing the
+        # two arms in one process (the e57 gates do) needs this.
+        value = bool(value)
+        if value != self._normalize_place_abbrevs:
+            self._normalize_place_abbrevs = value
+            self.clear_cache()
 
     def determine_data_extent(self) -> DataExtent:
         # TODO: this is a bit hacky, but it works for now. 
@@ -212,6 +252,27 @@ class GeonamesService:
         """
         max_results = int(max_results)
         fuzzy = int(fuzzy)
+        # e52 R1 (`self.normalize_place_abbrevs`, on by default): a mention
+        # that is a US-state / Canadian-province abbreviation phrase-matches
+        # `alternativenames` and, under the `alt_name_length` sort below,
+        # comes back as countries -- "WA" -> DR Congo, "Ky." -> the United
+        # Kingdom, "N.M." -> a Santa Fe hotel. 61% of all unretrievable golds
+        # in held-out TR/LGL/GWN are this one defect. Expand before querying.
+        #
+        # Two properties of this placement are load-bearing:
+        #   * it REPLACES the query rather than adding a second one, so the
+        #     candidate window is not spent twice and latency does not move;
+        #   * it runs BEFORE `_clean_search_name`, which deletes the token
+        #     "District" -- so the expansion of "D.C." has to be a string the
+        #     cleaner leaves alone ("Washington, D.C.", via QUERY_OVERRIDE)
+        #     rather than "District of Columbia" -> "of Columbia".
+        # `res_formatter` still measures every string feature against the
+        # ORIGINAL mention, so no candidate feature changes meaning.
+        if self.normalize_place_abbrevs:
+            expanded = alias_query(search_name)
+            if expanded:
+                logger.debug("alias expansion: %r -> %r", search_name, expanded)
+                search_name = expanded
         search_name = _clean_search_name(search_name)
 
         # Construct query
