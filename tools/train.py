@@ -1,4 +1,5 @@
 import glob
+import hashlib
 import json
 import os
 import pickle
@@ -26,6 +27,7 @@ import wandb
 import xmltodict
 from error_utils import make_wandb_dict
 from mordecai3.geoparse import guess_in_rel, add_es_data_batch
+from mordecai3.outlet_features import OUTLET_KEYS, outlet_null_value
 
 from mordecai3.torch_model import geoparse_model
 
@@ -68,7 +70,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-def masked_smoothed_ce(pred, label, mask, eps):
+def masked_smoothed_ce(pred, label, mask, eps, weights=None):
     """Cross entropy with the smoothing mass spread over live candidates only.
 
     `nn.CrossEntropyLoss(label_smoothing=eps)` puts eps/K on every one of the K
@@ -77,12 +79,19 @@ def masked_smoothed_ce(pred, label, mask, eps):
     the gradient chases the padding, and accuracy collapses (measured: 0.71-0.78
     exact match). The smoothing is meant to spread doubt over the *candidates*,
     so it is spread over the rows the mask says are real.
+
+    `weights` (--abstain-weight) reweights individual examples. It is None on
+    every run in the campaign, and the unweighted branch is byte-for-byte the
+    original reduction, so the default stays bit-identical.
     """
     logp = F.log_softmax(pred, dim=1)
     nll = -logp.gather(1, label.unsqueeze(1)).squeeze(1)
     # mask is 0.0 on padded rows, so their -1e9 log-prob drops out here.
     smooth = -(logp * mask).sum(1) / mask.sum(1)
-    return ((1 - eps) * nll + eps * smooth).mean()
+    per_example = (1 - eps) * nll + eps * smooth
+    if weights is None:
+        return per_example.mean()
+    return (per_example * weights).sum() / weights.sum()
 
 
 def binary_acc(y_pred, y_test):
@@ -122,6 +131,45 @@ def split_list(data, frac=0.7):
     return data[0:split], data[split:]
 
 
+def doc_key(ex):
+    """The document an entity belongs to.
+
+    The pickles carry no document id, but every entity of a document shares the
+    same `doc_tensor` (the mean of its token vectors), so hashing it recovers
+    document membership exactly -- the trick the Wave-2b sibling features and
+    tools/end_to_end_eval.py's `heldout_doc_indices` already rely on.
+    """
+    t = ex.get('doc_tensor')
+    if t is None:
+        return None
+    return hashlib.md5(np.asarray(t).tobytes()).hexdigest()
+
+
+def split_by_doc(data, frac=0.7):
+    """Assign whole documents to train/held-out, deterministically.
+
+    The default split cuts the flat entity list at 70%, which is a document
+    boundary only because the entities happen to be in document order -- and
+    for Synth, which is shuffled before the split, it is not one at all: 14% of
+    its held-out documents also appear in training
+    (experiments/campaign2/data_quality_report.md). Keying on the document
+    itself makes the split independent of order, so no document can be on both
+    sides, and it is stable across sources, seeds and reruns.
+
+    This is NOT the default: every frozen number in `experiments/` is on the
+    positional split, and the two are not comparable (decision D1 freezes the
+    current held-out sets as DEV).
+    """
+    train, val = [], []
+    for ex in data:
+        k = doc_key(ex)
+        # A hash bucket, not a shuffle: the same document lands on the same
+        # side in every source, every run.
+        h = int(k[:8], 16) / float(1 << 32) if k is not None else 1.0
+        (train if h < frac else val).append(ex)
+    return train, val
+
+
 # Everything the training path ever reads off a candidate dict: the model
 # features (torch_model.ProductionData), the enrichment features, and the keys
 # error_utils.evaluate_results scores with. The enriched pickles carry ~50 keys
@@ -146,11 +194,28 @@ def compact_candidates(es_data):
     array the dict path produced.
     """
     n_feat = len(ALL_FEATURE_KEYS)
+    # The `outlet` block is attached by a separate pass over the *already*
+    # enriched pickles (`enrich_pickles.py --outlet-only`), because it needs
+    # the corpus XML's <domain> and not Elasticsearch. So a candidate straight
+    # out of `es_formatted_*_enriched.pkl` has no outlet keys, and compacting
+    # one has to mean "this document has no outlet" -- the block's well-defined
+    # null -- rather than KeyError. A cache built this way trains the outlet
+    # block on nothing but nulls, which is why the outlet pass has to be rerun
+    # whenever the compact caches are rebuilt; the log line below says so.
+    missing_outlet = [ex for ex in es_data if ex['es_choices']
+                      and OUTLET_KEYS[0] not in ex['es_choices'][0]]
+    if missing_outlet:
+        logger.warning(
+            f"{len(missing_outlet)} entities carry no outlet features; "
+            f"compacting them to the no-outlet null encoding. Rerun "
+            f"`tools/enrich_pickles.py --outlet-only` if you meant to train "
+            f"the outlet block on this data.")
+    outlet_null = {k: outlet_null_value(k) for k in OUTLET_KEYS}
     for ex in es_data:
         choices = ex['es_choices']
         fm = np.empty((len(choices), n_feat), dtype=np.float32)
         for n, c in enumerate(choices):
-            fm[n] = [c[k] for k in ALL_FEATURE_KEYS]
+            fm[n] = [c[k] if k in c else outlet_null[k] for k in ALL_FEATURE_KEYS]
         ex['feat_matrix'] = fm
         ex['es_choices'] = [{k: c[k] for k in CANDIDATE_KEYS_KEPT if k in c}
                             for c in choices]
@@ -170,7 +235,9 @@ def load_es_data(data_dir,
              enriched=False,
              feature_blocks=None,
              full_null_row=False,
-             pickle_suffix=""):
+             pickle_suffix="",
+             window=None,
+             split_mode="entity"):
     """
     Load formatted training data with Elasticsearch results
 
@@ -189,6 +256,17 @@ def load_es_data(data_dir,
       Variant of the enriched pickles to train on, appended after `_enriched`.
       "" (the default) is the frozen enrichment; "_r2" is the A/P label rewrite
       written by tools/rewrite_labels.py. Only the labels differ.
+    window: int or None
+      Number of candidate rows the model scores. `max_results` names the pickle
+      files (they were built with 500 hits per mention) and used to double as
+      the window; `window` separates the two so a 500-candidate pickle can be
+      trained at the 100-row window `Geoparser` actually serves. None keeps the
+      old behavior exactly: window == max_results.
+    split_mode: str
+      "entity" (the default, and every frozen number in `experiments/`) cuts
+      each source's flat entity list at `train_frac`. "doc" assigns whole
+      documents by a hash of their `doc_tensor`, so no document straddles the
+      split -- see `split_by_doc`. The two splits are not comparable.
 
     Returns
     -------
@@ -272,7 +350,10 @@ def load_es_data(data_dir,
         es_data = [i for i in es_data if len(i['tensor']) > 1]
         if 'feat_matrix' not in es_data[0]:
             es_data = compact_candidates(es_data)
-        es_data, es_data_val = split_list(es_data, train_frac)
+        if split_mode == "doc":
+            es_data, es_data_val = split_by_doc(es_data, train_frac)
+        else:
+            es_data, es_data_val = split_list(es_data, train_frac)
         # Capping happens after the split, so the held-out set for a capped
         # source is the same one an uncapped run is scored on.
         limit = (source_limits or {}).get(source)
@@ -288,7 +369,7 @@ def load_es_data(data_dir,
                     f"held out: {len(es_data_val)}")
         es_train_data.extend(es_data)
         val_datasets.append(es_data_val)
-        dataset = TrainData(es_data_val, max_choices=max_results,
+        dataset = TrainData(es_data_val, max_choices=(window or max_results),
                             oov_bucket_fix=oov_bucket_fix,
                             feature_blocks=feature_blocks,
                             full_null_row=full_null_row)
@@ -298,7 +379,7 @@ def load_es_data(data_dir,
     # now make one loader for all training data
     random.seed(617)
     random.shuffle(es_train_data)
-    train_data = TrainData(es_train_data, max_choices=max_results,
+    train_data = TrainData(es_train_data, max_choices=(window or max_results),
                            oov_bucket_fix=oov_bucket_fix,
                            feature_blocks=feature_blocks,
                            full_null_row=full_null_row)
@@ -787,6 +868,84 @@ def format_source(base_dir, source, geonames, max_results, fuzzy,
 
     print(f"Total place names in {source}: {total}")
 
+def training_pairs(es_train_data):
+    """Every (mention string, gold geonameid) pair the model was trained on.
+
+    81% of held-out entities have their exact pair somewhere in training and
+    score 0.960 there against 0.771 on the rest
+    (experiments/campaign2/data_quality_report.md), so "novel-pair exact
+    match" is the guardrail metric: the one number answer-key memorisation
+    cannot move.
+    """
+    return {(str(ex.get('search_name')), str(ex.get('correct_geonamesid')))
+            for ex in es_train_data}
+
+
+def load_twin_cache(path, names, datasets):
+    """Gold A/P twin classes per held-out entity, from the cache on disk.
+
+    Written by `tools/twin_credit_eval.py twin-cache`; it depends only on the
+    pickles and the labels, not on the model, so it is computed once. Sources
+    whose held-out size does not match the cache are skipped rather than
+    silently mis-scored.
+    """
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        cache = json.load(f)
+    out = {}
+    for name, data in zip(names, datasets):
+        rows = cache.get("sources", {}).get(name)
+        if rows is None:
+            continue
+        if len(rows) != len(data):
+            logger.warning(f"twin cache for {name} has {len(rows)} entities, "
+                           f"held-out set has {len(data)}; skipping twin credit")
+            continue
+        out[name] = [frozenset(r) for r in rows]
+    return out
+
+
+def campaign2_scoreboard(names, datasets, data_loaders, model, es_train_data,
+                         twin_cache_path):
+    """TLG-hard, novel-pair EM, twin credit and the three accuracies."""
+    from error_utils import make_campaign2_dict
+    twins = load_twin_cache(twin_cache_path, names, datasets)
+    return make_campaign2_dict(names, datasets, data_loaders, model,
+                               train_pairs=training_pairs(es_train_data),
+                               twins=twins)
+
+
+def print_campaign2(c):
+    def f(x):
+        return "  n/a" if x != x else f"{x:.4f}"
+    print("---- campaign-2 scoreboard "
+          "(primary: TLG-hard; headline macro excludes Synth, D4) ----")
+    print(f"  TLG-hard (TR/LGL/GWN macro EM, non-country golds, "
+          f"n={c['tlg_hard_n']}):  {f(c['tlg_hard'])}"
+          f"   [campaign convention, abstentions not charged: "
+          f"{f(c['tlg_hard_noabstain'])}]")
+    print(f"  novel-pair EM (guardrail, n={c['novel_pair_n']}):            "
+          f"{f(c['novel_pair_em'])}   [seen pairs {f(c['seen_pair_em'])}]")
+    print(f"  twin-credit EM (macro, no Synth):                {f(c['twin_credit_macro'])}")
+    print(f"  macro EM, 5 sources (headline, no Synth):        "
+          f"{f(c['em_conditioned_macro'])}   [no abstention charge: "
+          f"{f(c['em_conditioned_macro_noabstain'])}]")
+    print(f"  macro EM, 6 sources (legacy, ledger continuity): "
+          f"{f(c['em_conditioned_macro_legacy6'])}   [no abstention charge: "
+          f"{f(c['em_conditioned_macro_legacy6_noabstain'])}]")
+    print(f"  EM over every held-out mention (macro/pooled):   "
+          f"{f(c['em_all_macro'])} / {f(c['em_all_pooled'])}")
+    print(f"  abstained on {100 * c['abstain_rate']:.2f}% of mentions, "
+          f"{100 * c['abstain_precision']:.1f}% of those unanswerable "
+          f"(base rate {100 * c['unanswerable_rate']:.2f}%)")
+    for s, v in c['per_source'].items():
+        print(f"    {s:<10} EM {f(v['em_conditioned'])}  non-country "
+              f"{f(v['em_noncountry'])} (n={v['n_noncountry']})  novel "
+              f"{f(v['novel_pair_em'])} (n={v['n_novel']})  twin "
+              f"{f(v['twin_credit'])}  abstain {100 * v['abstain_rate']:.2f}%")
+
+
 ##################################
 
 app = typer.Typer(add_completion=True)
@@ -954,6 +1113,7 @@ def train(data_dir: str = "raw_data",
           weight_decay: float = 0.0,
           enriched: bool = False,
           feature_blocks: str = "",
+          outlet_dropout: float = 0.0,
           pickle_suffix: str = "",
           mix_depth: int = 2,
           residual: bool = False,
@@ -962,16 +1122,39 @@ def train(data_dir: str = "raw_data",
           aux_country_weight: float = 0.0,
           aux_class_weight: float = 0.0,
           full_null_row: bool = False,
+          window: int = 0,
+          abstain_weight: float = 1.0,
           avg_mode: str = "swa",
           avg_start: int = 0,
           ema_decay: float = 0.9,
           train_after_eval: bool = False,
           lr_schedule: bool = False,
-          checkpoint_out: str = ""
+          checkpoint_out: str = "",
+          overwrite_checkpoint: bool = False,
+          split_mode: str = "entity",
+          twin_cache: str = "experiments/campaign2/twin_gold.json"
 ):
     """
     Train the pytorch model from formatted training data.
+
+    `--checkpoint-out` refuses to overwrite an existing file unless
+    `--overwrite-checkpoint` is passed: on 2026-08-20 a rejected experiment arm
+    silently clobbered the repo-root checkpoint, and the replacement was only
+    noticed by checksumming it against the arm's own seed file.
     """
+    if split_mode not in ("entity", "doc"):
+        raise typer.BadParameter("--split-mode must be 'entity' or 'doc'")
+    # Checked before any data is loaded: a 50-second run is cheap, but finding
+    # out at the end that the destination was taken is not.
+    for path, what in ((checkpoint_out, "--checkpoint-out"),
+                       (checkpoint_out + ".json" if checkpoint_out else "",
+                        "--checkpoint-out's config sidecar")):
+        if path and os.path.exists(path) and not overwrite_checkpoint:
+            raise typer.BadParameter(
+                f"{what} {path} already exists. Pass --overwrite-checkpoint to "
+                f"replace it, or write somewhere else -- a rejected arm "
+                f"overwriting a shipped checkpoint is how the 2026-08-20 "
+                f"clobber happened.")
     # The 'seed' in the config was never applied to anything, so two runs with
     # identical data and hyperparameters differed by more than most of the
     # effects we want to measure. Seed everything that moves.
@@ -989,9 +1172,28 @@ def train(data_dir: str = "raw_data",
     if blocks and not enriched:
         raise typer.BadParameter("--feature-blocks needs --enriched: the extra "
                                  "features only exist in the enriched pickles")
+    if outlet_dropout > 0 and "outlet" not in blocks:
+        raise typer.BadParameter("--outlet-dropout needs the 'outlet' feature "
+                                 "block; there is nothing to drop without it")
+    if not 0.0 <= outlet_dropout < 1.0:
+        raise typer.BadParameter("--outlet-dropout must be in [0, 1)")
     if pickle_suffix and not enriched:
         raise typer.BadParameter("--pickle-suffix needs --enriched: it selects a "
                                  "label variant of the enriched pickles")
+    # --window scores fewer rows than the pickle holds candidates. Then some
+    # golds fall outside the window, and TrainData.create_labels indexes a
+    # labels array of length `window` with the gold's position in the full list
+    # -> IndexError. --full-null-row is the flag that maps those golds onto the
+    # reserved "no correct answer" row, which is the point of the arm.
+    if window and window < max_choices and not full_null_row:
+        raise typer.BadParameter(
+            f"--window {window} < --max-choices {max_choices} needs "
+            "--full-null-row: without it, a gold outside the window has no "
+            "label to point at")
+    if abstain_weight != 1.0 and not (label_smoothing > 0 and mask_padding):
+        raise typer.BadParameter(
+            "--abstain-weight only reaches the loss through masked_smoothed_ce, "
+            "which needs --label-smoothing and --mask-padding")
     config = wandb.config          # Initialize config
     config.update({
         'batch_size': batch_size,
@@ -1019,6 +1221,7 @@ def train(data_dir: str = "raw_data",
         'weight_decay': weight_decay,
         'enriched': enriched,
         'feature_blocks': blocks,
+        'outlet_dropout': outlet_dropout,
         'pickle_suffix': pickle_suffix,
         'mix_depth': mix_depth,
         'residual': residual,
@@ -1027,11 +1230,14 @@ def train(data_dir: str = "raw_data",
         'aux_country_weight': aux_country_weight,
         'aux_class_weight': aux_class_weight,
         'full_null_row': full_null_row,
+        'window': window,
+        'abstain_weight': abstain_weight,
         'avg_mode': avg_mode,
         'avg_start': avg_start,
         'ema_decay': ema_decay,
         'train_after_eval': train_after_eval,
-        'lr_schedule': lr_schedule
+        'lr_schedule': lr_schedule,
+        'split_mode': split_mode
     },
     allow_val_change=True)
 
@@ -1049,7 +1255,9 @@ def train(data_dir: str = "raw_data",
                                                   enriched=config.enriched,
                                                   feature_blocks=blocks,
                                                   pickle_suffix=config.pickle_suffix,
-                                                  full_null_row=config.full_null_row) 
+                                                  full_null_row=config.full_null_row,
+                                                  window=config.window or None,
+                                                  split_mode=config.split_mode)
     logger.info(f"Total training examples: {len(es_train_data)}")
 
     device = torch.device(device if device else
@@ -1087,10 +1295,19 @@ def train(data_dir: str = "raw_data",
 
     smooth_over_live = config.label_smoothing > 0 and config.mask_padding
 
+    # --abstain-weight upweights the examples whose target is the reserved
+    # "no correct answer" row (2.4% of the training set). At the default 1.0 the
+    # weights are never built and the loss takes its original code path.
+    reweight_abstain = config.abstain_weight != 1.0
+
     def label_loss(pred, label, input):
         if smooth_over_live:
+            weights = None
+            if reweight_abstain:
+                is_abstain = (label == pred.shape[1] - 1).float()
+                weights = 1.0 + (config.abstain_weight - 1.0) * is_abstain
             return masked_smoothed_ce(pred, label, input['mask'],
-                                      config.label_smoothing)
+                                      config.label_smoothing, weights)
         return loss_func(pred, label)
 
     if config.weight_decay > 0:
@@ -1147,6 +1364,17 @@ def train(data_dir: str = "raw_data",
     for epoch in range(1, config.epochs+1):
         epoch_loss = 0
         epoch_acc = 0
+
+        # e53: blank the outlet block for a random half (or `p`) of the
+        # documents that have one, redrawn every epoch so the model sees the
+        # same article both ways over training. Deterministic in
+        # (document, epoch, seed); a no-op at the default 0.0.
+        if config.outlet_dropout > 0:
+            n_dropped = train_loader.dataset.set_outlet_dropout(
+                config.outlet_dropout, epoch, config.seed)
+            if epoch == 1:
+                logger.info(f"Outlet dropout p={config.outlet_dropout}: "
+                            f"{n_dropped} documents blanked in epoch 1")
 
         for label, country, input in train_loader:
             label = label.type(torch.LongTensor).to(device)
@@ -1256,6 +1484,14 @@ def train(data_dir: str = "raw_data",
                             'n_train': len(es_train_data),
                             'n_val': {n: len(d) for n, d in
                                       zip(config.dataset_names, datasets)}}
+        # Only non-default values are recorded: a default run's json has to stay
+        # byte-identical to the frozen ones in experiments/ (verified by rerun).
+        if config.window:
+            final['_config']['window'] = config.window
+        if config.abstain_weight != 1.0:
+            final['_config']['abstain_weight'] = config.abstain_weight
+        if config.split_mode != "entity":
+            final['_config']['split_mode'] = config.split_mode
         with open(metrics_out, 'w') as f:
             json.dump(final, f, indent=2)
         logger.info(f"Wrote metrics to {metrics_out}")
@@ -1299,10 +1535,41 @@ def train(data_dir: str = "raw_data",
         'aux_country': config.aux_country_weight > 0,
         'aux_class': config.aux_class_weight > 0,
         'weight_avg': (config.avg_mode if avg_state is not None else None),
+        **({'outlet_dropout': config.outlet_dropout}
+           if config.outlet_dropout else {}),
+        # `max_choices` names the pickles and is the default window; a run that
+        # overrode the window records it so the checkpoint is not silently
+        # served at a width it never saw.
+        **({'train_window': config.window} if config.window else {}),
+        **({'abstain_weight': config.abstain_weight}
+           if config.abstain_weight != 1.0 else {}),
     }
     with open(cfg_path, 'w') as f:
         json.dump(model_config, f, indent=2)
     logger.info(f"Wrote model config to {cfg_path}")
+
+    # ---- campaign-2 scoreboard (decisions D1/D4) --------------------------
+    # One extra forward pass over the held-out sets, on the weights that were
+    # just saved. It is deliberately NOT written into `metrics_out`: that file
+    # is the ledger and a rerun of any frozen arm has to reproduce it byte for
+    # byte. It goes to `<metrics_out>.metrics2.json` instead, and to the log.
+    try:
+        campaign2 = campaign2_scoreboard(dataset_names_list, datasets,
+                                         data_loaders, model, es_train_data,
+                                         twin_cache if split_mode == "entity"
+                                         else "")
+    except Exception as e:                       # never lose a run over a metric
+        logger.warning(f"campaign-2 metrics failed: {type(e).__name__}: {e}")
+        campaign2 = None
+    if campaign2:
+        campaign2['_config'] = {'seed': seed, 'split_mode': split_mode,
+                                'checkpoint': ckpt}
+        print_campaign2(campaign2)
+        if metrics_out:
+            out2 = os.path.splitext(metrics_out)[0] + ".metrics2.json"
+            with open(out2, 'w') as f:
+                json.dump(campaign2, f, indent=2)
+            logger.info(f"Wrote campaign-2 metrics to {out2}")
     logger.info("Run complete.")
 
 
