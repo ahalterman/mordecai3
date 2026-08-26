@@ -11,10 +11,18 @@ line between those two sits.
 
 ```
 uv sync --extra console --extra gpu --group train --group dev
-./console/fetch_boundaries.sh        # ~1.25 GB, once
-python console/build_boundaries.py   # -> 85 MB SQLite, ~55 s
-python console/server.py             # http://127.0.0.1:8000
+./console/fetch_boundaries.sh               # ~1.25 GB, once
+uv run python console/build_boundaries.py   # -> 85 MB SQLite, ~55 s
+uv run python console/server.py             # http://127.0.0.1:8000
 ```
+
+**`uv run`, not bare `python`.** Nothing here is importable from a system or
+conda interpreter, and the failure is not a clean "module not found" — a conda
+base environment with its own older FastAPI and Pydantic installed gets far
+enough to raise `ImportError: cannot import name 'Undefined' from
+'pydantic.fields'`, which reads like a dependency conflict in this project
+rather than the wrong interpreter. Prefix every command in this file with
+`uv run`, or activate `.venv` first.
 
 Elasticsearch with the GeoNames index must be up (`docker compose up`). Without
 the boundary store the console still runs; every place is just a point.
@@ -25,8 +33,8 @@ only — put it behind an SSH tunnel (`ssh -L 8000:localhost:8000 host`) if the
 network is not one.
 
 ```
-python console/server.py --listen --port 8077
-python console/server.py --host 192.168.0.233   # or bind one interface
+uv run python console/server.py --listen --port 8077
+uv run python console/server.py --host 192.168.0.233   # or bind one interface
 ```
 
 ---
@@ -358,7 +366,7 @@ people who find the costume distracting.
 ## Testing
 
 ```
-python console/test_console_ui.py     # needs a server on :8077, or set CONSOLE_URL
+uv run python console/test_console_ui.py   # needs a server on :8077, or set CONSOLE_URL
 ```
 
 35 checks against a real browser and a real backend: span rendering, offset

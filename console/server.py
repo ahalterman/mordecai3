@@ -41,13 +41,42 @@ CONSOLE_DIR = Path(__file__).resolve().parent
 if str(CONSOLE_DIR) not in sys.path:
     sys.path.insert(0, str(CONSOLE_DIR))
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+# Wrapped because the interesting failure here is not "not installed".
+#
+# `python console/server.py` runs whatever `python` is on PATH, and on a
+# machine with conda that is the conda base environment. If that environment
+# happens to carry its own older FastAPI and Pydantic -- and a scientific base
+# env usually does -- the import gets far enough to fail *inside* FastAPI with
+# `cannot import name 'Undefined' from 'pydantic.fields'`, which reads like a
+# dependency conflict in this project and sends you off pinning versions. It
+# is not; it is the wrong interpreter, and the traceback names the culprit
+# only in the middle of a file path nobody reads.
+try:
+    from fastapi import FastAPI, File, HTTPException, UploadFile
+    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.staticfiles import StaticFiles
+    from pydantic import BaseModel, Field
 
-from adapter import Stopwatch, to_console
-from boundaries import get_store
+    from adapter import Stopwatch, to_console
+    from boundaries import get_store
+except ImportError as exc:
+    REPO = Path(__file__).resolve().parent.parent
+    running_in_venv = Path(sys.prefix).resolve() == (REPO / ".venv").resolve()
+    sys.exit(
+        f"\n{type(exc).__name__}: {exc}\n\n"
+        f"  interpreter: {sys.executable}\n"
+        f"  expected:    {REPO / '.venv' / 'bin' / 'python'}\n\n"
+        + ("This is the project environment, so the dependency really is missing "
+           "or broken.\n"
+           "Re-sync it with the full set of extras -- a partial sync silently "
+           "breaks\nthe training environment too:\n\n"
+           "    uv sync --extra console --extra gpu --group train --group dev\n"
+           if running_in_venv else
+           "The console is running under the wrong interpreter. Anything the "
+           "system or\nconda environment happens to have installed can get far "
+           "enough to fail in a\nway that looks like a version conflict in this "
+           "project. Use:\n\n"
+           "    uv run python console/server.py\n"))
 
 logging.basicConfig(
     level=os.environ.get("MORDECAI_LOG", "INFO"),
