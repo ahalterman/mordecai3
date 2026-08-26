@@ -115,12 +115,8 @@ class Engine:
 
         self.boundaries = get_store()
         self.use_gpu = bool(use_gpu)
-        # The Geoparser does not keep the checkpoint path it loaded, so name it
-        # from the packaged default the same way it resolves one.
-        self.model_name = os.environ.get("MORDECAI_MODEL_NAME") or next(
-            (p.name for p in sorted(
-                (REPO_ROOT / "mordecai3" / "assets").glob("mordecai_*.pt"),
-                reverse=True)), "packaged default")
+        self.model_name = os.environ.get("MORDECAI_MODEL_NAME") or Path(
+            str(getattr(self.geo, "model_path", "") or "unknown")).name
         self.started = time.time()
         # Rolling record of real work done, for the status bar.
         self.docs_parsed = 0

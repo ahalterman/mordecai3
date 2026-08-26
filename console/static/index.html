@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" data-pal="amber" data-layout="split" data-chrome="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mordecai Geoparse Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/console.css">
+</head>
+<body>
+
+<!-- ── title bar ─────────────────────────────────────────────────────────── -->
+<header data-el="title">
+  <div class="lockup">
+    <span class="diamond" aria-hidden="true"></span>
+    <div>
+      <div class="brandname" id="brand-name">MORDECAI</div>
+      <div class="brandsub" id="brand-sub">GEOPARSE ENGINE</div>
+    </div>
+  </div>
+  <div class="titlecenter">
+    <span class="rule" data-orn></span>
+    <div class="stats" id="title-stats"></div>
+  </div>
+  <div class="clock">
+    <div class="clocktime" id="clock">--:--:--</div>
+    <div class="clocksub" id="clocksub">UTC</div>
+  </div>
+</header>
+
+<!-- ── body ──────────────────────────────────────────────────────────────── -->
+<div data-el="shell">
+
+  <!-- left rail -->
+  <nav data-el="rail">
+    <div class="railscroll">
+      <div class="seclabel">PIPELINE</div>
+      <div id="stages"></div>
+
+      <div class="divider"></div>
+      <div class="seclabel">CORPUS</div>
+      <div id="corpus"></div>
+
+      <div class="divider"></div>
+      <div class="seclabel">YOUR TEXT</div>
+      <div class="pastebox">
+        <textarea id="paste" rows="5" spellcheck="false"
+          placeholder="Paste any text and press PARSE…"></textarea>
+        <label class="filerow">
+          <span class="filebtn">▸ UPLOAD .txt / .jsonl</span>
+          <input type="file" id="upload" accept=".txt,.jsonl,.ndjson" hidden>
+        </label>
+        <div class="filehint" id="filehint">
+          Blank-line separated, or JSONL with a <code>text</code> field.
+        </div>
+      </div>
+    </div>
+
+    <div class="railfoot">
+      <div class="seg2" id="mapmode">
+        <button data-mode="sat" class="on">SAT</button>
+        <button data-mode="wire">VECTOR</button>
+      </div>
+      <button class="runbtn" id="run">▶ <span id="runlabel">PARSE</span></button>
+      <div class="gazfoot" id="gazfoot">—</div>
+    </div>
+  </nav>
+
+  <!-- workspace -->
+  <main data-el="main">
+
+    <!-- document -->
+    <section data-el="doc">
+      <div class="hairline" data-orn></div>
+      <div class="pane-head">
+        <div>
+          <div class="pane-title" id="doc-title">—</div>
+          <div class="pane-meta" id="doc-meta"></div>
+        </div>
+        <div class="tokchip" data-orn><span class="dot"></span>TOKENIZED</div>
+      </div>
+      <div class="pane-body" id="doc-body">
+        <div class="doc-text" id="doc-text"></div>
+      </div>
+      <div class="pane-foot" id="doc-foot"></div>
+    </section>
+
+    <!-- map -->
+    <section data-el="map">
+      <geo-scope id="scope"></geo-scope>
+      <div class="map-top">
+        <span class="map-region" id="map-region"></span>
+        <span class="map-mode" id="map-modemeta"></span>
+      </div>
+      <div class="map-badges" id="map-badges" data-orn></div>
+      <div class="map-coord" id="map-coord"></div>
+      <div class="map-nav">
+        <span class="navhint">SCROLL ZOOM · DRAG PAN</span>
+        <span class="zoomchip" id="zoomchip">×1.0</span>
+        <button class="resetbtn" id="reset">RESET</button>
+      </div>
+    </section>
+
+    <!-- stage panel -->
+    <section data-el="stage">
+      <div class="pane-head stage-head">
+        <span class="stage-title" id="stage-title">—</span>
+        <span class="rule" data-orn></span>
+        <span class="stage-meta" id="stage-meta"></span>
+      </div>
+      <div class="pane-body" id="stage-body"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── status bar ────────────────────────────────────────────────────────── -->
+<footer data-el="status">
+  <div class="statecell"><span class="dot"></span><span id="statusword">BOOTING</span></div>
+  <div class="logcell"><span id="logtime"></span><span id="logline"></span><span class="caret">▊</span></div>
+  <div class="telemcell" id="telemetry"></div>
+</footer>
+
+<div class="grit scanlines" data-orn></div>
+<div class="grit noise" data-orn></div>
+<div class="grit vignette"></div>
+
+<script src="/vendor/d3.min.js"></script>
+<script src="/vendor/topojson-client.min.js"></script>
+<script src="/geoscope.js"></script>
+<script type="module" src="/console.js"></script>
+</body>
+</html>

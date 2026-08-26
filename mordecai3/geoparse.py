@@ -833,6 +833,10 @@ class Geoparser:
         
         if not model_path:
             model_path = resources.files("mordecai3") / DEFAULT_MODEL_ASSET
+        # Kept so a caller can report which checkpoint is answering. Guessing
+        # it from the assets directory gets the wrong file: the packaged
+        # default is not the alphabetically last mordecai_*.pt there.
+        self.model_path = model_path
         # A checkpoint's config sidecar carries the training flags that the
         # layer shapes do not reveal. Reading it is what lets `Geoparser()`
         # with no arguments load the campaign's model correctly instead of
