@@ -1,0 +1,142 @@
+{
+  "$schema": "./console.config.schema.json",
+  "brand": {
+    "productName": "MORDECAI",
+    "productSubtitle": "GEOPARSE ENGINE",
+    "build": "3.4.0",
+    "rankerLabel": "mordecai-rank",
+    "showClassificationBanner": false,
+    "classificationBanner": ""
+  },
+  "theme": {
+    "palette": "amber",
+    "grit": 0.55,
+    "chrome": "full",
+    "layout": "split",
+    "scanlines": true,
+    "vignette": true,
+    "flicker": true
+  },
+  "map": {
+    "defaultMode": "sat",
+    "allowModeToggle": true,
+    "pan": true,
+    "zoom": true,
+    "minZoom": 0.6,
+    "maxZoom": 28,
+    "fitPaddingRatio": 0.26,
+    "graticuleStepDeg": 2,
+    "graticuleMajorStepDeg": 10,
+    "sweepSeconds": 9,
+    "basemap": {
+      "source": "world-atlas@2.0.2/countries-110m.json",
+      "path": "/vendor/countries-110m.json",
+      "projection": "mercator",
+      "attribution": "Natural Earth (public domain)"
+    }
+  },
+  "pipeline": {
+    "stages": [
+      "ingest",
+      "parse",
+      "disambiguate",
+      "resolve",
+      "export"
+    ],
+    "defaultStage": "disambiguate",
+    "topK": 5,
+    "reviewGate": 0.4,
+    "autorun": true,
+    "spanRevealMs": 230,
+    "spanGapMs": 90,
+    "runStartDelayMs": 320
+  },
+  "export": {
+    "formats": [
+      "geojson",
+      "jsonl",
+      "csv",
+      "wkt"
+    ],
+    "defaultFormat": "geojson",
+    "crs": "urn:ogc:def:crs:OGC::CRS84"
+  },
+  "telemetry": {
+    "clockIntervalMs": 1000,
+    "pollIntervalMs": 4000,
+    "showFooterStats": true
+  },
+  "palettes": {
+    "amber": {
+      "--acc": "#f2a33c",
+      "--alt": "#86a6b8",
+      "--warn": "#e2452c",
+      "--map-land": "#c2b391",
+      "--map-tint": "#5d5124",
+      "--map-sea": "#080b10",
+      "--bg": "#0a0a09",
+      "--panel": "#101110",
+      "--panel2": "#0c0d0c",
+      "--edge": "rgba(226,214,182,.13)",
+      "--fg": "#cdc8b8",
+      "--dim": "#7a776c"
+    },
+    "olive": {
+      "--acc": "#c8d074",
+      "--alt": "#93a46e",
+      "--warn": "#e0692a",
+      "--map-land": "#b9c085",
+      "--map-tint": "#3d4c1c",
+      "--map-sea": "#0c1310",
+      "--bg": "#0a0c08",
+      "--panel": "#11140e",
+      "--panel2": "#0d0f0a",
+      "--edge": "rgba(202,212,158,.14)",
+      "--fg": "#cbceb1",
+      "--dim": "#787c62"
+    },
+    "phosphor": {
+      "--acc": "#74ef8f",
+      "--alt": "#b7c46d",
+      "--warn": "#ff6a2b",
+      "--map-land": "#a6c49c",
+      "--map-tint": "#274526",
+      "--map-sea": "#040a07",
+      "--bg": "#070a08",
+      "--panel": "#0d110e",
+      "--panel2": "#090d0a",
+      "--edge": "rgba(170,230,185,.13)",
+      "--fg": "#c1d6c4",
+      "--dim": "#6d7f71"
+    },
+    "graphite": {
+      "--acc": "#e8e3d5",
+      "--alt": "#8f9aa3",
+      "--warn": "#d0512f",
+      "--map-land": "#a9a59a",
+      "--map-tint": "#3a3a3c",
+      "--map-sea": "#090a0c",
+      "--bg": "#0b0b0c",
+      "--panel": "#101113",
+      "--panel2": "#0c0c0e",
+      "--edge": "rgba(220,220,220,.12)",
+      "--fg": "#c7c6c1",
+      "--dim": "#75767b"
+    }
+  },
+  "boundaries": {
+    "enabled": true,
+    "fillOpacity": 0.16,
+    "strokeWidth": 1.1,
+    "weakMatchBelow": 0.95
+  },
+  "input": {
+    "allowPaste": true,
+    "allowUpload": true,
+    "uploadFormats": [
+      ".txt",
+      ".jsonl",
+      ".ndjson"
+    ]
+  }
+}

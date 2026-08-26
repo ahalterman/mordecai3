@@ -207,7 +207,8 @@ def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
             "review_reasons": reasons,
             "margin": round(margin, 4) if margin is not None else None,
             "p_no_match": round(float(ent.get("p_no_match", 0.0)), 4),
-            "rationale": explain(raw_candidates, sib_count=max(placed - 1, 0)),
+            "rationale": explain(raw_candidates, sib_count=max(placed - 1, 0),
+                                 placed=not ent.get("no_match")),
             "candidates": candidates,
         })
 

@@ -114,7 +114,7 @@ def _clause(key, winner, loser, sib_count):
     return None
 
 
-def explain(candidates, sib_count=0):
+def explain(candidates, sib_count=0, placed=True):
     """A rationale sentence for a ranked candidate list, or None.
 
     Parameters
@@ -125,6 +125,12 @@ def explain(candidates, sib_count=0):
     sib_count : int
         How many other mentions the document resolved. Only used to make the
         "shares an admin unit with N other mentions" clause concrete.
+    placed : bool
+        Whether the model actually placed the mention. False changes the verb
+        and adds a closing clause: the ranking among candidates still happened
+        and is still worth showing, but nothing was "preferred" if the
+        abstention row outscored every candidate, and saying so would describe
+        a decision the model did not make.
 
     Returns
     -------
@@ -151,4 +157,8 @@ def explain(candidates, sib_count=0):
     margin = float(winner.get("score", 0)) - float(runner_up.get("score", 0))
 
     body = clauses[0] if len(clauses) == 1 else f"{clauses[0]}, and {clauses[1]}"
-    return (f"Preferred over {loser} by {margin:.2f}: this candidate {body}.")
+    if placed:
+        return f"Preferred over {loser} by {margin:.2f}: this candidate {body}."
+    return (f"Ranked above {loser} by {margin:.2f} because it {body} -- but the "
+            f"model's \u201cno correct candidate\u201d row outscored them all, so "
+            f"nothing was chosen.")
