@@ -402,16 +402,60 @@ if STATIC_DIR.exists():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 
-def main():
-    """`mordecai3-console`, and `python console/server.py`."""
+def lan_addresses(port):
+    """The addresses this machine is probably reachable at, for the banner.
+
+    Uses a UDP socket to a routable address to find which local interface the
+    kernel would route out of; no packet is actually sent. `gethostbyname` on
+    the hostname is the usual alternative and routinely answers 127.0.1.1 on
+    Debian-family boxes, which is exactly the useless answer here.
+    """
+    import socket
+    found = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            found.append(s.getsockname()[0])
+        finally:
+            s.close()
+    except OSError:
+        pass
+    return [f"http://{ip}:{port}" for ip in found]
+
+
+def main(argv=None):
+    """`python console/server.py`."""
+    import argparse
     import uvicorn
+
+    ap = argparse.ArgumentParser(
+        prog="console/server.py",
+        description="Serve the Mordecai geoparse console.")
+    ap.add_argument(
+        "--listen", action="store_true",
+        help="bind 0.0.0.0 instead of localhost, so other machines on the "
+             "network can reach the console. There is no authentication: only "
+             "do this on a network you trust.")
+    ap.add_argument("--host", default=os.environ.get("HOST"),
+                    help="explicit bind address; overrides --listen")
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    args = ap.parse_args(argv)
+
+    host = args.host or ("0.0.0.0" if args.listen else "127.0.0.1")
+
+    if host == "0.0.0.0":
+        urls = lan_addresses(args.port) or [f"http://<this-host>:{args.port}"]
+        logger.warning(
+            "listening on all interfaces -- the console is reachable at %s by "
+            "anyone on this network, and it has no authentication",
+            ", ".join(urls))
+
     # The import string differs by how this was started: as a package the
     # module is console.server, as a script it is just server (CONSOLE_DIR is
     # on sys.path either way, see the top of the file).
     uvicorn.run("console.server:app" if __package__ else "server:app",
-                host=os.environ.get("HOST", "127.0.0.1"),
-                port=int(os.environ.get("PORT", "8000")),
-                reload=False)
+                host=host, port=args.port, reload=False)
 
 
 if __name__ == "__main__":

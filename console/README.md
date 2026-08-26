@@ -19,6 +19,16 @@ python console/server.py             # http://127.0.0.1:8000
 Elasticsearch with the GeoNames index must be up (`docker compose up`). Without
 the boundary store the console still runs; every place is just a point.
 
+On a headless box, `--listen` binds `0.0.0.0` and logs the address to open from
+another machine. There is no authentication, so use it on a trusted network
+only — put it behind an SSH tunnel (`ssh -L 8000:localhost:8000 host`) if the
+network is not one.
+
+```
+python console/server.py --listen --port 8077
+python console/server.py --host 192.168.0.233   # or bind one interface
+```
+
 ---
 
 ## What is real, and what the mock faked
