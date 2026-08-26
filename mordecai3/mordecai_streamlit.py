@@ -1,16 +1,21 @@
+import os
+import sys
+
+# `streamlit run` puts this file's own directory -- the mordecai3 package -- at
+# the front of sys.path, where `elasticsearch.py` and `logging.py` shadow the
+# top-level modules of the same name and the app dies on the first import. Drop
+# it: everything below imports the package by name.
+_PKG_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _PKG_DIR]
+
 import spacy
 import streamlit as st
-import torch
 
-from elasticsearch import Elasticsearch
-from elasticsearch_dsl import Search
 from importlib import resources
-from spacy.language import Language
 from spacy.tokens import Token
 
-from mordecai3  import Geoparser 
-from torch_model import geoparse_model
-from mordecai_utilities import spacy_doc_setup
+from mordecai3 import Geoparser
+from mordecai3.mordecai_utilities import spacy_doc_setup
 
 HTML_WRAPPER = """<div style="overflow-x: auto; border: 1px solid #e6e9ef; border-radius: 0.25rem; padding: 1rem; margin-bottom: 2.5rem">{}</div>"""
 
@@ -34,32 +39,13 @@ def load_nlp():
 
 
 @st.cache_resource
-def setup_es():
-    kwargs = dict(
-        hosts=['localhost'],
-        port=9200,
-        use_ssl=False,
-    )
-    CLIENT = Elasticsearch(**kwargs)
-    conn = Search(using=CLIENT, index="geonames")
-    return conn
-
-@st.cache_resource
-def load_model():
-    model = geoparse_model(device=-1,
-                           bert_size = 768,
-                           num_feature_codes=54)
-    model_path = str(resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt")
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
-    return model
-
-@st.cache_resource
-def load_geo():
-    geo = Geoparser(model_path=resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt", 
-                 geo_asset_path=resources.files("mordecai3") / "assets",
+def load_geo(_nlp):
+    # No model_path: use the packaged default checkpoint and its config sidecar.
+    # The spaCy pipeline is handed in so the app and the geoparser share one
+    # transformer instead of loading en_core_web_trf twice.
+    geo = Geoparser(geo_asset_path=resources.files("mordecai3") / "assets",
                  hosts=["localhost"],
-                 nlp=None,
+                 nlp=_nlp,
                  debug=False,
                  trim=None)
     return geo
@@ -67,9 +53,7 @@ def load_geo():
 
 st.title('Mordecai geoparsing (v3)')
 nlp = load_nlp()
-conn = setup_es()
-#model = load_model()
-geo = load_geo()
+geo = load_geo(nlp)
 
 #= "Afghanistan's major population centers are all government-held, with capital city Kabul especially well-fortified, though none are immune to occasional attacks by Taliban operatives. And though the conflict sometimes seems to engulf the whole country, the provinces of Panjshir, Bamyan, and Nimroz stand out as being mostly free of Taliban influence."
 #default_text = 'A "scorched earth"-type policy was used in the city of New York City and the north-western governorate of Idleb.'
