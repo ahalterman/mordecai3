@@ -56,6 +56,10 @@ Repository = "https://github.com/ahalterman/mordecai3.git"
 
 [tool.setuptools.packages.find]
 namespaces = false
+# The console demo is not part of the library: it ships a vendored d3 bundle,
+# a basemap and the design handoff, none of which belong in the wheel. Run it
+# from a checkout -- see console/README.md.
+exclude = ["console*", "tools*", "tests*", "experiments*"]
 
 [tool.setuptools.package-data]
 mordecai3 = [

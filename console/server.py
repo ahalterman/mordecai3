@@ -402,9 +402,17 @@ if STATIC_DIR.exists():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 
-if __name__ == "__main__":
+def main():
+    """`mordecai3-console`, and `python console/server.py`."""
     import uvicorn
+    # The import string differs by how this was started: as a package the
+    # module is console.server, as a script it is just server (CONSOLE_DIR is
+    # on sys.path either way, see the top of the file).
     uvicorn.run("console.server:app" if __package__ else "server:app",
                 host=os.environ.get("HOST", "127.0.0.1"),
                 port=int(os.environ.get("PORT", "8000")),
                 reload=False)
+
+
+if __name__ == "__main__":
+    main()
