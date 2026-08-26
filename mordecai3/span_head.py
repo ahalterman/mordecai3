@@ -155,6 +155,21 @@ class SpanTagger:
         return sorted({(lo, hi) for lo, hi, q in self.span_scores(doc)
                        if q >= thr})
 
+    def scored_spans(self, doc, threshold=None):
+        """`spans()`, but each entry keeps the head's probability.
+
+        The same span can be scored more than once (overlapping windows), and
+        the max is kept: the head's confidence in a span is the best evidence
+        it found for it, not the last. Separate from `spans()` rather than a
+        change to it, because that one is the documented interface.
+        """
+        thr = self.threshold if threshold is None else threshold
+        best = {}
+        for lo, hi, q in self.span_scores(doc):
+            if q >= thr and q > best.get((lo, hi), 0.0):
+                best[(lo, hi)] = q
+        return sorted((lo, hi, q) for (lo, hi), q in best.items())
+
     # ------------------------------------------------------ geoparser shim
     def doc_to_ex(self, doc, context_labels=CONTEXT_LABELS, threshold=None):
         """`doc_to_ex_expanded`'s output shape, from the head's spans.
@@ -168,18 +183,21 @@ class SpanTagger:
         * `in_rel` is `guess_in_rel` over the mention's own tokens;
         * `sent` is the sentence text of the mention's first token.
 
+        Plus two fields the reference implementation has no source for:
+        `label` (always "SPAN") and `span_score`, the head's probability.
+
         `guess_in_rel` is imported lazily so this module can be used without
         the rest of the package (tests, offline scoring).
         """
         from .geoparse import guess_in_rel
 
-        picked = self.spans(doc, threshold)
+        picked = self.scored_spans(doc, threshold)   # (lo, hi, probability)
         if not picked:
             return []
         doc_tensor = np.mean(np.vstack([t._.tensor for t in doc]), axis=0)
         ctx = [t for e in doc.ents if e.label_ in context_labels for t in e]
         data = []
-        for lo, hi in picked:
+        for lo, hi, span_score in picked:
             own = [t for t in doc if t.idx >= lo and t.idx + len(t.text) <= hi]
             if not own:
                 continue
@@ -188,6 +206,12 @@ class SpanTagger:
             tensor = np.mean(np.vstack([t._.tensor for t in own]), axis=0)
             data.append({
                 "search_name": doc.text[lo:hi],
+                # The head has no notion of GPE vs LOC vs FAC -- it decides
+                # only whether a span is a place -- so it reports its own name
+                # and the probability behind the call, which the label-based
+                # detectors have no equivalent of.
+                "label": "SPAN",
+                "span_score": span_score,
                 "tensor": tensor,
                 "doc_tensor": doc_tensor,
                 "locs_tensor": (np.mean(np.vstack([t._.tensor for t in other]),

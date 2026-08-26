@@ -95,7 +95,13 @@ def test_doc_to_ex_fields_match_the_reference_implementation(doc):
     head = tagger.doc_to_ex(doc, context_labels=CONTEXT_LABELS)
     ref = doc_to_ex_expanded(doc)
     assert head, "the head found nothing in a document full of toponyms"
-    assert {k for e in head for k in e} == {k for e in ref for k in e}
+    head_keys = {k for e in head for k in e}
+    ref_keys = {k for e in ref for k in e}
+    # The head emits one field the label-filter path has no source for: the
+    # probability behind its own call. Everything else must still match, so
+    # this is a superset check with a named exception rather than a loosening.
+    assert head_keys - ref_keys == {"span_score"}
+    assert not ref_keys - head_keys
 
     by_span = {(e["start_char"], e["end_char"]): e for e in ref}
     shared = [e for e in head if (e["start_char"], e["end_char"]) in by_span]
