@@ -48,9 +48,10 @@
     "topK": 5,
     "reviewGate": 0.4,
     "autorun": true,
-    "spanRevealMs": 230,
-    "spanGapMs": 90,
-    "runStartDelayMs": 320
+    "spanRevealMs": 60,
+    "spanGapMs": 20,
+    "runStartDelayMs": 80,
+    "revealBudgetMs": 1400
   },
   "export": {
     "formats": [

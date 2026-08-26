@@ -88,6 +88,11 @@ models = [
 ]
 dev = [
     "pytest>=8.3.4",
+    # console/test_console_ui.py drives a real browser. Declared here because
+    # console/README.md tells people to run it: installed by hand instead, it
+    # works until the next `uv sync` prunes it and the instruction breaks.
+    # The browser binary is separate -- `uv run playwright install chromium`.
+    "playwright>=1.44",
     {include-group = "models"},
 ]
 es-data = [

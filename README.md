@@ -63,7 +63,8 @@ results = geo.geoparse_batch(
 
 `console/` is a fuller one: a single-screen analyst UI showing the document,
 a map, the ranked gazetteer candidates behind each decision, and administrative
-boundary polygons where the resolved place has one. See `console/README.md`.
+boundary polygons where the resolved place has one. `console/README.md` is the
+writeup; `console/DEPLOY.md` stands it up on a fresh server end to end.
 
 ## Installation and Requirements
 

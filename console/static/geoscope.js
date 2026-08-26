@@ -88,8 +88,9 @@
       this._zk = 1; this._zx = 0; this._zy = 0;
       // live (in-gesture) transform, folded into the committed one on release
       this._lk = 1; this._lx = 0; this._ly = 0;
-      this._key = '';
-      this._ids = '';
+      this._view = '';   // which places -- changing it resets pan and zoom
+      this._fit = '';    // what the projection depends on
+      this._paint = '';  // what the markers depend on
       this._gkey = '';
       this._moved = 0;
       this._painted = false;
@@ -225,45 +226,55 @@
 
     // ---------------------------------------------------------------- scene
 
+    /** Take a new scene, and repaint no more of it than actually changed.
+     *
+     * Three levels, because they cost wildly different amounts. A full
+     * `render()` re-rasterises feTurbulence and feDiffuseLighting across the
+     * whole terrain, which is by far the most expensive thing on this screen
+     * and is unaffected by anything below the projection:
+     *
+     *   `view`  -- which places are on screen. Refit, and reset any pan and
+     *              zoom: panning around and then switching documents should
+     *              not leave you lost.
+     *   `fit`   -- the above plus which places carry a polygon, since a
+     *              boundary's extent feeds the projection. Refit, but keep
+     *              the view where the reader put it.
+     *   `paint` -- everything else the markers depend on: statuses, mention
+     *              tallies, ghosts, the active place. Repaint the overlay
+     *              groups and leave the terrain alone.
+     *
+     * The reveal animation only ever moves `paint`: it flips pins from
+     * pending to resolved, one after another, at a rate the terrain could not
+     * possibly keep up with. Before this split it forced a full re-rasterise
+     * per step, which is what put a ceiling on how fast the reveal could run
+     * -- so this is the change that lets it be quick.
+     */
     setScene(o) {
-      let structural = false;
+      let refit = false, repaint = false;
       if (o.pins) {
-        // Changing which places are on screen resets the view; panning around
-        // and then switching documents should not leave you lost.
-        const k = o.pins.map(p =>
-          `${p.id}:${p.status}:${p.count || 1}:${p.boundary ? 'b' : ''}`).join('|');
-        if (k !== this._key) {
-          // The view only resets when the *places* change, not when their
-          // statuses do -- otherwise the reveal animation, which flips each
-          // pin from pending to resolved, would yank the view back to the fit
-          // on every step.
-          const ids = o.pins.map(p => p.id).join('|');
-          if (ids !== this._ids) {
-            this._ids = ids;
-            this._zk = 1; this._zx = 0; this._zy = 0;
-          }
-          this._key = k;
-          structural = true;
-        }
+        const view = o.pins.map(p => p.id).join('|');
+        const fit = o.pins.map(p => `${p.id}:${p.boundary ? 'b' : ''}`).join('|');
+        const paint = o.pins.map(p => `${p.id}:${p.status}:${p.count || 1}`).join('|');
+        if (view !== this._view) { this._zk = 1; this._zx = 0; this._zy = 0; }
+        if (fit !== this._fit) refit = true;
+        else if (paint !== this._paint) repaint = true;
+        this._view = view; this._fit = fit; this._paint = paint;
         this._pins = o.pins;
       }
       if ('ghosts' in o) {
         const gk = (o.ghosts || []).map(g => `${g.lat},${g.lon}`).join('|');
-        if (gk !== this._gkey) { this._gkey = gk; structural = true; }
+        if (gk !== this._gkey) { this._gkey = gk; repaint = true; }
         this._ghosts = o.ghosts || [];
       }
-      if (o.mode && o.mode !== this._mode) { this._mode = o.mode; structural = true; }
-      if (o.seed && o.seed !== this._seed) { this._seed = o.seed; structural = true; }
+      // The basemap and the terrain seed are the terrain, so these do need it.
+      if (o.mode && o.mode !== this._mode) { this._mode = o.mode; refit = true; }
+      if (o.seed && o.seed !== this._seed) { this._seed = o.seed; refit = true; }
       if ('active' in o && o.active !== this._active) {
         this._active = o.active;
-        // Hover is the demo's core interaction and fires on every mouse move.
-        // A full render re-rasterises feTurbulence + feDiffuseLighting for the
-        // whole terrain, which is by far the most expensive thing on screen
-        // and completely unaffected by which marker is highlighted -- so a
-        // change of `active` alone repaints only the overlay groups.
-        if (!structural) { this._renderOverlay(); return; }
+        repaint = true;
       }
-      if (structural || !this._painted) this.render();
+      if (refit || !this._painted) this.render();
+      else if (repaint) this._renderOverlay();
     }
 
     refresh() { this.render(); }

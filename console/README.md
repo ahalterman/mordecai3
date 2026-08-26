@@ -24,8 +24,13 @@ enough to raise `ImportError: cannot import name 'Undefined' from
 rather than the wrong interpreter. Prefix every command in this file with
 `uv run`, or activate `.venv` first.
 
-Elasticsearch with the GeoNames index must be up (`docker compose up`). Without
-the boundary store the console still runs; every place is just a point.
+Elasticsearch with the GeoNames index must be up. Without the boundary store
+the console still runs; every place is just a point.
+
+**Standing this up somewhere else?** [`DEPLOY.md`](DEPLOY.md) is the end-to-end
+version — prerequisites, the GeoNames index, running it as a service, exposing
+it safely, and a troubleshooting table. Note that the repository's
+`compose.yaml` mounts the small test subset, not the full gazetteer.
 
 On a headless box, `--listen` binds `0.0.0.0` and logs the address to open from
 another machine. There is no authentication, so use it on a trusted network
@@ -274,6 +279,23 @@ It cannot, honestly. `geoparse_batch` pools every mention in a document into a
 the whole document resolves at once. So this is a replay of a complete answer:
 presentation, not progress. Set `pipeline.spanRevealMs: 0` to skip it;
 `prefers-reduced-motion` skips it automatically.
+
+Since it is presentation, its job is to make a fast thing *look* fast, and it
+was doing the opposite: 320 ms per mention meant a 30 ms parse followed by four
+seconds of theatre. It runs at 80 ms now, and `pipeline.revealBudgetMs` caps
+the whole run at 1.4 s — past the point where one-at-a-time would overrun that,
+mentions land in small groups instead of the steps stretching out, so a long
+pasted article finishes in about the time a short one does. Pins still arrive
+in document order, which is the part worth keeping.
+
+What had put a floor under the step is worth knowing before tuning it further.
+Each step changes only marker *state*, but `setScene` used to treat any change
+to its pin key as structural and re-render the whole map, re-rasterising the
+terrain's `feTurbulence` and `feDiffuseLighting` — by far the most expensive
+thing on the screen — several times a second. `setScene` now separates which
+places are on screen (refit, reset the view) from what the projection depends
+on (refit, keep the view) from what only the markers depend on (repaint the
+overlay). The reveal only ever moves the third.
 
 ---
 

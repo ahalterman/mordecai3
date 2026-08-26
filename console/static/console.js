@@ -378,25 +378,44 @@ async function runParse() {
  */
 async function reveal() {
   const p = S.config.pipeline || {};
-  const stepMs = p.spanRevealMs ?? 230;
-  const gapMs = p.spanGapMs ?? 90;
+  const stepMs = p.spanRevealMs ?? 60;
+  const gapMs = p.spanGapMs ?? 20;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ents = entities();
 
   if (!stepMs || reduce) {
-    entities().forEach(e => S.revealed.add(e.id));
+    ents.forEach(e => S.revealed.add(e.id));
     renderAll();
     return;
   }
 
-  await sleep(p.runStartDelayMs ?? 320);
-  for (const e of entities()) {
-    S.scanning = e.id; S.selected = e.id;
-    pushLog(`rank  ${e.text} → ${e.resolved
-      ? `${e.resolved.name} ${e.resolved.confidence.toFixed(2)}`
-      : 'no match'} · k=${e.candidates.length}`);
+  // A parse that takes 30 ms should not be followed by four seconds of
+  // theatre; the animation is supposed to read as speed, and past a couple of
+  // seconds it reads as waiting instead. So the per-entity step is fast, and
+  // a whole-run budget caps what a long document can spend: past the point
+  // where one-at-a-time would overrun it, entities land in small groups
+  // rather than the steps stretching out. The pins still arrive in document
+  // order, which is the part worth keeping.
+  const budget = p.revealBudgetMs ?? 1400;
+  const perStep = stepMs + gapMs;
+  const steps = Math.max(1, Math.min(ents.length, Math.floor(budget / perStep)));
+  const size = Math.ceil(ents.length / steps);
+
+  await sleep(p.runStartDelayMs ?? 80);
+  for (let i = 0; i < ents.length; i += size) {
+    const group = ents.slice(i, i + size);
+    group.forEach(e => S.revealed.add(e.id));
+    // `scanning` is a single-entity state and the head of the group is the
+    // honest one to point at: it is the entity the log line names.
+    S.scanning = group[0].id; S.selected = group[0].id;
+    for (const e of group) {
+      pushLog(`rank  ${e.text} → ${e.resolved
+        ? `${e.resolved.name} ${e.resolved.confidence.toFixed(2)}`
+        : 'no match'} · k=${e.candidates.length}`);
+    }
     renderAll();
     await sleep(stepMs);
-    S.scanning = null; S.revealed.add(e.id);
+    S.scanning = null;
     renderAll();
     await sleep(gapMs);
   }
