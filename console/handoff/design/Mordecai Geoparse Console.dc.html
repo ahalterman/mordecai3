@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
+<style>
+:root{
+  --acc:#f2a33c; --alt:#86a6b8; --warn:#e2452c;
+  --map-land:#c2b391; --map-sea:#080b10;
+  --bg:#0a0a09; --panel:#101110; --panel2:#0c0d0c;
+  --edge:rgba(226,214,182,.13); --fg:#cdc8b8; --dim:#7a776c; --grit:.55; --map-tint:#5d5124;
+}
+:root[data-pal="phosphor"]{--acc:#74ef8f;--alt:#b7c46d;--warn:#ff6a2b;--map-land:#a6c49c;--map-tint:#274526;--map-sea:#040a07;--bg:#070a08;--panel:#0d110e;--panel2:#090d0a;--edge:rgba(170,230,185,.13);--fg:#c1d6c4;--dim:#6d7f71;}
+:root[data-pal="olive"]{--acc:#c8d074;--alt:#93a46e;--warn:#e0692a;--map-land:#b9c085;--map-tint:#3d4c1c;--map-sea:#0c1310;--bg:#0a0c08;--panel:#11140e;--panel2:#0d0f0a;--edge:rgba(202,212,158,.14);--fg:#cbceb1;--dim:#787c62;}
+:root[data-pal="graphite"]{--acc:#e8e3d5;--alt:#8f9aa3;--warn:#d0512f;--map-land:#a9a59a;--map-tint:#3a3a3c;--map-sea:#090a0c;--bg:#0b0b0c;--panel:#101113;--panel2:#0c0c0e;--edge:rgba(220,220,220,.12);--fg:#c7c6c1;--dim:#75767b;}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);overflow-x:auto;overflow-y:hidden}
+*{box-sizing:border-box}
+a{color:var(--acc);text-decoration:none}a:hover{color:var(--fg)}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--edge)}::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+[data-el="main"]{display:grid;grid-template-columns:1.02fr 1.3fr;grid-template-rows:1.42fr 1fr;
+  grid-template-areas:"doc map" "doc stage";gap:1px;background:var(--edge);flex:1;min-height:0}
+:root[data-layout="theater"] [data-el="main"]{grid-template-columns:1.1fr 1fr;grid-template-rows:1.25fr 1fr;
+  grid-template-areas:"map map" "doc stage"}
+:root[data-chrome="stripped"] [data-orn]{display:none}
+:root[data-chrome="stripped"] [data-el="top"] [data-ban]{opacity:.35}
+[data-eid]{cursor:crosshair;transition:background .16s,color .16s,box-shadow .2s;border-radius:1px}
+[data-st="pending"]{opacity:.34;border-bottom:1px dotted var(--dim)}
+[data-st="scan"]{background:var(--acc);color:#08090a;box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 30%,transparent);font-weight:600}
+[data-st="ok"]{color:var(--acc);background:color-mix(in srgb,var(--acc) 9%,transparent);box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--acc) 55%,transparent)}
+[data-st="amb"]{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);box-shadow:inset 0 -1px 0 var(--warn);border-bottom:0}
+[data-st="ok"]:hover,[data-st="amb"]:hover{background:var(--acc);color:#08090a;box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 26%,transparent)}
+[data-st="sel"]{background:var(--acc);color:#08090a;font-weight:600;box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 34%,transparent)}
+[data-kind="wire"]{font-family:'Source Serif 4',Georgia,serif;font-size:16.5px;line-height:1.85;letter-spacing:.002em}
+[data-kind="social"]{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;line-height:2.05}
+[data-kind="archive"]{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;line-height:2.15;letter-spacing:.05em}
+@keyframes blip{0%,72%{opacity:1}73%,100%{opacity:.22}}
+@keyframes flick{0%,96%{opacity:var(--grit)}97%{opacity:calc(var(--grit) * 1.7)}100%{opacity:var(--grit)}}
+@keyframes crawl{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes caret{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes glowline{0%{opacity:.15}50%{opacity:.5}100%{opacity:.15}}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:'Barlow Condensed',sans-serif;position:relative;min-width:980px">
+
+  <div data-el="top" style="height:52px;flex:none;display:flex;align-items:stretch;border-bottom:1px solid var(--edge);background:var(--panel2)">
+    <div style="width:214px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-right:1px solid var(--edge)">
+      <div style="width:14px;height:14px;flex:none;background:var(--acc);transform:rotate(45deg);box-shadow:0 0 14px color-mix(in srgb,var(--acc) 60%,transparent)"></div>
+      <div style="display:flex;flex-direction:column;line-height:1">
+        <span style="font:700 20px 'Barlow Condensed',sans-serif;letter-spacing:.22em;color:var(--fg)">MORDECAI</span>
+        <span style="font:400 8.5px 'JetBrains Mono',monospace;letter-spacing:.2em;color:var(--dim);margin-top:3px">GEOPARSE ENGINE</span>
+      </div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;gap:18px;padding:0 16px;min-width:0">
+      <div data-ban="1" style="font:500 10px 'JetBrains Mono',monospace;letter-spacing:.28em;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 55%,transparent);padding:4px 9px;white-space:nowrap">// UNCLASS · DEMO CORPUS · SYNTHETIC //</div>
+      <div data-orn="1" style="flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--edge) 0 5px,transparent 5px 11px)"></div>
+      <div style="display:flex;gap:22px;font:400 10px 'JetBrains Mono',monospace;color:var(--dim);white-space:nowrap">
+        <span>BUILD <span style="color:var(--fg)">{{ build }}</span></span>
+        <span>RANK <span style="color:var(--fg)">mordecai-rank/v4</span></span>
+        <span>DEV <span style="color:var(--fg)">cuda:0 {{ temp }}°C</span></span>
+      </div>
+    </div>
+    <div style="width:172px;flex:none;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;padding:0 16px;border-left:1px solid var(--edge);gap:2px">
+      <span style="font:500 15px 'JetBrains Mono',monospace;color:var(--acc);letter-spacing:.06em">{{ clock }}</span>
+      <span style="font:400 8.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.18em">UTC · SESSION {{ session }}</span>
+    </div>
+  </div>
+
+  <div data-el="ws" style="flex:1;display:flex;min-height:0">
+
+    <aside style="width:214px;flex:none;display:flex;flex-direction:column;background:var(--panel2);border-right:1px solid var(--edge);min-height:0;overflow:hidden">
+      <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column">
+      <div style="padding:13px 14px 9px;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.24em;color:var(--dim);flex:none">PIPELINE</div>
+      <sc-for list="{{ stages }}" as="s" hint-placeholder-count="5">
+        <div data-sid="{{ s.id }}" onClick="{{ pickStage }}" style="{{ s.style }}">
+          <span style="width:16px;flex:none;font:400 9px 'JetBrains Mono',monospace;color:var(--dim)">{{ s.num }}</span>
+          <span style="flex:1;font:600 13.5px 'Barlow Condensed',sans-serif;letter-spacing:.16em">{{ s.name }}</span>
+          <span style="font:400 8.5px 'JetBrains Mono',monospace;color:var(--dim)">{{ s.meta }}</span>
+          <span style="width:6px;height:6px;flex:none;border-radius:50%;background:{{ s.dot }}"></span>
+        </div>
+      </sc-for>
+
+      <div style="height:1px;background:var(--edge);margin:12px 0 0"></div>
+      <div style="padding:13px 14px 9px;font:500 9.5px 'JetBrains Mono',monospace;letter-spacing:.24em;color:var(--dim)">CORPUS</div>
+      <sc-for list="{{ docs }}" as="d" hint-placeholder-count="3">
+        <div data-did="{{ d.id }}" onClick="{{ pickDoc }}" style="{{ d.style }}">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+            <span style="font:600 12.5px 'Barlow Condensed',sans-serif;letter-spacing:.13em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</span>
+            <span style="font:400 8px 'JetBrains Mono',monospace;color:var(--dim);flex:none">{{ d.size }}</span>
+          </div>
+          <div style="font:400 8.5px 'JetBrains Mono',monospace;color:var(--dim);margin-top:3px;letter-spacing:.06em">{{ d.src }}</div>
+        </div>
+      </sc-for>
+
+      <div style="flex:none;min-height:10px"></div>
+      </div>
+
+      <div style="flex:none;padding:12px 14px 14px;border-top:1px solid var(--edge);display:flex;flex-direction:column;gap:9px">
+        <div style="display:flex;gap:1px;background:var(--edge);border:1px solid var(--edge)">
+          <div onClick="{{ setSat }}" style="{{ satBtn }}">SAT</div>
+          <div onClick="{{ setWire }}" style="{{ wireBtn }}">VECTOR</div>
+        </div>
+        <div onClick="{{ rerun }}" style="display:flex;align-items:center;justify-content:center;gap:9px;padding:10px;border:1px solid var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);cursor:pointer;font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.2em" style-hover="background:var(--acc);color:#08090a">
+          <span style="font-size:9px">▶</span>{{ runLabel }}
+        </div>
+        <div style="font:400 8.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em;line-height:1.7">
+          GAZ · GEONAMES 2026.07<br>12.41M FEATURES · FAISS-IVF
+        </div>
+      </div>
+    </aside>
+
+    <div data-el="main">
+
+      <section style="grid-area:doc;background:var(--panel);display:flex;flex-direction:column;min-height:0;min-width:0;position:relative">
+        <div style="flex:none;padding:12px 18px 11px;border-bottom:1px solid var(--edge);display:flex;align-items:flex-start;gap:14px">
+          <div style="flex:1;min-width:0">
+            <div style="font:600 16px 'Barlow Condensed',sans-serif;letter-spacing:.15em;color:var(--fg)">{{ docTitle }}</div>
+            <div style="font:400 9px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.09em;margin-top:4px">{{ docMeta }}</div>
+          </div>
+          <div data-orn="1" style="display:flex;gap:4px;align-items:center;flex:none">
+            <span style="width:5px;height:5px;background:var(--acc);animation:blip 1.6s steps(1,end) infinite"></span>
+            <span style="font:400 8.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.16em">TOKENIZED</span>
+          </div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:22px 26px 26px;min-height:0">
+          <div data-kind="{{ docKind }}" style="color:var(--fg);white-space:pre-wrap;text-wrap:pretty;max-width:70ch">
+<sc-for list="{{ segs }}" as="g" hint-placeholder-count="26"><span data-eid="{{ g.eid }}" data-st="{{ g.st }}" onMouseEnter="{{ hoverEnt }}" onMouseLeave="{{ hoverOut }}" onClick="{{ clickEnt }}">{{ g.t }}</span></sc-for>
+          </div>
+        </div>
+        <div style="flex:none;height:30px;border-top:1px solid var(--edge);display:flex;align-items:center;gap:16px;padding:0 18px;font:400 9px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em">
+          <span>SPANS <span style="color:var(--acc)">{{ nSpans }}</span></span>
+          <span>RESOLVED <span style="color:var(--acc)">{{ nResolved }}</span></span>
+          <span>AMBIGUOUS <span style="color:var(--warn)">{{ nAmb }}</span></span>
+          <span data-orn="1" style="flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--edge) 0 4px,transparent 4px 9px)"></span>
+          <span>{{ parseMs }} ms</span>
+        </div>
+        <div data-orn="1" style="position:absolute;top:0;left:0;right:0;height:1px;background:var(--acc);opacity:.2;animation:glowline 5s ease-in-out infinite"></div>
+      </section>
+
+      <section style="grid-area:map;position:relative;background:var(--map-sea);overflow:hidden;min-height:0;min-width:0">
+        <x-import component-from-global-scope="geo-scope" from="./geoscope.js" style="position:absolute;inset:0" hint-size="100%,100%"></x-import>
+        <div style="position:absolute;top:0;left:0;right:0;height:34px;display:flex;align-items:center;gap:14px;padding:0 14px;background:linear-gradient(180deg,rgba(4,6,9,.92),rgba(4,6,9,0));pointer-events:none">
+          <span style="font:600 12px 'Barlow Condensed',sans-serif;letter-spacing:.24em;color:var(--acc)">{{ mapTitle }}</span>
+          <span style="font:400 9px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.12em">{{ mapMeta }}</span>
+        </div>
+        <div style="position:absolute;right:12px;top:38px;display:flex;flex-direction:column;gap:3px;align-items:flex-end;pointer-events:none;font:400 9px 'JetBrains Mono',monospace;color:var(--acc);letter-spacing:.08em;text-shadow:0 0 8px rgba(0,0,0,.9)">
+          <span>{{ cursorLat }}</span>
+          <span>{{ cursorLon }}</span>
+          <span style="color:var(--dim)">ALT {{ alt }} KM · WGS84</span>
+        </div>
+        <div style="position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:8px;font:400 8.5px 'JetBrains Mono',monospace;letter-spacing:.14em">
+          <span style="color:var(--dim);text-shadow:0 0 8px rgba(0,0,0,.9)">SCROLL ZOOM · DRAG PAN</span>
+          <span style="color:var(--acc);background:rgba(4,6,9,.72);padding:3px 7px;border:1px solid color-mix(in srgb,var(--acc) 40%,transparent)">×{{ zoom }}</span>
+          <span onClick="{{ resetView }}" style="cursor:pointer;color:var(--acc);background:rgba(4,6,9,.72);padding:3px 8px;border:1px solid var(--acc)" style-hover="background:var(--acc);color:#08090a">RESET</span>
+        </div>
+        <div data-orn="1" style="position:absolute;left:14px;top:44px;display:flex;flex-direction:column;gap:5px;pointer-events:none">
+          <sc-for list="{{ mapBadges }}" as="b" hint-placeholder-count="3">
+            <span style="font:400 8.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:var(--dim);background:rgba(4,6,9,.6);padding:2px 6px;border-left:2px solid var(--acc)">{{ b }}</span>
+          </sc-for>
+        </div>
+      </section>
+
+      <section style="grid-area:stage;background:var(--panel);display:flex;flex-direction:column;min-height:0;min-width:0">
+        <div style="flex:none;height:36px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:12px;padding:0 16px">
+          <span style="font:600 13px 'Barlow Condensed',sans-serif;letter-spacing:.22em;color:var(--acc)">{{ stageTitle }}</span>
+          <span data-orn="1" style="flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--edge) 0 4px,transparent 4px 9px)"></span>
+          <span style="font:400 9px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.12em">{{ stageMeta }}</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;min-height:0">
+
+          <sc-if value="{{ isIngest }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:14px 16px;display:flex;flex-direction:column;gap:1px">
+              <sc-for list="{{ ingestRows }}" as="r" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1fr 74px 62px 58px;gap:10px;padding:9px 10px;background:var(--panel2);font:400 10px 'JetBrains Mono',monospace;color:var(--fg);align-items:center">
+                  <span style="letter-spacing:.06em">{{ r.name }}</span>
+                  <span style="color:var(--dim)">{{ r.adapter }}</span>
+                  <span style="color:var(--dim)">{{ r.size }}</span>
+                  <span style="color:var(--acc);text-align:right">{{ r.state }}</span>
+                </div>
+              </sc-for>
+              <div style="margin-top:12px;padding:11px 12px;border:1px dashed var(--edge);font:400 10px/1.8 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.05em">
+                NORMALIZE → NFKC · STRIP MARKUP · LANG-ID (fasttext) → <span style="color:var(--fg)">fr 0.61 / en 0.39</span><br>
+                SEGMENT → 14 SENTENCES · 612 TOKENS
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isParse }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:12px 16px;display:flex;flex-direction:column;gap:1px">
+              <div style="display:grid;grid-template-columns:1fr 54px 52px 46px;gap:10px;padding:0 10px 7px;font:500 8.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.16em">
+                <span>SPAN</span><span>LABEL</span><span>CHAR</span><span style="text-align:right">P</span>
+              </div>
+              <sc-for list="{{ parseRows }}" as="r" hint-placeholder-count="8">
+                <div data-eid="{{ r.id }}" onClick="{{ clickEnt }}" style="{{ r.style }}">
+                  <span style="letter-spacing:.05em">{{ r.text }}</span>
+                  <span style="color:var(--alt)">{{ r.label }}</span>
+                  <span style="color:var(--dim)">{{ r.span }}</span>
+                  <span style="text-align:right;color:var(--acc)">{{ r.p }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isDis }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:13px 16px">
+              <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:11px">
+                <span style="font:600 19px 'Barlow Condensed',sans-serif;letter-spacing:.13em;color:var(--fg)">{{ selText }}</span>
+                <span style="font:400 9px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em">{{ selCtx }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <sc-for list="{{ cands }}" as="c" hint-placeholder-count="4">
+                  <div style="{{ c.style }}">
+                    <div style="display:flex;align-items:baseline;gap:8px">
+                      <span style="width:11px;flex:none;font:400 9px 'JetBrains Mono',monospace;color:var(--dim)">{{ c.rank }}</span>
+                      <span style="flex:1;font:500 12.5px 'Barlow Condensed',sans-serif;letter-spacing:.11em;color:var(--fg)">{{ c.name }}</span>
+                      <span style="font:400 9px 'JetBrains Mono',monospace;color:var(--acc)">{{ c.conf }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:5px;padding-left:19px">
+                      <span style="font:400 8.5px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.07em;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.meta }}</span>
+                      <span style="width:82px;height:4px;flex:none;background:var(--edge);position:relative">
+                        <span style="position:absolute;inset:0 auto 0 0;width:{{ c.bar }};background:{{ c.barCol }}"></span>
+                      </span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top:12px;padding:10px 12px;border-left:2px solid var(--acc);background:var(--panel2);font:400 10px/1.75 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.04em">
+                <span style="color:var(--acc)">RATIONALE ▸ </span>{{ rationale }}
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isResolve }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:14px 16px">
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <sc-for list="{{ resRows }}" as="r" hint-placeholder-count="7">
+                  <div style="display:grid;grid-template-columns:104px 1fr;gap:12px;padding:7px 10px;background:var(--panel2);font:400 10px 'JetBrains Mono',monospace;letter-spacing:.05em">
+                    <span style="color:var(--dim)">{{ r.k }}</span>
+                    <span style="color:var(--fg)">{{ r.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isExport }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:13px 16px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;gap:1px;background:var(--edge);border:1px solid var(--edge)">
+                <sc-for list="{{ formats }}" as="f" hint-placeholder-count="4">
+                  <div data-fmt="{{ f.id }}" onClick="{{ pickFmt }}" style="{{ f.style }}">{{ f.name }}</div>
+                </sc-for>
+              </div>
+              <pre style="margin:0;padding:12px;background:#06070a;border:1px solid var(--edge);font:400 9.5px/1.65 'JetBrains Mono',monospace;color:var(--alt);overflow:auto;max-height:180px;letter-spacing:.02em">{{ exportText }}</pre>
+              <div style="display:flex;gap:9px;align-items:center;font:400 9px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.1em">
+                <span>{{ exportMeta }}</span>
+                <span style="flex:1"></span>
+                <span style="border:1px solid var(--acc);color:var(--acc);padding:5px 12px;cursor:pointer;letter-spacing:.18em" style-hover="background:var(--acc);color:#08090a">WRITE ▸</span>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div style="flex:none;height:32px;border-top:1px solid var(--edge);background:var(--panel2);display:flex;align-items:center;min-width:0">
+    <div style="flex:none;display:flex;align-items:center;gap:7px;padding:0 14px;border-right:1px solid var(--edge);height:100%">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--acc);animation:blip 1.4s steps(1,end) infinite"></span>
+      <span style="font:400 9px 'JetBrains Mono',monospace;letter-spacing:.18em;color:var(--acc)">{{ statusWord }}</span>
+    </div>
+    <div style="flex:1;overflow:hidden;min-width:0;padding:0 14px">
+      <div style="font:400 9.5px 'JetBrains Mono',monospace;letter-spacing:.07em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        <span style="color:var(--alt)">{{ logTime }}</span>&nbsp;&nbsp;{{ logLine }}<span style="animation:caret 1s steps(1,end) infinite;color:var(--acc)">▊</span>
+      </div>
+    </div>
+    <div style="flex:none;display:flex;gap:20px;padding:0 16px;border-left:1px solid var(--edge);height:100%;align-items:center;font:400 9px 'JetBrains Mono',monospace;letter-spacing:.1em;color:var(--dim)">
+      <span>THROUGHPUT <span style="color:var(--fg)">{{ tput }} DOC/S</span></span>
+      <span>P50 <span style="color:var(--fg)">{{ p50 }} ms</span></span>
+      <span>MEM <span style="color:var(--fg)">{{ mem }} GB</span></span>
+      <span>QUEUE <span style="color:var(--fg)">{{ queue }}</span></span>
+    </div>
+  </div>
+
+  <div data-orn="1" style="position:absolute;inset:0;pointer-events:none;z-index:40;background:repeating-linear-gradient(0deg,rgba(0,0,0,.34) 0 1px,transparent 1px 3px);opacity:calc(var(--grit) * .5);mix-blend-mode:multiply"></div>
+  <div data-orn="1" style="position:absolute;inset:0;pointer-events:none;z-index:41;opacity:var(--grit);animation:flick 7s steps(1,end) infinite;mix-blend-mode:overlay;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22160%22><filter id=%22n%22><feTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%223%22/></filter><rect width=%22160%22 height=%22160%22 filter=%22url(%23n)%22 opacity=%220.42%22/></svg>')"></div>
+  <div style="position:absolute;inset:0;pointer-events:none;z-index:42;background:radial-gradient(ellipse 88% 78% at 50% 46%,transparent 42%,rgba(0,0,0,.55) 100%)"></div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;palette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;AMBER&quot;,&quot;OLIVE&quot;,&quot;PHOSPHOR&quot;,&quot;GRAPHITE&quot;],&quot;default&quot;:&quot;AMBER&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;mapMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;SAT&quot;,&quot;VECTOR&quot;],&quot;default&quot;:&quot;SAT&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;grit&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;default&quot;:0.55,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;chrome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;FULL&quot;,&quot;STRIPPED&quot;],&quot;default&quot;:&quot;FULL&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;SPLIT&quot;,&quot;THEATER&quot;],&quot;default&quot;:&quot;SPLIT&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;autorun&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+const PT = {
+  b1:[12.6392,-8.0029], gao:[16.2717,-0.0402], ans:[15.6600,0.5028], bou:[16.9667,-0.3500],
+  mop:[14.4843,-4.1826], nig:[15.0500,0.7200], lab:[14.9500,0.7000], men:[15.9182,2.3958],
+  nia:[13.5137,2.1098], til:[14.2119,1.4531], kid:[18.4411,1.4078], tes:[20.1986,1.0114],
+  oua:[12.3714,-1.5197],
+  dd:[9.5931,41.8661], dj:[11.5721,43.1456], ay:[10.7561,42.5717], jj:[9.3500,42.8000],
+  kmp:[9.3450,42.4200], hr:[9.3100,42.1200], ms:[15.6089,39.4497], bb:[10.4396,45.0143], ab:[9.1450,40.4897]
+};
+
+const E = {
+  b1:{label:'Bamako',lab:'GPE',p:0.99,conf:0.97,gid:2460596,fc:'P.PPLC',adm:'Bamako, ML',pop:'2,713,000',
+      cands:[['Bamako','P.PPLC · Mali · capital · pop 2.71M',0.97],['Bamako Region','A.ADM1 · Mali',0.02],['Bamako, Guinée','P.PPL · Guinea · pop 1.4K',0.01]],
+      why:'Dateline position + document-level country prior ML (0.93).'},
+  gao:{label:'Gao',lab:'GPE',p:0.98,conf:0.94,gid:2456136,fc:'P.PPLA',adm:'Gao, ML',pop:'86,633',
+      cands:[['Gao','P.PPLA · Mali · admin seat · pop 86.6K',0.94],['Gao Region','A.ADM1 · Mali · 170,600 km²',0.04],['Gao Xian','A.ADM2 · China · Jiangsu',0.02]],
+      why:'Co-occurs with Ansongo (98 km) and Bourem (95 km); China candidate suppressed by spatial coherence term.'},
+  ans:{label:'Ansongo',lab:'GPE',p:0.96,conf:0.91,gid:2460119,fc:'P.PPLA2',adm:'Gao, ML',pop:'20,148',
+      cands:[['Ansongo','P.PPLA2 · Mali · Gao Region',0.91],['Ansongo Cercle','A.ADM2 · Mali',0.09]],
+      why:'"residents reached by telephone in" → settlement type preferred over admin polygon.'},
+  bou:{label:'Bourem',lab:'GPE',p:0.94,conf:0.63,amb:true,gid:2460096,fc:'P.PPLA2',adm:'Gao, ML',pop:'27,157',
+      cands:[['Bourem','P.PPLA2 · Mali · Gao Region · pop 27.2K',0.63],['Bourem-Inaly','P.PPL · Mali · Timbuktu Region',0.31],['Bourem Sidi Amar','P.PPL · Mali · Timbuktu Region',0.06]],
+      ghosts:[['Bourem-Inaly',16.5300,-3.4200]],
+      why:'Margin 0.32 below the 0.40 gate — flagged for review. Both candidates lie within the sentence-level context hull.'},
+  mop:{label:'Mopti',lab:'GPE',p:0.97,conf:0.79,gid:2453354,fc:'P.PPLA',adm:'Mopti, ML',pop:'114,296',
+      cands:[['Mopti','P.PPLA · Mali · admin seat · pop 114K',0.79],['Mopti Region','A.ADM1 · Mali · 79,017 km²',0.19],['Mopti Cercle','A.ADM2 · Mali',0.02]],
+      why:'"A regional official in" pushes weight toward the admin seat, not the region polygon.'},
+  nig:{label:'Niger R.',lab:'LOC',p:0.91,conf:0.71,amb:true,gid:2440479,fc:'H.STM',adm:'ML / NE / NG',pop:'—',
+      cands:[['Niger River','H.STM · 4,180 km · Guinea→Nigeria',0.71],['Niger','A.PCLI · country · pop 25.4M',0.19],['Niger State','A.ADM1 · Nigeria · pop 5.6M',0.07],['Niger','P.PPL · Mali · Bourem Cercle',0.03]],
+      ghosts:[['Niger (PCLI)',17.6100,8.0810],['Niger State',9.9300,6.0000]],
+      why:'Governing verb "crossed" selects a hydronym over a polity; nearest resolved toponym Labbezanga sits 12 km off the river centreline.'},
+  lab:{label:'Labbezanga',lab:'GPE',p:0.88,conf:0.86,gid:2454703,fc:'P.PPL',adm:'Gao, ML',pop:'3,412',
+      cands:[['Labbezanga','P.PPL · Mali · ML/NE border crossing',0.86],['Labezanga','P.PPL · Niger · Tillabéri (variant)',0.14]],
+      why:'Alias table folds the ML/NE spelling variants; ML entry wins on document country prior.'},
+  men:{label:'Ménaka',lab:'GPE',p:0.95,conf:0.88,gid:2450173,fc:'P.PPLA',adm:'Ménaka, ML',pop:'12,536',
+      cands:[['Ménaka','P.PPLA · Mali · admin seat',0.88],['Ménaka Region','A.ADM1 · Mali',0.10],['Menaka','P.PPL · India · Odisha',0.02]],
+      why:'Diacritic-normalized match; "dispersing east toward" implies a point destination.'},
+  nia:{label:'Niamey',lab:'GPE',p:0.99,conf:0.96,gid:2440485,fc:'P.PPLC',adm:'Niamey, NE',pop:'1,026,848',
+      cands:[['Niamey','P.PPLC · Niger · capital',0.96],['Niamey Region','A.ADM1 · Niger',0.04]],
+      why:'Unambiguous capital; no competing surface form above 0.05.'},
+  til:{label:'Tillabéri',lab:'GPE',p:0.93,conf:0.58,amb:true,gid:2439376,fc:'A.ADM1',adm:'Tillabéri, NE',pop:'2,722,482',
+      cands:[['Tillabéri Region','A.ADM1 · Niger · 97,251 km²',0.58],['Tillabéri','P.PPLA · Niger · admin seat',0.39],['Tillaberi','P.PPL · Niger · variant',0.03]],
+      ghosts:[['Tillabéri (town)',14.2100,1.4500]],
+      why:'"transport into" favours an area over a point, but the margin is 0.19 — below gate. Region returned with a review flag.'},
+  kid:{label:'Kidal',lab:'GPE',p:0.97,conf:0.90,gid:2455518,fc:'P.PPLA',adm:'Kidal, ML',pop:'25,617',
+      cands:[['Kidal','P.PPLA · Mali · admin seat',0.90],['Kidal Region','A.ADM1 · Mali',0.10]],
+      why:'Anchored by the Tessalit relation in the same clause (203 km bearing 022°).'},
+  tes:{label:'Tessalit',lab:'GPE',p:0.90,conf:0.84,gid:2449067,fc:'P.PPL',adm:'Kidal, ML',pop:'6,220',
+      cands:[['Tessalit','P.PPL · Mali · Kidal Region',0.84],['Tessalit Cercle','A.ADM2 · Mali',0.16]],
+      why:'"road junction" head noun binds to the settlement entry (FAC modifier retained).'},
+  oua:{label:'Ouagadougou',lab:'GPE',p:0.99,conf:0.95,gid:2357048,fc:'P.PPLC',adm:'Kadiogo, BF',pop:'1,626,950',
+      cands:[['Ouagadougou','P.PPLC · Burkina Faso · capital',0.95],['Ouagadougou Airport','S.AIRP · Burkina Faso',0.05]],
+      why:'"statement issued from" → seat-of-government reading.'},
+
+  dd:{label:'Dire Dawa',lab:'GPE',p:0.96,conf:0.93,gid:338832,fc:'P.PPLA',adm:'Dire Dawa, ET',pop:'277,000',
+      cands:[['Dire Dawa','P.PPLA · Ethiopia · chartered city',0.93],['Dire Dawa Zone','A.ADM1 · Ethiopia',0.07]],
+      why:'Rail-corridor relation with Djibouti fixes the point reading.'},
+  dj:{label:'Djibouti',lab:'GPE',p:0.98,conf:0.55,amb:true,gid:223817,fc:'P.PPLC',adm:'Djibouti, DJ',pop:'623,891',
+      cands:[['Djibouti','P.PPLC · city · pop 624K',0.55],['Djibouti','A.PCLI · country · pop 1.1M',0.42],['Djibouti Region','A.ADM1 · Djibouti',0.03]],
+      ghosts:[['Djibouti (PCLI)',11.8000,42.5000]],
+      why:'Classic city/country collision. "rail traffic between X and Y" implies terminals — city edges out the polity by 0.13.'},
+  ay:{label:'Aysha',lab:'GPE',p:0.83,conf:0.72,gid:344979,fc:'P.PPL',adm:'Somali, ET',pop:'6,100',
+      cands:[['Aysha','P.PPL · Ethiopia · Somali Region',0.72],['Ayshah','P.PPL · Yemen',0.18],['Aisha','P.PPL · Ethiopia · variant',0.10]],
+      why:'1977 cable romanization normalized through the historical-alias index (new in v4).'},
+  jj:{label:'Jijiga',lab:'GPE',p:0.95,conf:0.91,gid:337405,fc:'P.PPLA',adm:'Somali, ET',pop:'159,300',
+      cands:[['Jijiga','P.PPLA · Ethiopia · Somali Region',0.91],['Jigjiga','P.PPLA · variant spelling',0.09]],
+      why:'Historical spelling "Jigjiga" folded to the modern canonical entry.'},
+  kmp:{label:'Kara Marda',lab:'LOC',p:0.71,conf:0.58,amb:true,gid:337221,fc:'T.PASS',adm:'Somali, ET',pop:'—',
+      cands:[['Kara Marda Pass','T.PASS · Ethiopia · 1,780 m',0.58],['Karamarda','P.PPL · Ethiopia',0.34],['Kara Mardha','T.PASS · variant',0.08]],
+      why:'Head noun "pass" is outside the NER span; v4 recovers it from the syntactic head and re-weights T.* feature codes.'},
+  hr:{label:'Harar',lab:'GPE',p:0.97,conf:0.94,gid:337405,fc:'P.PPLA',adm:'Harari, ET',pop:'151,977',
+      cands:[['Harar','P.PPLA · Ethiopia · Harari Region',0.94],['Harari Region','A.ADM1 · Ethiopia',0.06]],
+      why:'"withdrawn westward toward" — bearing from Jijiga 261°, consistent within 4°.'},
+  ms:{label:'Massawa',lab:'GPE',p:0.94,conf:0.89,gid:343300,fc:'P.PPLA',adm:'Northern Red Sea, ER',pop:'53,090',
+      cands:[['Massawa','P.PPLA · Eritrea · Red Sea port',0.89],['Massawa','P.PPL · variant Mitsiwa',0.11]],
+      why:'1977 document date routes through the historical-administration table (then Ethiopia, now ER).'},
+  bb:{label:'Berbera',lab:'GPE',p:0.93,conf:0.87,gid:64013,fc:'P.PPLA',adm:'Woqooyi Galbeed, SO',pop:'242,344',
+      cands:[['Berbera','P.PPLA · Somalia · Gulf of Aden port',0.87],['Berbera Airport','S.AIRP · Somalia',0.13]],
+      why:'"facility at" is ambiguous between port and airfield; port wins on the maritime context window.'},
+  ab:{label:'Abyssinia',lab:'GPE',p:0.62,conf:0.86,gid:337996,fc:'A.PCLI',adm:'Ethiopia',pop:'—',
+      cands:[['Ethiopia','A.PCLI · via historical alias ABYSSINIA',0.86],['Abissínia','P.PPL · Brazil · Minas Gerais',0.09],['Abyssinia','H.SEA · obsolete chart name',0.05]],
+      why:'v4 historical-alias index maps exonyms and pre-1974 names to modern GeoNames ids, dated against the document.'}
+};
+
+const DOCS = [
+  {id:'wire',name:'SAHEL / RN17 WIRE',size:'1.6 KB',src:'TRANSSAHEL WIRE · fr',kind:'wire',
+   title:'CONVOY MOVEMENT REPORTED ON RN17 CORRIDOR',
+   meta:'TRANSSAHEL WIRE · REF TSW-4471 · FILED 26 AUG 2026 09:14 UTC · fr-ML · 612 TOK',
+   region:'SAHEL SECTOR · MALI–NIGER',
+   text:'[[BAMAKO|b1]] — Convoy movement was reported along the RN17 corridor south of [[Gao|gao]] on Tuesday, according to three residents reached by telephone in [[Ansongo|ans]] and [[Bourem|bou]]. A regional official in [[Mopti|mop]], speaking on condition of anonymity, said the column crossed [[the Niger|nig]] near [[Labbezanga|lab]] before dispersing east toward [[Ménaka|men]].\n\nAid workers in [[Niamey|nia]] confirmed the suspension of overland transport into [[Tillabéri|til]]. Reports circulating on local messaging channels place a second group near [[Kidal|kid]], roughly 40 km north-east of the [[Tessalit|tes]] road junction, though the claim could not be independently verified.\n\nA statement issued from [[Ouagadougou|oua]] made no reference to the movement.'},
+  {id:'social',name:'CHATTER / RN17',size:'0.4 KB',src:'PUBLIC CHANNELS · noisy',kind:'social',
+   title:'OPEN CHANNEL CHATTER — 4 POSTS',
+   meta:'PUBLIC SOCIAL COLLECT · 26 AUG 2026 11:04–12:02 UTC · MIXED CASE · NO PUNCT',
+   region:'SAHEL SECTOR · MALI–NIGER',
+   text:'@sahel_watch · 11:04\ntrucks on the [[ansongo|ans]] road again. maybe twenty. same as last week\n\n@rn17live · 11:22\nbridge at [[labbezanga|lab]] shut since morning, nobody crossing\n\n@ndjm_local · 11:31\nppl keep saying [[gao|gao]] but it was closer to [[menaka|men]] imo. also heard something abt [[bourem|bou]]\n\n@bko_now · 12:02\nnothing out of [[bamako|b1]]. all quiet.'},
+  {id:'archive',name:'DECLASS 1977',size:'2.3 KB',src:'ARCHIVE OCR · en',kind:'archive',
+   title:'SITUATION SUMMARY — HORN OF AFRICA',
+   meta:'DECLASSIFIED 2011 · OCR CONF 0.88 · 14 SEP 1977 · HISTORICAL GAZ ENABLED',
+   region:'HORN OF AFRICA · 1977 ADMIN LAYER',
+   text:'CONFIDENTIAL · 14 SEP 1977\nSUBJ: SITUATION SUMMARY — HORN OF AFRICA\n\n1. SOURCE REPORTS RAIL TRAFFIC BETWEEN [[DIRE DAWA|dd]] AND [[DJIBOUTI|dj]] HALTED SINCE 09 SEP. LINE REPORTED CUT APPROX 60 KM EAST OF [[AYSHA|ay]].\n\n2. FIGHTING CONTINUES IN THE VICINITY OF [[JIJIGA|jj]] AND ALONG THE [[KARA MARDA|kmp]] PASS. UNITS WITHDRAWN WESTWARD TOWARD [[HARAR|hr]].\n\n3. PORT ACTIVITY AT [[MASSAWA|ms]] ASSESSED UNCHANGED. FACILITY AT [[BERBERA|bb]] REPORTED ACTIVE.\n\n4. COMMENT: [[ABYSSINIA|ab]] DESIGNATION PERSISTS IN LOCAL PRESS. TREAT AS ETH THROUGHOUT.'}
+];
+
+const STAGES = [
+  {id:'ingest',num:'01',name:'INGEST',meta:'3 SRC'},
+  {id:'parse',num:'02',name:'PARSE',meta:'NER'},
+  {id:'dis',num:'03',name:'DISAMBIGUATE',meta:'TOP-K 5'},
+  {id:'resolve',num:'04',name:'RESOLVE',meta:'GAZ'},
+  {id:'export',num:'05',name:'EXPORT',meta:'4 FMT'}
+];
+
+const LOGS = [
+  'gaz.index  faiss-ivf warm · 12,412,908 vectors resident',
+  'rank.v4    context window 3 sent · spatial-coherence λ=0.34',
+  'alias.hist historical exonym table loaded · 41,220 entries',
+  'ner.trf    batch 8 · 18.4 ms/doc · fp16',
+  'resolve    admin-hierarchy join ok · 0 orphan features',
+  'export     geojson writer ready · crs urn:ogc:def:crs:OGC::CRS84',
+  'health     gpu 0 utilization 34% · vram 6.1/24 GB',
+  'collect    social adapter poll · 4 new · dedupe 0'
+];
+
+function parse(text){
+  const out=[]; const re=/\[\[(.+?)\|(.+?)\]\]/g; let last=0,m;
+  while((m=re.exec(text))!==null){
+    if(m.index>last) out.push({t:text.slice(last,m.index),eid:null});
+    out.push({t:m[1],eid:m[2]});
+    last=re.lastIndex;
+  }
+  if(last<text.length) out.push({t:text.slice(last),eid:null});
+  return out;
+}
+
+class Component extends DCLogic {
+  constructor(p){
+    super(p);
+    const doc=DOCS[0];
+    this.state={
+      docId:'wire', stage:'dis', mode:(p.mapMode||'SAT').toLowerCase()==='vector'?'wire':'sat',
+      segs:parse(doc.text), status:{}, sel:'nig', hover:null, running:false,
+      clock:'--:--:--', temp:41, log:LOGS[0], logTime:'00:00:00.000',
+      tput:'11.4', p50:'18.4', mem:'6.1', queue:'0', alt:'412', fmt:'geojson',
+      parseMs:'—', statusWord:'READY', zoom:'1.0'
+    };
+    this.timers=[];
+  }
+
+  componentDidMount(){
+    this.syncRoot();
+    this.timers.push(setInterval(()=>{
+      const d=new Date();
+      const pad=n=>String(n).padStart(2,'0');
+      this.setState({
+        clock:pad(d.getUTCHours())+':'+pad(d.getUTCMinutes())+':'+pad(d.getUTCSeconds()),
+        temp:40+Math.floor(Math.random()*5),
+        tput:(10.6+Math.random()*1.6).toFixed(1),
+        p50:(17.2+Math.random()*3.1).toFixed(1),
+        mem:(6.0+Math.random()*0.4).toFixed(1),
+        queue:Math.random()>0.72?String(Math.floor(Math.random()*3)):'0',
+        alt:String(405+Math.floor(Math.random()*16))
+      });
+    },1000));
+    this.timers.push(setInterval(()=>{
+      const d=new Date(), pad=n=>String(n).padStart(2,'0');
+      this.setState({
+        log:LOGS[Math.floor(Math.random()*LOGS.length)],
+        logTime:pad(d.getUTCHours())+':'+pad(d.getUTCMinutes())+':'+pad(d.getUTCSeconds())+'.'+String(d.getUTCMilliseconds()).padStart(3,'0')
+      });
+    },2600));
+    if(this.props.autorun!==false) setTimeout(()=>this.run(),900); else this.settle();
+    this.syncScope();
+    this.bind();
+  }
+  componentDidUpdate(){ this.syncRoot(); this.bind(); this.syncScope(); }
+  componentWillUnmount(){ this.timers.forEach(clearInterval); }
+
+  scopeEl(){ return document.querySelector('geo-scope'); }
+
+  bind(){
+    const el=this.scopeEl();
+    if(!el||el.__bound) return;
+    el.__bound=true;
+    el.addEventListener('pinclick',e=>this.setState({sel:e.detail,stage:'dis',hover:null}));
+    el.addEventListener('pinhover',e=>{ if(e.detail!==this.state.hover) this.setState({hover:e.detail}); });
+    el.addEventListener('viewchange',e=>this.setState({zoom:Number(e.detail).toFixed(1)}));
+  }
+
+  syncRoot(){
+    const r=document.documentElement;
+    r.dataset.pal=(this.props.palette||'AMBER').toLowerCase();
+    r.dataset.layout=(this.props.layout||'SPLIT').toLowerCase();
+    r.dataset.chrome=(this.props.chrome||'FULL').toLowerCase();
+    r.style.setProperty('--grit',String(this.props.grit==null?0.55:this.props.grit));
+  }
+
+  doc(){ return DOCS.find(d=>d.id===this.state.docId)||DOCS[0]; }
+  ids(){ const s=new Set(); this.state.segs.forEach(g=>g.eid&&s.add(g.eid)); return [...s]; }
+
+  settle(){
+    const st={}; this.ids().forEach(id=>{ st[id]=E[id].amb?'amb':'ok'; });
+    this.setState({status:st,parseMs:(this.doc().text.length*0.031).toFixed(1),statusWord:'RESOLVED'});
+  }
+
+  run(){
+    const ids=this.ids();
+    const st={}; ids.forEach(id=>st[id]='pending');
+    this.setState({status:st,running:true,statusWord:'PARSING',parseMs:'—',sel:null});
+    let i=0;
+    const step=()=>{
+      if(i>=ids.length){
+        this.setState(s=>({running:false,statusWord:'RESOLVED',
+          parseMs:(this.doc().text.length*0.031).toFixed(1),
+          sel:ids.find(x=>E[x].amb)||ids[0]}));
+        return;
+      }
+      const id=ids[i];
+      this.setState(s=>({status:{...s.status,[id]:'scan'},sel:id,
+        log:'rank.v4    '+E[id].label.toLowerCase()+' → top-1 '+E[id].conf.toFixed(2)+' · k=5 · '+(8+Math.floor(Math.random()*9))+'ms'}));
+      const t1=setTimeout(()=>{
+        this.setState(s=>({status:{...s.status,[id]:E[id].amb?'amb':'ok'}}));
+        i++; const t2=setTimeout(step,90); this.timers.push(t2);
+      },230);
+      this.timers.push(t1);
+    };
+    setTimeout(step,320);
+  }
+
+  pins(){
+    const {status,sel,hover}=this.state;
+    return this.ids().map(id=>{
+      const e=E[id], c=PT[id];
+      const s=status[id]||'pending';
+      return {id,label:e.label,lat:c[0],lon:c[1],conf:e.conf,
+        status:s==='pending'?'pending':(s==='amb'?'ambiguous':'ok'),
+        _active:(hover||sel)===id};
+    });
+  }
+
+  syncScope(){
+    const el=this.scopeEl(); if(!el||!el.setScene) return;
+    const act=this.state.hover||this.state.sel;
+    const e=act?E[act]:null;
+    el.setScene({
+      pins:this.pins(), mode:this.state.mode, active:act,
+      ghosts:(e&&e.ghosts?e.ghosts.map(g=>({label:g[0],lat:g[1],lon:g[2]})):[]),
+      seed:this.state.docId==='archive'?23:11
+    });
+  }
+
+  renderVals(){
+    const S=this.state, doc=this.doc(), ids=this.ids();
+    const act=S.hover||S.sel;
+    const e=act?E[act]:null;
+    const nAmb=ids.filter(i=>S.status[i]==='amb').length;
+    const nOk=ids.filter(i=>S.status[i]==='ok').length;
+
+    const rowBase='display:grid;grid-template-columns:1fr 54px 52px 46px;gap:10px;padding:8px 10px;font:400 10px \'JetBrains Mono\',monospace;cursor:crosshair;align-items:center;';
+    const candBase='padding:9px 11px;border-left:2px solid ';
+
+    const fmts=[{id:'geojson',name:'GEOJSON'},{id:'jsonl',name:'JSONL'},{id:'csv',name:'CSV'},{id:'wkt',name:'WKT'}];
+    const exports={
+      geojson:'{\n  "type": "FeatureCollection",\n  "features": [\n    { "type": "Feature",\n      "geometry": { "type": "Point", "coordinates": [-0.0402, 16.2717] },\n      "properties": {\n        "text": "Gao", "start": 68, "end": 71,\n        "geonameid": 2456136, "feature_code": "P.PPLA",\n        "country_code3": "MLI", "admin1": "Gao",\n        "confidence": 0.94, "review": false\n      }\n    },\n    { "type": "Feature",\n      "geometry": { "type": "Point", "coordinates": [0.7200, 15.0500] },\n      "properties": {\n        "text": "the Niger", "start": 241, "end": 250,\n        "geonameid": 2440479, "feature_code": "H.STM",\n        "country_code3": "MLI", "admin1": null,\n        "confidence": 0.71, "review": true\n      }\n    },',
+      jsonl:'{"doc":"TSW-4471","text":"Gao","gid":2456136,"lat":16.2717,"lon":-0.0402,"fc":"P.PPLA","conf":0.94}\n{"doc":"TSW-4471","text":"the Niger","gid":2440479,"lat":15.05,"lon":0.72,"fc":"H.STM","conf":0.71}\n{"doc":"TSW-4471","text":"Ansongo","gid":2460119,"lat":15.66,"lon":0.5028,"fc":"P.PPLA2","conf":0.91}\n{"doc":"TSW-4471","text":"Bourem","gid":2460096,"lat":16.9667,"lon":-0.35,"fc":"P.PPLA2","conf":0.63}',
+      csv:'doc_id,span,start,end,geonameid,name,feature_code,cc,lat,lon,conf,review\nTSW-4471,Gao,68,71,2456136,Gao,P.PPLA,MLI,16.2717,-0.0402,0.94,0\nTSW-4471,the Niger,241,250,2440479,Niger River,H.STM,MLI,15.0500,0.7200,0.71,1\nTSW-4471,Ansongo,132,139,2460119,Ansongo,P.PPLA2,MLI,15.6600,0.5028,0.91,0',
+      wkt:'POINT (-0.0402 16.2717)  -- Gao · 2456136 · 0.94\nPOINT (0.7200 15.0500)   -- Niger River · 2440479 · 0.71\nPOINT (0.5028 15.6600)   -- Ansongo · 2460119 · 0.91\nPOINT (-0.3500 16.9667)  -- Bourem · 2460096 · 0.63 [REVIEW]'
+    };
+
+    return {
+      build:'4.0.0-rc.2', session:'A7-1194', clock:S.clock, temp:S.temp,
+      statusWord:S.statusWord, logLine:S.log, logTime:S.logTime,
+      tput:S.tput, p50:S.p50, mem:S.mem, queue:S.queue, alt:S.alt,
+
+      stages:STAGES.map(s=>({...s,
+        dot:s.id===S.stage?'var(--acc)':'var(--edge)',
+        style:'display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;'+
+          (s.id===S.stage
+            ?'background:color-mix(in srgb,var(--acc) 13%,transparent);color:var(--acc);box-shadow:inset 2px 0 0 var(--acc);'
+            :'color:var(--fg);opacity:.68;')})),
+      pickStage:ev=>this.setState({stage:ev.currentTarget.dataset.sid}),
+
+      docs:DOCS.map(d=>({...d,
+        style:'padding:9px 14px;cursor:pointer;border-left:2px solid '+
+          (d.id===S.docId?'var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent);color:var(--acc)':'transparent;color:var(--fg);opacity:.62')})),
+      pickDoc:ev=>{
+        const id=ev.currentTarget.dataset.did;
+        if(id===S.docId) return;
+        const d=DOCS.find(x=>x.id===id);
+        this.setState({docId:id,segs:parse(d.text),status:{},sel:null,hover:null},()=>this.run());
+      },
+
+      docTitle:doc.title, docMeta:doc.meta, docKind:doc.kind,
+      segs:S.segs.map(g=>({t:g.t,eid:g.eid,
+        st:g.eid?((S.hover||S.sel)===g.eid&&S.status[g.eid]&&S.status[g.eid]!=='pending'?'sel':(S.status[g.eid]||'pending')):'none'})),
+      hoverEnt:ev=>{const id=ev.currentTarget.dataset.eid; if(id&&id!=='null') this.setState({hover:id});},
+      hoverOut:()=>this.setState({hover:null}),
+      clickEnt:ev=>{const id=ev.currentTarget.dataset.eid; if(id&&id!=='null') this.setState({sel:id,stage:'dis',hover:null});},
+
+      nSpans:ids.length, nResolved:nOk, nAmb:nAmb,
+      parseMs:S.parseMs,
+
+      mapTitle:doc.region,
+      mapMeta:S.mode==='wire'?'VECTOR OVERLAY · NE 110M · MERCATOR':'EO COMPOSITE · SYNTHETIC RELIEF · MERCATOR',
+      mapBadges:S.mode==='wire'
+        ?['GRATICULE 2°','ADMIN-0 MESH','NO RASTER']
+        :['BAND 4-3-2 PSEUDO','CLOUD 04%','GSD 12 M'],
+      cursorLat:e?(PT[act][0]>=0?PT[act][0].toFixed(4)+'° N':(-PT[act][0]).toFixed(4)+'° S'):'—',
+      cursorLon:e?(PT[act][1]>=0?PT[act][1].toFixed(4)+'° E':(-PT[act][1]).toFixed(4)+'° W'):'—',
+
+      zoom:S.zoom,
+      resetView:()=>{const el=this.scopeEl(); el&&el.resetView&&el.resetView();},
+      setSat:()=>this.setState({mode:'sat'}),
+      setWire:()=>this.setState({mode:'wire'}),
+      satBtn:'flex:1;text-align:center;padding:7px;cursor:pointer;font:600 10px \'Barlow Condensed\',sans-serif;letter-spacing:.2em;'+(S.mode==='sat'?'background:var(--acc);color:#08090a':'background:var(--panel);color:var(--dim)'),
+      wireBtn:'flex:1;text-align:center;padding:7px;cursor:pointer;font:600 10px \'Barlow Condensed\',sans-serif;letter-spacing:.2em;'+(S.mode==='wire'?'background:var(--acc);color:#08090a':'background:var(--panel);color:var(--dim)'),
+      rerun:()=>this.run(),
+      runLabel:S.running?'PARSING…':'RE-RUN PARSE',
+
+      isIngest:S.stage==='ingest', isParse:S.stage==='parse', isDis:S.stage==='dis',
+      isResolve:S.stage==='resolve', isExport:S.stage==='export',
+      stageTitle:(STAGES.find(s=>s.id===S.stage)||STAGES[2]).name,
+      stageMeta:S.stage==='ingest'?'3 DOCS · 4.3 KB':S.stage==='parse'?ids.length+' SPANS · trf-3.8':
+        S.stage==='dis'?'TOP-K 5 · GATE 0.40':S.stage==='resolve'?'GEONAMES 2026.07':'CRS84',
+
+      ingestRows:DOCS.map(d=>({name:d.title.slice(0,34),adapter:d.kind==='social'?'social':d.kind==='archive'?'ocr':'rss',size:d.size,state:d.id===S.docId?'ACTIVE':'CACHED'})),
+
+      parseRows:ids.map((id,i)=>({id,text:E[id].label,label:E[id].lab,span:(60+i*37)+'–'+(60+i*37+E[id].label.length),
+        p:E[id].p.toFixed(2),
+        style:rowBase+(id===act?'background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)':'background:var(--panel2);color:var(--fg)')})),
+
+      selText:e?e.label:'—',
+      selCtx:e?(e.lab+' · '+ids.length+' SPANS IN DOC · '+(e.amb?'REVIEW FLAG':'AUTO-ACCEPT')):'SELECT A SPAN',
+      cands:e?e.cands.map((c,i)=>({rank:String(i+1).padStart(2,'0'),name:c[0],meta:c[1],conf:c[2].toFixed(2),
+        bar:(c[2]*100).toFixed(0)+'%',
+        barCol:i===0?(e.amb?'var(--warn)':'var(--acc)'):'var(--dim)',
+        style:candBase+(i===0?(e.amb?'var(--warn);background:color-mix(in srgb,var(--warn) 9%,transparent)':'var(--acc);background:color-mix(in srgb,var(--acc) 9%,transparent)'):'var(--edge);background:var(--panel2)')})):[],
+      rationale:e?e.why:'No span selected. Hover a highlighted toponym in the document, or click a marker on the scope.',
+
+      resRows:e?[
+        {k:'GEONAMEID',v:String(e.gid)},{k:'NAME',v:e.cands[0][0]},{k:'FEATURE CODE',v:e.fc},
+        {k:'ADMIN',v:e.adm},{k:'POPULATION',v:e.pop},
+        {k:'COORDINATES',v:PT[act][0].toFixed(4)+', '+PT[act][1].toFixed(4)},
+        {k:'CONFIDENCE',v:e.conf.toFixed(2)+(e.amb?'  · BELOW GATE':'  · ACCEPTED')},
+        {k:'SOURCE',v:'geonames-2026.07 · alias-hist v4'}
+      ]:[{k:'—',v:'no feature selected'}],
+
+      formats:fmts.map(f=>({...f,
+        style:'flex:1;text-align:center;padding:7px;cursor:pointer;font:600 10px \'Barlow Condensed\',sans-serif;letter-spacing:.16em;'+(f.id===S.fmt?'background:var(--acc);color:#08090a':'background:var(--panel2);color:var(--dim)')})),
+      pickFmt:ev=>this.setState({fmt:ev.currentTarget.dataset.fmt}),
+      exportText:exports[S.fmt],
+      exportMeta:ids.length+' FEATURES · '+nAmb+' FLAGGED FOR REVIEW'
+    };
+  }
+}
+
+</script>
+</body>
+</html>

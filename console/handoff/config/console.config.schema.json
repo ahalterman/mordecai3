@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Geoparse console configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["theme", "map", "pipeline", "palettes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "brand": {
+      "type": "object",
+      "properties": {
+        "productName": { "type": "string" },
+        "productSubtitle": { "type": "string" },
+        "build": { "type": "string" },
+        "rankerLabel": { "type": "string" },
+        "classificationBanner": { "type": "string" },
+        "showClassificationBanner": { "type": "boolean" }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "palette": { "enum": ["amber", "olive", "phosphor", "graphite"] },
+        "grit": { "type": "number", "minimum": 0, "maximum": 1 },
+        "chrome": { "enum": ["full", "stripped"] },
+        "layout": { "enum": ["split", "theater"] },
+        "scanlines": { "type": "boolean" },
+        "vignette": { "type": "boolean" },
+        "flicker": { "type": "boolean" }
+      }
+    },
+    "map": {
+      "type": "object",
+      "properties": {
+        "defaultMode": { "enum": ["sat", "wire"] },
+        "allowModeToggle": { "type": "boolean" },
+        "pan": { "type": "boolean" },
+        "zoom": { "type": "boolean" },
+        "minZoom": { "type": "number" },
+        "maxZoom": { "type": "number" },
+        "fitPaddingRatio": { "type": "number" },
+        "graticuleStepDeg": { "type": "number" },
+        "graticuleMajorStepDeg": { "type": "number" },
+        "sweepSeconds": { "type": "number" },
+        "basemap": { "type": "object" }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "properties": {
+        "stages": { "type": "array", "items": { "type": "string" } },
+        "defaultStage": { "type": "string" },
+        "topK": { "type": "integer", "minimum": 1 },
+        "reviewGate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "autorun": { "type": "boolean" },
+        "spanRevealMs": { "type": "integer" },
+        "spanGapMs": { "type": "integer" },
+        "runStartDelayMs": { "type": "integer" }
+      }
+    },
+    "export": { "type": "object" },
+    "telemetry": { "type": "object" },
+    "palettes": {
+      "type": "object",
+      "description": "Map of palette name -> CSS custom property block applied to :root.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": { "type": "string" }
+      }
+    }
+  }
+}

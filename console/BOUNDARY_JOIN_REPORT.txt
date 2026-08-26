@@ -1,0 +1,106 @@
+
+=== ADM1 ==========================================================
+  GeoNames ADM1 records         3885
+  no country code                     0
+  no containing CGAZ polygon        430   (11.1%)
+  point-in-polygon hit             3455   (88.9%)
+
+  name similarity, n=3455
+      0.00-0.50     228  #####
+      0.50-0.60     233  #####
+      0.60-0.70      66  #
+      0.70-0.75      26  #
+      0.75-0.80      19  
+      0.80-0.84      21  
+      0.84-0.88      48  #
+      0.88-0.92      83  ##
+      0.92-0.96      81  ##
+      0.96-1.00    2650  ######################################################
+
+  coverage by threshold (share of all 3885 records that would get a boundary):
+    >= 0.00      3455    88.9%
+    >= 0.70      2928    75.4%
+    >= 0.80      2883    74.2%
+    >= 0.84      2862    73.7%
+    >= 0.86      2851    73.4%  <- current
+    >= 0.88      2814    72.4%
+    >= 0.90      2784    71.7%
+    >= 0.95      2668    68.7%
+    >= 1.00      2544    65.5%
+
+  rejected at 0.86 (604 of 3455 PIP hits) -- the 10 closest calls:
+    0.860  COL  GeoNames 'Distrito Capital de Bogotá'       vs CGAZ 'Bogota Capital District'
+    0.859  NOR  GeoNames 'Troms Fylke'                      vs CGAZ 'Troms og Finnmark'
+    0.856  RUS  GeoNames 'Respublika Kareliya'              vs CGAZ 'Republic of Karelia'
+    0.854  KGZ  GeoNames 'Osh City'                         vs CGAZ 'Osh Region'
+    0.852  MLT  GeoNames 'Il-Kalkara'                       vs CGAZ 'Kalkara'
+    0.850  TUN  GeoNames 'Gouvernorat de Jendouba'          vs CGAZ 'Jendouba'
+    0.850  GRC  GeoNames 'Epirus'                           vs CGAZ 'Epirus-Western Macedonia'
+    0.849  MNG  GeoNames 'Hentiy Aymag'                     vs CGAZ 'Khentii'
+    0.849  KAZ  GeoNames 'Zhambyl Oblysy'                   vs CGAZ 'Jambyl Region'
+    0.847  QAT  GeoNames 'Baladīyat al Khawr wa adh Dhakhīrah' vs CGAZ 'Al Khor and Al Thakhira'
+
+  accepted with a non-identical name -- the 10 weakest:
+    0.861  IDN  GeoNames 'Daerah Khusus Ibukota Jakarta'    vs CGAZ 'Jakarta Special Capital Region'
+    0.861  LCA  GeoNames 'Anse-la-Raye'                     vs CGAZ 'Anse la Raya'
+    0.862  RUS  GeoNames 'Komi'                             vs CGAZ 'Komi Republic'
+    0.864  CHL  GeoNames 'Región del Libertador General Bernardo O’Higgins' vs CGAZ "RegiÃ³n del Libertador Bernardo O'Higgins"
+    0.864  SAU  GeoNames 'Medina Region'                    vs CGAZ 'Al Madinah Region'
+    0.864  RUS  GeoNames 'Respublika Mordoviya'             vs CGAZ 'Republic of Mordovia'
+    0.867  CHN  GeoNames 'Guangdong Sheng'                  vs CGAZ 'Guangzhou Province'
+    0.867  EGY  GeoNames 'Muḩāfaz̧at al Minyā'              vs CGAZ 'Minya Governate'
+    0.867  EGY  GeoNames 'Luxor'                            vs CGAZ 'Luxor Governate'
+    0.867  ESP  GeoNames 'Catalunya'                        vs CGAZ 'Cataluña/Catalunya'
+
+=== ADM2 ==========================================================
+  GeoNames ADM2 records        45515
+  no country code                     0
+  no containing CGAZ polygon       1572   (3.5%)
+  point-in-polygon hit            43943   (96.5%)
+
+  name similarity, n=43943
+      0.00-0.50    3498  ######
+      0.50-0.60    2231  ####
+      0.60-0.70    1131  ##
+      0.70-0.75    1015  ##
+      0.75-0.80     755  #
+      0.80-0.84     311  #
+      0.84-0.88     698  #
+      0.88-0.92    1893  ###
+      0.92-0.96    1776  ###
+      0.96-1.00   30635  ######################################################
+
+  coverage by threshold (share of all 45515 records that would get a boundary):
+    >= 0.00     43943    96.5%
+    >= 0.70     37083    81.5%
+    >= 0.80     35313    77.6%
+    >= 0.84     35002    76.9%
+    >= 0.86     34723    76.3%  <- current
+    >= 0.88     34304    75.4%
+    >= 0.90     33595    73.8%
+    >= 0.95     30834    67.7%
+    >= 1.00     28723    63.1%
+
+  rejected at 0.86 (9220 of 43943 PIP hits) -- the 10 closest calls:
+    0.860  KAZ  GeoNames 'Rayon Bayterek'                   vs CGAZ 'Zelenovskiy'
+    0.860  RUS  GeoNames 'Orenburg Urban District'          vs CGAZ 'Orenburgsky District'
+    0.860  SLV  GeoNames 'San Juan Talpa'                   vs CGAZ 'San Luis Talpa'
+    0.859  PRK  GeoNames 'Chongpyong County'                vs CGAZ 'Jongphyong'
+    0.859  CAN  GeoNames 'Hamilton'                         vs CGAZ 'Hamilton--Niagara Peninsula'
+    0.859  NGA  GeoNames 'Oshodi-Isolo Local Government Area' vs CGAZ 'Oshodi/Isolo'
+    0.859  MNG  GeoNames 'Bayantal'                         vs CGAZ 'Bayancagaan'
+    0.859  UZB  GeoNames 'Marg‘ilon Shahri'                 vs CGAZ 'Margilan city'
+    0.859  AGO  GeoNames 'Seles'                            vs CGAZ 'Seles (Uku Seles)'
+    0.859  CYP  GeoNames 'Pyrgá'                            vs CGAZ 'Pyrga Ammochostou'
+
+  accepted with a non-identical name -- the 10 weakest:
+    0.860  MAR  GeoNames 'Figuig'                           vs CGAZ 'Province de Figuig إقليم الناظور'
+    0.860  GEO  GeoNames 'Zest’aponis Munitsip’alit’et’i'   vs CGAZ 'Zestaponi'
+    0.860  CAN  GeoNames 'Athabasca'                        vs CGAZ 'Athabasca--Grande Prairie--Pe*'
+    0.860  UKR  GeoNames 'Nizhyns’ka Mis’krada'             vs CGAZ 'Nizhyn'
+    0.860  RUS  GeoNames 'Shuyskiy Rayon'                   vs CGAZ 'Shuya'
+    0.860  MNG  GeoNames 'Tümentsogt'                       vs CGAZ "Tu'mencogt"
+    0.860  RUS  GeoNames 'Uletovskiy Rayon'                 vs CGAZ 'Ulyotovsky District'
+    0.861  IDN  GeoNames 'Kota Administrasi Jakarta Utara'  vs CGAZ 'Kota Jakarta Utara'
+    0.861  IDN  GeoNames 'Kota Administrasi Jakarta Barat'  vs CGAZ 'Kota Jakarta Barat'
+    0.861  PRK  GeoNames 'Pŏptong-gun'                      vs CGAZ 'Popdong'

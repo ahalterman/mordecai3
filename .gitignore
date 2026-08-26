@@ -194,3 +194,8 @@ experiments/**/*.log
 /mordecai_*.pt
 /mordecai_*.json
 wandb/
+
+# geoBoundaries CGAZ bulk data for the console demo (1.3 GB, fetched by
+# console/fetch_boundaries.sh) and the SQLite store built from it.
+data/geoboundaries/
+/*.zip

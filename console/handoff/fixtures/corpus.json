@@ -1,0 +1,1093 @@
+{
+  "note": "Synthetic demo corpus. Place names and coordinates are real (GeoNames-style); document text, ids, confidences and rationales are fabricated for the mock.",
+  "generated": "2026-08-26",
+  "documents": [
+    {
+      "doc_id": "wire",
+      "title": "CONVOY MOVEMENT REPORTED ON RN17 CORRIDOR",
+      "source": "TRANSSAHEL WIRE · fr",
+      "adapter": "wire",
+      "size": "1.6 KB",
+      "meta": "TRANSSAHEL WIRE · REF TSW-4471 · FILED 26 AUG 2026 09:14 UTC · fr-ML · 612 TOK",
+      "region": "SAHEL SECTOR · MALI–NIGER",
+      "text": "BAMAKO — Convoy movement was reported along the RN17 corridor south of Gao on Tuesday, according to three residents reached by telephone in Ansongo and Bourem. A regional official in Mopti, speaking on condition of anonymity, said the column crossed the Niger near Labbezanga before dispersing east toward Ménaka.\n\nAid workers in Niamey confirmed the suspension of overland transport into Tillabéri. Reports circulating on local messaging channels place a second group near Kidal, roughly 40 km north-east of the Tessalit road junction, though the claim could not be independently verified.\n\nA statement issued from Ouagadougou made no reference to the movement.",
+      "entities": [
+        {
+          "id": "b1",
+          "text": "BAMAKO",
+          "start": 0,
+          "end": 6,
+          "label": "GPE",
+          "ner_score": 0.99,
+          "resolved": {
+            "geonameid": 2460596,
+            "name": "Bamako",
+            "feature_code": "P.PPLC",
+            "admin": "Bamako, ML",
+            "population": "2,713,000",
+            "lat": 12.6392,
+            "lon": -8.0029,
+            "confidence": 0.97
+          },
+          "review": false,
+          "rationale": "Dateline position + document-level country prior ML (0.93).",
+          "candidates": [
+            {
+              "name": "Bamako",
+              "display": "P.PPLC · Mali · capital · pop 2.71M",
+              "confidence": 0.97
+            },
+            {
+              "name": "Bamako Region",
+              "display": "A.ADM1 · Mali",
+              "confidence": 0.02
+            },
+            {
+              "name": "Bamako, Guinée",
+              "display": "P.PPL · Guinea · pop 1.4K",
+              "confidence": 0.01
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "gao",
+          "text": "Gao",
+          "start": 71,
+          "end": 74,
+          "label": "GPE",
+          "ner_score": 0.98,
+          "resolved": {
+            "geonameid": 2456136,
+            "name": "Gao",
+            "feature_code": "P.PPLA",
+            "admin": "Gao, ML",
+            "population": "86,633",
+            "lat": 16.2717,
+            "lon": -0.0402,
+            "confidence": 0.94
+          },
+          "review": false,
+          "rationale": "Co-occurs with Ansongo (98 km) and Bourem (95 km); China candidate suppressed by spatial coherence term.",
+          "candidates": [
+            {
+              "name": "Gao",
+              "display": "P.PPLA · Mali · admin seat · pop 86.6K",
+              "confidence": 0.94
+            },
+            {
+              "name": "Gao Region",
+              "display": "A.ADM1 · Mali · 170,600 km²",
+              "confidence": 0.04
+            },
+            {
+              "name": "Gao Xian",
+              "display": "A.ADM2 · China · Jiangsu",
+              "confidence": 0.02
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "ans",
+          "text": "Ansongo",
+          "start": 140,
+          "end": 147,
+          "label": "GPE",
+          "ner_score": 0.96,
+          "resolved": {
+            "geonameid": 2460119,
+            "name": "Ansongo",
+            "feature_code": "P.PPLA2",
+            "admin": "Gao, ML",
+            "population": "20,148",
+            "lat": 15.66,
+            "lon": 0.5028,
+            "confidence": 0.91
+          },
+          "review": false,
+          "rationale": "\"residents reached by telephone in\" → settlement type preferred over admin polygon.",
+          "candidates": [
+            {
+              "name": "Ansongo",
+              "display": "P.PPLA2 · Mali · Gao Region",
+              "confidence": 0.91
+            },
+            {
+              "name": "Ansongo Cercle",
+              "display": "A.ADM2 · Mali",
+              "confidence": 0.09
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "bou",
+          "text": "Bourem",
+          "start": 152,
+          "end": 158,
+          "label": "GPE",
+          "ner_score": 0.94,
+          "resolved": {
+            "geonameid": 2460096,
+            "name": "Bourem",
+            "feature_code": "P.PPLA2",
+            "admin": "Gao, ML",
+            "population": "27,157",
+            "lat": 16.9667,
+            "lon": -0.35,
+            "confidence": 0.63
+          },
+          "review": true,
+          "rationale": "Margin 0.32 below the 0.40 gate — flagged for review. Both candidates lie within the sentence-level context hull.",
+          "candidates": [
+            {
+              "name": "Bourem",
+              "display": "P.PPLA2 · Mali · Gao Region · pop 27.2K",
+              "confidence": 0.63
+            },
+            {
+              "name": "Bourem-Inaly",
+              "display": "P.PPL · Mali · Timbuktu Region",
+              "confidence": 0.31
+            },
+            {
+              "name": "Bourem Sidi Amar",
+              "display": "P.PPL · Mali · Timbuktu Region",
+              "confidence": 0.06
+            }
+          ],
+          "offframe_candidates": [
+            {
+              "label": "Bourem-Inaly",
+              "lat": 16.53,
+              "lon": -3.42
+            }
+          ]
+        },
+        {
+          "id": "mop",
+          "text": "Mopti",
+          "start": 183,
+          "end": 188,
+          "label": "GPE",
+          "ner_score": 0.97,
+          "resolved": {
+            "geonameid": 2453354,
+            "name": "Mopti",
+            "feature_code": "P.PPLA",
+            "admin": "Mopti, ML",
+            "population": "114,296",
+            "lat": 14.4843,
+            "lon": -4.1826,
+            "confidence": 0.79
+          },
+          "review": false,
+          "rationale": "\"A regional official in\" pushes weight toward the admin seat, not the region polygon.",
+          "candidates": [
+            {
+              "name": "Mopti",
+              "display": "P.PPLA · Mali · admin seat · pop 114K",
+              "confidence": 0.79
+            },
+            {
+              "name": "Mopti Region",
+              "display": "A.ADM1 · Mali · 79,017 km²",
+              "confidence": 0.19
+            },
+            {
+              "name": "Mopti Cercle",
+              "display": "A.ADM2 · Mali",
+              "confidence": 0.02
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "nig",
+          "text": "the Niger",
+          "start": 250,
+          "end": 259,
+          "label": "LOC",
+          "ner_score": 0.91,
+          "resolved": {
+            "geonameid": 2440479,
+            "name": "Niger River",
+            "feature_code": "H.STM",
+            "admin": "ML / NE / NG",
+            "population": "—",
+            "lat": 15.05,
+            "lon": 0.72,
+            "confidence": 0.71
+          },
+          "review": true,
+          "rationale": "Governing verb \"crossed\" selects a hydronym over a polity; nearest resolved toponym Labbezanga sits 12 km off the river centreline.",
+          "candidates": [
+            {
+              "name": "Niger River",
+              "display": "H.STM · 4,180 km · Guinea→Nigeria",
+              "confidence": 0.71
+            },
+            {
+              "name": "Niger",
+              "display": "A.PCLI · country · pop 25.4M",
+              "confidence": 0.19
+            },
+            {
+              "name": "Niger State",
+              "display": "A.ADM1 · Nigeria · pop 5.6M",
+              "confidence": 0.07
+            },
+            {
+              "name": "Niger",
+              "display": "P.PPL · Mali · Bourem Cercle",
+              "confidence": 0.03
+            }
+          ],
+          "offframe_candidates": [
+            {
+              "label": "Niger (PCLI)",
+              "lat": 17.61,
+              "lon": 8.081
+            },
+            {
+              "label": "Niger State",
+              "lat": 9.93,
+              "lon": 6
+            }
+          ]
+        },
+        {
+          "id": "lab",
+          "text": "Labbezanga",
+          "start": 265,
+          "end": 275,
+          "label": "GPE",
+          "ner_score": 0.88,
+          "resolved": {
+            "geonameid": 2454703,
+            "name": "Labbezanga",
+            "feature_code": "P.PPL",
+            "admin": "Gao, ML",
+            "population": "3,412",
+            "lat": 14.95,
+            "lon": 0.7,
+            "confidence": 0.86
+          },
+          "review": false,
+          "rationale": "Alias table folds the ML/NE spelling variants; ML entry wins on document country prior.",
+          "candidates": [
+            {
+              "name": "Labbezanga",
+              "display": "P.PPL · Mali · ML/NE border crossing",
+              "confidence": 0.86
+            },
+            {
+              "name": "Labezanga",
+              "display": "P.PPL · Niger · Tillabéri (variant)",
+              "confidence": 0.14
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "men",
+          "text": "Ménaka",
+          "start": 306,
+          "end": 312,
+          "label": "GPE",
+          "ner_score": 0.95,
+          "resolved": {
+            "geonameid": 2450173,
+            "name": "Ménaka",
+            "feature_code": "P.PPLA",
+            "admin": "Ménaka, ML",
+            "population": "12,536",
+            "lat": 15.9182,
+            "lon": 2.3958,
+            "confidence": 0.88
+          },
+          "review": false,
+          "rationale": "Diacritic-normalized match; \"dispersing east toward\" implies a point destination.",
+          "candidates": [
+            {
+              "name": "Ménaka",
+              "display": "P.PPLA · Mali · admin seat",
+              "confidence": 0.88
+            },
+            {
+              "name": "Ménaka Region",
+              "display": "A.ADM1 · Mali",
+              "confidence": 0.1
+            },
+            {
+              "name": "Menaka",
+              "display": "P.PPL · India · Odisha",
+              "confidence": 0.02
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "nia",
+          "text": "Niamey",
+          "start": 330,
+          "end": 336,
+          "label": "GPE",
+          "ner_score": 0.99,
+          "resolved": {
+            "geonameid": 2440485,
+            "name": "Niamey",
+            "feature_code": "P.PPLC",
+            "admin": "Niamey, NE",
+            "population": "1,026,848",
+            "lat": 13.5137,
+            "lon": 2.1098,
+            "confidence": 0.96
+          },
+          "review": false,
+          "rationale": "Unambiguous capital; no competing surface form above 0.05.",
+          "candidates": [
+            {
+              "name": "Niamey",
+              "display": "P.PPLC · Niger · capital",
+              "confidence": 0.96
+            },
+            {
+              "name": "Niamey Region",
+              "display": "A.ADM1 · Niger",
+              "confidence": 0.04
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "til",
+          "text": "Tillabéri",
+          "start": 389,
+          "end": 398,
+          "label": "GPE",
+          "ner_score": 0.93,
+          "resolved": {
+            "geonameid": 2439376,
+            "name": "Tillabéri Region",
+            "feature_code": "A.ADM1",
+            "admin": "Tillabéri, NE",
+            "population": "2,722,482",
+            "lat": 14.2119,
+            "lon": 1.4531,
+            "confidence": 0.58
+          },
+          "review": true,
+          "rationale": "\"transport into\" favours an area over a point, but the margin is 0.19 — below gate. Region returned with a review flag.",
+          "candidates": [
+            {
+              "name": "Tillabéri Region",
+              "display": "A.ADM1 · Niger · 97,251 km²",
+              "confidence": 0.58
+            },
+            {
+              "name": "Tillabéri",
+              "display": "P.PPLA · Niger · admin seat",
+              "confidence": 0.39
+            },
+            {
+              "name": "Tillaberi",
+              "display": "P.PPL · Niger · variant",
+              "confidence": 0.03
+            }
+          ],
+          "offframe_candidates": [
+            {
+              "label": "Tillabéri (town)",
+              "lat": 14.21,
+              "lon": 1.45
+            }
+          ]
+        },
+        {
+          "id": "kid",
+          "text": "Kidal",
+          "start": 474,
+          "end": 479,
+          "label": "GPE",
+          "ner_score": 0.97,
+          "resolved": {
+            "geonameid": 2455518,
+            "name": "Kidal",
+            "feature_code": "P.PPLA",
+            "admin": "Kidal, ML",
+            "population": "25,617",
+            "lat": 18.4411,
+            "lon": 1.4078,
+            "confidence": 0.9
+          },
+          "review": false,
+          "rationale": "Anchored by the Tessalit relation in the same clause (203 km bearing 022°).",
+          "candidates": [
+            {
+              "name": "Kidal",
+              "display": "P.PPLA · Mali · admin seat",
+              "confidence": 0.9
+            },
+            {
+              "name": "Kidal Region",
+              "display": "A.ADM1 · Mali",
+              "confidence": 0.1
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "tes",
+          "text": "Tessalit",
+          "start": 513,
+          "end": 521,
+          "label": "GPE",
+          "ner_score": 0.9,
+          "resolved": {
+            "geonameid": 2449067,
+            "name": "Tessalit",
+            "feature_code": "P.PPL",
+            "admin": "Kidal, ML",
+            "population": "6,220",
+            "lat": 20.1986,
+            "lon": 1.0114,
+            "confidence": 0.84
+          },
+          "review": false,
+          "rationale": "\"road junction\" head noun binds to the settlement entry (FAC modifier retained).",
+          "candidates": [
+            {
+              "name": "Tessalit",
+              "display": "P.PPL · Mali · Kidal Region",
+              "confidence": 0.84
+            },
+            {
+              "name": "Tessalit Cercle",
+              "display": "A.ADM2 · Mali",
+              "confidence": 0.16
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "oua",
+          "text": "Ouagadougou",
+          "start": 616,
+          "end": 627,
+          "label": "GPE",
+          "ner_score": 0.99,
+          "resolved": {
+            "geonameid": 2357048,
+            "name": "Ouagadougou",
+            "feature_code": "P.PPLC",
+            "admin": "Kadiogo, BF",
+            "population": "1,626,950",
+            "lat": 12.3714,
+            "lon": -1.5197,
+            "confidence": 0.95
+          },
+          "review": false,
+          "rationale": "\"statement issued from\" → seat-of-government reading.",
+          "candidates": [
+            {
+              "name": "Ouagadougou",
+              "display": "P.PPLC · Burkina Faso · capital",
+              "confidence": 0.95
+            },
+            {
+              "name": "Ouagadougou Airport",
+              "display": "S.AIRP · Burkina Faso",
+              "confidence": 0.05
+            }
+          ],
+          "offframe_candidates": []
+        }
+      ],
+      "stats": {
+        "spans": 13,
+        "review": 3
+      }
+    },
+    {
+      "doc_id": "social",
+      "title": "OPEN CHANNEL CHATTER — 4 POSTS",
+      "source": "PUBLIC CHANNELS · noisy",
+      "adapter": "social",
+      "size": "0.4 KB",
+      "meta": "PUBLIC SOCIAL COLLECT · 26 AUG 2026 11:04–12:02 UTC · MIXED CASE · NO PUNCT",
+      "region": "SAHEL SECTOR · MALI–NIGER",
+      "text": "@sahel_watch · 11:04\ntrucks on the ansongo road again. maybe twenty. same as last week\n\n@rn17live · 11:22\nbridge at labbezanga shut since morning, nobody crossing\n\n@ndjm_local · 11:31\nppl keep saying gao but it was closer to menaka imo. also heard something abt bourem\n\n@bko_now · 12:02\nnothing out of bamako. all quiet.",
+      "entities": [
+        {
+          "id": "ans",
+          "text": "ansongo",
+          "start": 35,
+          "end": 42,
+          "label": "GPE",
+          "ner_score": 0.96,
+          "resolved": {
+            "geonameid": 2460119,
+            "name": "Ansongo",
+            "feature_code": "P.PPLA2",
+            "admin": "Gao, ML",
+            "population": "20,148",
+            "lat": 15.66,
+            "lon": 0.5028,
+            "confidence": 0.91
+          },
+          "review": false,
+          "rationale": "\"residents reached by telephone in\" → settlement type preferred over admin polygon.",
+          "candidates": [
+            {
+              "name": "Ansongo",
+              "display": "P.PPLA2 · Mali · Gao Region",
+              "confidence": 0.91
+            },
+            {
+              "name": "Ansongo Cercle",
+              "display": "A.ADM2 · Mali",
+              "confidence": 0.09
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "lab",
+          "text": "labbezanga",
+          "start": 116,
+          "end": 126,
+          "label": "GPE",
+          "ner_score": 0.88,
+          "resolved": {
+            "geonameid": 2454703,
+            "name": "Labbezanga",
+            "feature_code": "P.PPL",
+            "admin": "Gao, ML",
+            "population": "3,412",
+            "lat": 14.95,
+            "lon": 0.7,
+            "confidence": 0.86
+          },
+          "review": false,
+          "rationale": "Alias table folds the ML/NE spelling variants; ML entry wins on document country prior.",
+          "candidates": [
+            {
+              "name": "Labbezanga",
+              "display": "P.PPL · Mali · ML/NE border crossing",
+              "confidence": 0.86
+            },
+            {
+              "name": "Labezanga",
+              "display": "P.PPL · Niger · Tillabéri (variant)",
+              "confidence": 0.14
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "gao",
+          "text": "gao",
+          "start": 200,
+          "end": 203,
+          "label": "GPE",
+          "ner_score": 0.98,
+          "resolved": {
+            "geonameid": 2456136,
+            "name": "Gao",
+            "feature_code": "P.PPLA",
+            "admin": "Gao, ML",
+            "population": "86,633",
+            "lat": 16.2717,
+            "lon": -0.0402,
+            "confidence": 0.94
+          },
+          "review": false,
+          "rationale": "Co-occurs with Ansongo (98 km) and Bourem (95 km); China candidate suppressed by spatial coherence term.",
+          "candidates": [
+            {
+              "name": "Gao",
+              "display": "P.PPLA · Mali · admin seat · pop 86.6K",
+              "confidence": 0.94
+            },
+            {
+              "name": "Gao Region",
+              "display": "A.ADM1 · Mali · 170,600 km²",
+              "confidence": 0.04
+            },
+            {
+              "name": "Gao Xian",
+              "display": "A.ADM2 · China · Jiangsu",
+              "confidence": 0.02
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "men",
+          "text": "menaka",
+          "start": 225,
+          "end": 231,
+          "label": "GPE",
+          "ner_score": 0.95,
+          "resolved": {
+            "geonameid": 2450173,
+            "name": "Ménaka",
+            "feature_code": "P.PPLA",
+            "admin": "Ménaka, ML",
+            "population": "12,536",
+            "lat": 15.9182,
+            "lon": 2.3958,
+            "confidence": 0.88
+          },
+          "review": false,
+          "rationale": "Diacritic-normalized match; \"dispersing east toward\" implies a point destination.",
+          "candidates": [
+            {
+              "name": "Ménaka",
+              "display": "P.PPLA · Mali · admin seat",
+              "confidence": 0.88
+            },
+            {
+              "name": "Ménaka Region",
+              "display": "A.ADM1 · Mali",
+              "confidence": 0.1
+            },
+            {
+              "name": "Menaka",
+              "display": "P.PPL · India · Odisha",
+              "confidence": 0.02
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "bou",
+          "text": "bourem",
+          "start": 262,
+          "end": 268,
+          "label": "GPE",
+          "ner_score": 0.94,
+          "resolved": {
+            "geonameid": 2460096,
+            "name": "Bourem",
+            "feature_code": "P.PPLA2",
+            "admin": "Gao, ML",
+            "population": "27,157",
+            "lat": 16.9667,
+            "lon": -0.35,
+            "confidence": 0.63
+          },
+          "review": true,
+          "rationale": "Margin 0.32 below the 0.40 gate — flagged for review. Both candidates lie within the sentence-level context hull.",
+          "candidates": [
+            {
+              "name": "Bourem",
+              "display": "P.PPLA2 · Mali · Gao Region · pop 27.2K",
+              "confidence": 0.63
+            },
+            {
+              "name": "Bourem-Inaly",
+              "display": "P.PPL · Mali · Timbuktu Region",
+              "confidence": 0.31
+            },
+            {
+              "name": "Bourem Sidi Amar",
+              "display": "P.PPL · Mali · Timbuktu Region",
+              "confidence": 0.06
+            }
+          ],
+          "offframe_candidates": [
+            {
+              "label": "Bourem-Inaly",
+              "lat": 16.53,
+              "lon": -3.42
+            }
+          ]
+        },
+        {
+          "id": "b1",
+          "text": "bamako",
+          "start": 302,
+          "end": 308,
+          "label": "GPE",
+          "ner_score": 0.99,
+          "resolved": {
+            "geonameid": 2460596,
+            "name": "Bamako",
+            "feature_code": "P.PPLC",
+            "admin": "Bamako, ML",
+            "population": "2,713,000",
+            "lat": 12.6392,
+            "lon": -8.0029,
+            "confidence": 0.97
+          },
+          "review": false,
+          "rationale": "Dateline position + document-level country prior ML (0.93).",
+          "candidates": [
+            {
+              "name": "Bamako",
+              "display": "P.PPLC · Mali · capital · pop 2.71M",
+              "confidence": 0.97
+            },
+            {
+              "name": "Bamako Region",
+              "display": "A.ADM1 · Mali",
+              "confidence": 0.02
+            },
+            {
+              "name": "Bamako, Guinée",
+              "display": "P.PPL · Guinea · pop 1.4K",
+              "confidence": 0.01
+            }
+          ],
+          "offframe_candidates": []
+        }
+      ],
+      "stats": {
+        "spans": 6,
+        "review": 1
+      }
+    },
+    {
+      "doc_id": "archive",
+      "title": "SITUATION SUMMARY — HORN OF AFRICA",
+      "source": "ARCHIVE OCR · en",
+      "adapter": "archive",
+      "size": "2.3 KB",
+      "meta": "DECLASSIFIED 2011 · OCR CONF 0.88 · 14 SEP 1977 · HISTORICAL GAZ ENABLED",
+      "region": "HORN OF AFRICA · 1977 ADMIN LAYER",
+      "text": "CONFIDENTIAL · 14 SEP 1977\nSUBJ: SITUATION SUMMARY — HORN OF AFRICA\n\n1. SOURCE REPORTS RAIL TRAFFIC BETWEEN DIRE DAWA AND DJIBOUTI HALTED SINCE 09 SEP. LINE REPORTED CUT APPROX 60 KM EAST OF AYSHA.\n\n2. FIGHTING CONTINUES IN THE VICINITY OF JIJIGA AND ALONG THE KARA MARDA PASS. UNITS WITHDRAWN WESTWARD TOWARD HARAR.\n\n3. PORT ACTIVITY AT MASSAWA ASSESSED UNCHANGED. FACILITY AT BERBERA REPORTED ACTIVE.\n\n4. COMMENT: ABYSSINIA DESIGNATION PERSISTS IN LOCAL PRESS. TREAT AS ETH THROUGHOUT.",
+      "entities": [
+        {
+          "id": "dd",
+          "text": "DIRE DAWA",
+          "start": 108,
+          "end": 117,
+          "label": "GPE",
+          "ner_score": 0.96,
+          "resolved": {
+            "geonameid": 338832,
+            "name": "Dire Dawa",
+            "feature_code": "P.PPLA",
+            "admin": "Dire Dawa, ET",
+            "population": "277,000",
+            "lat": 9.5931,
+            "lon": 41.8661,
+            "confidence": 0.93
+          },
+          "review": false,
+          "rationale": "Rail-corridor relation with Djibouti fixes the point reading.",
+          "candidates": [
+            {
+              "name": "Dire Dawa",
+              "display": "P.PPLA · Ethiopia · chartered city",
+              "confidence": 0.93
+            },
+            {
+              "name": "Dire Dawa Zone",
+              "display": "A.ADM1 · Ethiopia",
+              "confidence": 0.07
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "dj",
+          "text": "DJIBOUTI",
+          "start": 122,
+          "end": 130,
+          "label": "GPE",
+          "ner_score": 0.98,
+          "resolved": {
+            "geonameid": 223817,
+            "name": "Djibouti",
+            "feature_code": "P.PPLC",
+            "admin": "Djibouti, DJ",
+            "population": "623,891",
+            "lat": 11.5721,
+            "lon": 43.1456,
+            "confidence": 0.55
+          },
+          "review": true,
+          "rationale": "Classic city/country collision. \"rail traffic between X and Y\" implies terminals — city edges out the polity by 0.13.",
+          "candidates": [
+            {
+              "name": "Djibouti",
+              "display": "P.PPLC · city · pop 624K",
+              "confidence": 0.55
+            },
+            {
+              "name": "Djibouti",
+              "display": "A.PCLI · country · pop 1.1M",
+              "confidence": 0.42
+            },
+            {
+              "name": "Djibouti Region",
+              "display": "A.ADM1 · Djibouti",
+              "confidence": 0.03
+            }
+          ],
+          "offframe_candidates": [
+            {
+              "label": "Djibouti (PCLI)",
+              "lat": 11.8,
+              "lon": 42.5
+            }
+          ]
+        },
+        {
+          "id": "ay",
+          "text": "AYSHA",
+          "start": 191,
+          "end": 196,
+          "label": "GPE",
+          "ner_score": 0.83,
+          "resolved": {
+            "geonameid": 344979,
+            "name": "Aysha",
+            "feature_code": "P.PPL",
+            "admin": "Somali, ET",
+            "population": "6,100",
+            "lat": 10.7561,
+            "lon": 42.5717,
+            "confidence": 0.72
+          },
+          "review": false,
+          "rationale": "1977 cable romanization normalized through the historical-alias index (new in v4).",
+          "candidates": [
+            {
+              "name": "Aysha",
+              "display": "P.PPL · Ethiopia · Somali Region",
+              "confidence": 0.72
+            },
+            {
+              "name": "Ayshah",
+              "display": "P.PPL · Yemen",
+              "confidence": 0.18
+            },
+            {
+              "name": "Aisha",
+              "display": "P.PPL · Ethiopia · variant",
+              "confidence": 0.1
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "jj",
+          "text": "JIJIGA",
+          "start": 240,
+          "end": 246,
+          "label": "GPE",
+          "ner_score": 0.95,
+          "resolved": {
+            "geonameid": 337405,
+            "name": "Jijiga",
+            "feature_code": "P.PPLA",
+            "admin": "Somali, ET",
+            "population": "159,300",
+            "lat": 9.35,
+            "lon": 42.8,
+            "confidence": 0.91
+          },
+          "review": false,
+          "rationale": "Historical spelling \"Jigjiga\" folded to the modern canonical entry.",
+          "candidates": [
+            {
+              "name": "Jijiga",
+              "display": "P.PPLA · Ethiopia · Somali Region",
+              "confidence": 0.91
+            },
+            {
+              "name": "Jigjiga",
+              "display": "P.PPLA · variant spelling",
+              "confidence": 0.09
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "kmp",
+          "text": "KARA MARDA",
+          "start": 261,
+          "end": 271,
+          "label": "LOC",
+          "ner_score": 0.71,
+          "resolved": {
+            "geonameid": 337221,
+            "name": "Kara Marda Pass",
+            "feature_code": "T.PASS",
+            "admin": "Somali, ET",
+            "population": "—",
+            "lat": 9.345,
+            "lon": 42.42,
+            "confidence": 0.58
+          },
+          "review": true,
+          "rationale": "Head noun \"pass\" is outside the NER span; v4 recovers it from the syntactic head and re-weights T.* feature codes.",
+          "candidates": [
+            {
+              "name": "Kara Marda Pass",
+              "display": "T.PASS · Ethiopia · 1,780 m",
+              "confidence": 0.58
+            },
+            {
+              "name": "Karamarda",
+              "display": "P.PPL · Ethiopia",
+              "confidence": 0.34
+            },
+            {
+              "name": "Kara Mardha",
+              "display": "T.PASS · variant",
+              "confidence": 0.08
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "hr",
+          "text": "HARAR",
+          "start": 310,
+          "end": 315,
+          "label": "GPE",
+          "ner_score": 0.97,
+          "resolved": {
+            "geonameid": 337405,
+            "name": "Harar",
+            "feature_code": "P.PPLA",
+            "admin": "Harari, ET",
+            "population": "151,977",
+            "lat": 9.31,
+            "lon": 42.12,
+            "confidence": 0.94
+          },
+          "review": false,
+          "rationale": "\"withdrawn westward toward\" — bearing from Jijiga 261°, consistent within 4°.",
+          "candidates": [
+            {
+              "name": "Harar",
+              "display": "P.PPLA · Ethiopia · Harari Region",
+              "confidence": 0.94
+            },
+            {
+              "name": "Harari Region",
+              "display": "A.ADM1 · Ethiopia",
+              "confidence": 0.06
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "ms",
+          "text": "MASSAWA",
+          "start": 338,
+          "end": 345,
+          "label": "GPE",
+          "ner_score": 0.94,
+          "resolved": {
+            "geonameid": 343300,
+            "name": "Massawa",
+            "feature_code": "P.PPLA",
+            "admin": "Northern Red Sea, ER",
+            "population": "53,090",
+            "lat": 15.6089,
+            "lon": 39.4497,
+            "confidence": 0.89
+          },
+          "review": false,
+          "rationale": "1977 document date routes through the historical-administration table (then Ethiopia, now ER).",
+          "candidates": [
+            {
+              "name": "Massawa",
+              "display": "P.PPLA · Eritrea · Red Sea port",
+              "confidence": 0.89
+            },
+            {
+              "name": "Massawa",
+              "display": "P.PPL · variant Mitsiwa",
+              "confidence": 0.11
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "bb",
+          "text": "BERBERA",
+          "start": 378,
+          "end": 385,
+          "label": "GPE",
+          "ner_score": 0.93,
+          "resolved": {
+            "geonameid": 64013,
+            "name": "Berbera",
+            "feature_code": "P.PPLA",
+            "admin": "Woqooyi Galbeed, SO",
+            "population": "242,344",
+            "lat": 10.4396,
+            "lon": 45.0143,
+            "confidence": 0.87
+          },
+          "review": false,
+          "rationale": "\"facility at\" is ambiguous between port and airfield; port wins on the maritime context window.",
+          "candidates": [
+            {
+              "name": "Berbera",
+              "display": "P.PPLA · Somalia · Gulf of Aden port",
+              "confidence": 0.87
+            },
+            {
+              "name": "Berbera Airport",
+              "display": "S.AIRP · Somalia",
+              "confidence": 0.13
+            }
+          ],
+          "offframe_candidates": []
+        },
+        {
+          "id": "ab",
+          "text": "ABYSSINIA",
+          "start": 416,
+          "end": 425,
+          "label": "GPE",
+          "ner_score": 0.62,
+          "resolved": {
+            "geonameid": 337996,
+            "name": "Ethiopia",
+            "feature_code": "A.PCLI",
+            "admin": "Ethiopia",
+            "population": "—",
+            "lat": 9.145,
+            "lon": 40.4897,
+            "confidence": 0.86
+          },
+          "review": false,
+          "rationale": "v4 historical-alias index maps exonyms and pre-1974 names to modern GeoNames ids, dated against the document.",
+          "candidates": [
+            {
+              "name": "Ethiopia",
+              "display": "A.PCLI · via historical alias ABYSSINIA",
+              "confidence": 0.86
+            },
+            {
+              "name": "Abissínia",
+              "display": "P.PPL · Brazil · Minas Gerais",
+              "confidence": 0.09
+            },
+            {
+              "name": "Abyssinia",
+              "display": "H.SEA · obsolete chart name",
+              "confidence": 0.05
+            }
+          ],
+          "offframe_candidates": []
+        }
+      ],
+      "stats": {
+        "spans": 9,
+        "review": 2
+      }
+    }
+  ]
+}

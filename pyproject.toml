@@ -31,6 +31,16 @@ dependencies = [
 
 [project.optional-dependencies]
 streamlit = ["streamlit>=1.0.0"]
+# The geoparse console demo (console/). fastapi+uvicorn serve it; ijson streams
+# the 1.3 GB geoBoundaries CGAZ GeoJSON without holding it in memory; shapely
+# simplifies the polygons on the way into the SQLite store.
+console = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    "ijson>=3.2",
+    "shapely>=2.0",
+]
 # Without cupy, spacy.prefer_gpu() returns False and the transformer runs on
 # CPU -- no error, just ~5x slower. Capped below 14 because thinc 8.3's
 # xp2torch still uses cupy's deprecated toDlpack(), which cupy 14 hands to
