@@ -199,3 +199,6 @@ wandb/
 # console/fetch_boundaries.sh) and the SQLite store built from it.
 data/geoboundaries/
 /*.zip
+
+# vim swap files
+*.swp

@@ -197,6 +197,52 @@ them in ~18 minutes if a future experiment wants them -- but per
 sentence-level file was doing wrong, and why adding more Wikipedia than this
 does not improve accuracy. Read it before proposing more of it.
 
+## Syncing the environment
+
+`uv sync` installs *exactly* what the invocation names and prunes everything
+else, including packages another group put there. So a narrow sync silently
+breaks a working environment:
+
+```bash
+uv sync --extra console          # removes wandb, watchdog, haversine, cupy...
+```
+
+There is no error; the next training run just fails on an import. Sync the
+whole thing every time:
+
+```bash
+uv sync --extra console --extra gpu --group train --group dev
+```
+
+`console` is the demo's extra (fastapi, uvicorn, ijson, shapely); `gpu` is
+cupy, without which `spacy.prefer_gpu()` quietly returns False and the
+transformer runs on CPU at roughly a fifth the speed.
+
+## The geoparse console
+
+`console/` is a single-screen analyst UI over the geoparser -- the document, a
+map, the ranked candidates for whichever toponym you are looking at, and the
+boundary polygon for administrative units. `console/README.md` is the writeup;
+it covers the architecture, the GeoNames -> geoBoundaries join and its
+calibration, and which parts of the original design mock were faked and what
+happened to each.
+
+Two things about it that are not obvious from the code:
+
+- It needs a boundary store that is **not in git** (1.25 GB of source GeoJSON,
+  an 85 MB SQLite build). `console/fetch_boundaries.sh` then
+  `python console/build_boundaries.py`, about a minute all told. Without it the
+  console still runs; every place is just a point.
+- All model calls run on **one dedicated thread**, and that is load-bearing
+  rather than tidy: CuPy's device state is thread-local, so a forward pass
+  dispatched to FastAPI's threadpool dies with a device mismatch while the
+  identical code works in a script. Do not "simplify" it away.
+
+`python console/test_console_ui.py` drives a real browser at a running server
+(25 checks, Playwright, already installed in the venv). It fails on any browser
+console error, which is deliberate -- a `TypeError` in a render function leaves
+a pane blank and looks exactly like an empty result.
+
 ### Known rough edges
 
 - `limit_types` still has no effect on the candidate set (see MERGE_NOTES.md).

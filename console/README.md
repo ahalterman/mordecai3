@@ -266,6 +266,52 @@ DOM. **Any browser console error fails the run** — a silent `TypeError` in a
 render function leaves a pane blank and looks like "no data", which is the one
 failure a screenshot does not catch.
 
+## Next
+
+Two changes Andy asked for after seeing it run, not yet implemented.
+
+**1. Stop drawing rival candidates on the map.** The active entity's runners-up
+are currently drawn as dashed warn-coloured "ghost" rings, with off-frame ones
+clamped to the edge as bearings — the handoff's design, faithfully ported. In
+practice it reads as *"these places are also in the document and something is
+wrong with them"*, which is the opposite of what it means. Red on this map
+already means "flagged for review", and the ghosts steal that meaning.
+
+The mechanism is worth keeping in some form: showing that "Niger" the country
+beat "Niger" the river is the disambiguate panel's whole argument, and the
+panel's ranked list alone does not convey the *distance* between the options.
+Options, roughly in order of how much they change:
+
+- drop the ghosts entirely and let the candidate list carry it (smallest);
+- draw them only while the pointer is on a *candidate row*, so they answer a
+  question the user just asked rather than sitting there unprompted;
+- keep them always-on but recolour to `--dim` with no fill, so they read as
+  "considered and not chosen" rather than as an alert.
+
+Where: `_renderGhosts` in `static/geoscope.js` draws them; `renderMap` in
+`static/console.js` decides what to pass as `ghosts` (currently
+`cur.candidates.slice(1)`). Gate it on a config key so it stays switchable.
+
+**2. Export raw Mordecai output.** The four export formats are all shaped for
+the console's own contract — flattened, renamed, with the ranker's features
+stripped. Someone exporting from a geoparser demo generally wants the thing the
+geoparser actually returned, so they can diff it, feed it to a script, or file
+a bug against it.
+
+Add a format that emits `geoparse_doc`'s own dict verbatim. The adapter
+currently discards the untrimmed result, so the server has to keep it:
+`Engine.parse` would stash the raw result alongside the adapted payload, and
+`to_console` would pass it through under a `raw` key. Note that the raw result
+with `trim=False` carries every enrichment feature on every candidate, which is
+large and is exactly what makes it useful — do not quietly trim it on the way
+out. The existing GeoJSON/CSV/JSONL formats should stay; this is a fifth tab,
+not a replacement.
+
+Where: `buildExport` in `static/console.js`, `to_console` in `adapter.py`,
+`Engine.parse` in `server.py`, and `export.formats` in `console.config.json`.
+
+---
+
 ## Known rough edges
 
 - **Type floor.** The design's smallest text is 8.5px, which its own handoff
