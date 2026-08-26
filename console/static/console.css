@@ -115,13 +115,24 @@ body{
 .doc-card .s{font-size:var(--micro);color:var(--dim);margin-top:3px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+/* The primary input, and it used to read as a footnote: five rows of 10.5px
+   type below three corpus cards at the bottom of the rail. It is above the
+   corpus now (see index.html) and carries an accent edge, because "put your
+   own text in" is the first thing anyone wants to do here. */
 .pastebox{padding:4px 14px 14px}
 .pastebox textarea{
   width:100%;resize:vertical;background:var(--panel);color:var(--fg);
-  border:1px solid var(--edge);font-family:var(--mono);font-size:10.5px;
-  line-height:1.6;padding:7px 8px;outline:none;
+  border:1px solid color-mix(in srgb,var(--acc) 34%,var(--edge));
+  border-left-width:2px;border-left-color:color-mix(in srgb,var(--acc) 62%,transparent);
+  font-family:var(--mono);font-size:11.5px;
+  line-height:1.65;padding:9px 10px;outline:none;min-height:132px;
+  transition:border-color .16s,box-shadow .16s;
 }
-.pastebox textarea:focus{border-color:color-mix(in srgb,var(--acc) 55%,transparent)}
+.pastebox textarea::placeholder{color:var(--dim);opacity:.85}
+.pastebox textarea:focus{
+  border-color:color-mix(in srgb,var(--acc) 70%,transparent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 12%,transparent);
+}
 .filerow{display:block;margin-top:7px;cursor:pointer}
 .filebtn{
   display:block;text-align:center;padding:6px;border:1px dashed var(--edge);
@@ -204,7 +215,14 @@ body{
   box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--acc) 55%,transparent)}
 [data-st="amb"]{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);
   box-shadow:inset 0 -1px 0 var(--warn)}
-[data-st="sel"],[data-st="ok"]:hover,[data-st="amb"]:hover{
+/* Another mention of the place under the pointer. Deliberately quieter than
+   `sel`: it says "the pin you are looking at also stands for this one",
+   not "this is the one you picked". */
+[data-st="link"]{
+  color:var(--acc);font-weight:600;
+  background:color-mix(in srgb,var(--acc) 24%,transparent);
+  box-shadow:inset 0 -2px 0 var(--acc)}
+[data-st="sel"],[data-st="ok"]:hover,[data-st="amb"]:hover,[data-st="link"]:hover{
   background:var(--acc);color:var(--ink);font-weight:600;
   box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 34%,transparent)}
 
@@ -276,6 +294,9 @@ body{
 
 .cand{padding:9px 11px;border-left:2px solid var(--edge);background:var(--panel2);
   margin-bottom:1px;cursor:default}
+/* Hovering a row draws that candidate on the map, so the row has to look
+   like something you can point at. */
+.cand:hover{border-left-color:var(--alt);background:color-mix(in srgb,var(--alt) 10%,var(--panel2))}
 .cand.top{border-left-color:var(--acc);background:color-mix(in srgb,var(--acc) 9%,var(--panel2))}
 .cand.top.flag{border-left-color:var(--warn);background:color-mix(in srgb,var(--warn) 9%,var(--panel2))}
 .cand .l1{display:flex;align-items:baseline;gap:9px}
@@ -299,8 +320,9 @@ body{
 
 .pre{background:#06070a;border:1px solid var(--edge);padding:10px 11px;font-size:9.5px;
   line-height:1.65;color:var(--alt);max-height:230px;overflow:auto;white-space:pre;margin:0}
-.seg4{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--edge);
-  border:1px solid var(--edge);margin-bottom:10px}
+/* Named for the four formats it started with; it sizes itself now. */
+.seg4{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:1px;
+  background:var(--edge);border:1px solid var(--edge);margin-bottom:10px}
 .seg4 button{padding:6px;border:0;background:var(--panel);color:var(--dim);cursor:pointer;
   font-family:var(--cond);font-weight:600;font-size:10px;letter-spacing:.18em}
 .seg4 button.on{background:var(--acc);color:var(--ink)}

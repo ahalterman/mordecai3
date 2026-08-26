@@ -217,6 +217,10 @@ class BoundaryStore:
         # anything to compare against.
         self_naming = code in FEATURE_CODE_LEVEL
 
+        # Read once: the geometric join needs it below, and every branch needs
+        # it to pick the part of the shape a map should frame on.
+        lat, lon = resolved.get("lat"), resolved.get("lon")
+
         for level in levels:
             # ADM0 is unambiguous: one shape per country, and the country code
             # is a real key rather than a name. No geometry test needed, and
@@ -224,10 +228,9 @@ class BoundaryStore:
             if level == 0:
                 hit = self._only_shape(0, iso3)
                 if hit:
-                    return self._as_boundary(hit, "iso3")
+                    return self._as_boundary(hit, "iso3", lon=lon, lat=lat)
                 continue
 
-            lat, lon = resolved.get("lat"), resolved.get("lon")
             hit = None
             if lat is not None and lon is not None:
                 hit = self._containing(level, iso3, float(lon), float(lat))
@@ -245,7 +248,8 @@ class BoundaryStore:
                 sim = (self._name_agreement(hit[0], resolved, level)
                        if self_naming else None)
                 if sim is None or sim >= NAME_AGREE_THRESHOLD:
-                    return self._as_boundary(hit, "point-in-polygon", sim)
+                    return self._as_boundary(hit, "point-in-polygon", sim,
+                                             lon=lon, lat=lat)
                 logger.info(
                     "boundary rejected: %r (%s) resolves inside ADM%d %r -- "
                     "the two gazetteers disagree about this unit",
@@ -255,7 +259,8 @@ class BoundaryStore:
             hit = self._by_name(level, iso3, resolved)
             if hit:
                 return self._as_boundary(
-                    hit, "name", self._name_agreement(hit[0], resolved, level))
+                    hit, "name", self._name_agreement(hit[0], resolved, level),
+                    lon=lon, lat=lat)
         return None
 
     @staticmethod
@@ -333,8 +338,60 @@ class BoundaryStore:
         return None
 
     @staticmethod
-    def _as_boundary(row, match, name_score=None):
+    def _focus_bbox(geometry, full, lon, lat):
+        """The extent of the one part of this shape the mention's point sits in.
+
+        `bbox` is the true extent of the whole unit, and for a country with
+        scattered overseas territory that extent is close to useless as a map
+        frame. France runs from Wallis to Guadeloupe; Russia, the United
+        States, New Zealand, Fiji and Kiribati wrap the antimeridian and come
+        back as a bbox spanning the entire globe. Eight of the 218 ADM0 shapes
+        in the store are in that state, and they include four of the most
+        frequently mentioned countries there are -- so a map that frames on
+        `bbox` shows the whole world the moment a document says "Russia", and
+        every polygon on it is a few pixels wide. That reads as the boundary
+        layer not working.
+
+        So the payload also carries the extent of the single part containing
+        the coordinate the ranker already committed to: metropolitan France,
+        the Russian mainland, the lower 48. The off-frame parts are still
+        drawn -- nothing is hidden, they simply do not get a vote on the
+        framing.
+
+        When the point falls outside every part -- an offshore gazetteer
+        centroid, or the two gazetteers clipping a coastline differently --
+        the nearest part wins, which is still a far better frame than the
+        globe.
+
+        The cost, stated rather than hidden: for an archipelago whose full
+        extent was never pathological, this frames tighter than it needs to.
+        Indonesia's GeoNames centroid lands on Sulawesi, so a document saying
+        only "Indonesia" frames on Sulawesi with the rest of the archipelago
+        drawn spilling off the edges, where the old behaviour framed the whole
+        country. That is a worse frame in one case against an unreadable one
+        in eight, and the shape is still drawn either way.
+        """
+        try:
+            geom = shape(geometry)
+        except Exception:                     # pragma: no cover - defensive
+            return full
+        parts = list(geom.geoms) if geom.geom_type.startswith("Multi") else [geom]
+        if len(parts) < 2:
+            return full
+        point = Point(lon, lat)
+        for part in parts:
+            if part.contains(point):
+                return list(part.bounds)
+        return list(min(parts, key=lambda p: p.distance(point)).bounds)
+
+    @classmethod
+    def _as_boundary(cls, row, match, name_score=None, lon=None, lat=None):
         name, iso3, level, minx, miny, maxx, maxy, geom = row
+        geometry = json.loads(geom)
+        full = [minx, miny, maxx, maxy]
+        focus = full
+        if lon is not None and lat is not None:
+            focus = cls._focus_bbox(geometry, full, float(lon), float(lat))
         return {"level": level,
                 "name": name,
                 "iso3": iso3,
@@ -344,8 +401,11 @@ class BoundaryStore:
                 # up rather than the unit itself. Not the same as 0.0.
                 "name_score": (round(name_score, 3)
                                if name_score is not None else None),
-                "bbox": [minx, miny, maxx, maxy],
-                "geometry": json.loads(geom)}
+                "bbox": full,
+                # What a map should frame on; see `_focus_bbox`. Equal to
+                # `bbox` for every single-part shape, which is most of them.
+                "focus_bbox": focus,
+                "geometry": geometry}
 
 
 @lru_cache(maxsize=1)

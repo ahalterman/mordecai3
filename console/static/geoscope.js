@@ -230,7 +230,8 @@
       if (o.pins) {
         // Changing which places are on screen resets the view; panning around
         // and then switching documents should not leave you lost.
-        const k = o.pins.map(p => `${p.id}:${p.status}:${p.boundary ? 'b' : ''}`).join('|');
+        const k = o.pins.map(p =>
+          `${p.id}:${p.status}:${p.count || 1}:${p.boundary ? 'b' : ''}`).join('|');
         if (k !== this._key) {
           // The view only resets when the *places* change, not when their
           // statuses do -- otherwise the reveal animation, which flips each
@@ -285,16 +286,48 @@
      * Fitting to points alone crops a country polygon at the first zoom level,
      * because a country's marker sits at its centroid while its shape runs
      * hundreds of kilometres past the frame.
+     *
+     * `focus_bbox` rather than `bbox`, and the difference is the whole reason
+     * boundaries looked broken: a shape's true bounding box is measured on a
+     * map cut at the antimeridian, so Russia's, the United States', Fiji's and
+     * New Zealand's all come back spanning the entire globe, and France's and
+     * the United Kingdom's nearly do on the strength of their overseas
+     * territories. Fitting to that shows the world, on which every polygon is
+     * a handful of pixels -- which is indistinguishable from the boundary
+     * layer not working. The server sends the extent of the part of the shape
+     * the place's own coordinate sits in alongside; see `_focus_bbox` in
+     * `boundaries.py`. Falls back to `bbox` for a store built before that
+     * field existed.
      */
     _fitGeometry(pins) {
       const coords = [];
       pins.forEach(p => {
         if (p.lat == null || p.lon == null) return;
         coords.push([p.lon, p.lat]);
-        const b = p.boundary && p.boundary.bbox;
+        const bd = p.boundary;
+        const b = bd && (bd.focus_bbox || bd.bbox);
         if (b) coords.push([b[0], b[1]], [b[2], b[3]]);
       });
       return coords.length ? { type: 'MultiPoint', coordinates: coords } : null;
+    }
+
+    /** Graticule spacing for the frame currently on screen.
+     *
+     * The configured value is the *finest* spacing, not the only one. Drawn
+     * literally at 2 degrees, a frame showing half the globe -- which any
+     * document spanning two continents produces -- puts ninety labelled
+     * parallels down its left edge, where they merge into a solid bar. So step
+     * up a ladder until the wider axis carries a readable number of lines.
+     * Never finer than the config asks for, so the look at the default fit is
+     * still the designed one.
+     */
+    _graticuleStep(proj, W, H, finest) {
+      const sw = proj.invert([0, H]), ne = proj.invert([W, 0]);
+      if (!sw || !ne) return finest;
+      const span = Math.max(Math.abs(ne[0] - sw[0]), Math.abs(ne[1] - sw[1]));
+      const LADDER = [1, 2, 5, 10, 15, 20, 30];
+      return LADDER.find(v => v >= finest && span / v <= 14)
+        || LADDER[LADDER.length - 1];
     }
 
     render() {
@@ -317,7 +350,11 @@
       const path = d3.geoPath(proj);
       const landD = path(this._atlas.land) || '';
       const bordD = path(this._atlas.borders) || '';
-      const step = o.graticuleStepDeg, majStep = o.graticuleMajorStepDeg;
+      const step = this._graticuleStep(proj, W, H, o.graticuleStepDeg);
+      const majStep = Math.max(o.graticuleMajorStepDeg, step * 5);
+      // So the console's badge can name the spacing actually drawn rather
+      // than the one sitting in the config file.
+      this.dataset.graticule = String(step);
       const gratD = path(d3.geoGraticule().step([step, step])()) || '';
       const gratMajD = path(d3.geoGraticule().step([majStep, majStep])()) || '';
       const wire = this._mode === 'wire';
@@ -541,7 +578,11 @@
         // little slack for the fallback face, plus 5px of left padding and
         // 24px reserved for the confidence bar -- which the label text ran
         // under at the handoff's 5.4/26.
-        const lw = Math.max(38, (p.label || '').length * 5.9 + 34);
+        // A pin can stand for several mentions of the same place; the plate
+        // says how many, so that collapsing them does not quietly hide that
+        // the document leans on this one repeatedly.
+        const tally = p.count > 1 ? `×${p.count}` : '';
+        const lw = Math.max(38, ((p.label || '').length + tally.length * 1.2) * 5.9 + 34);
         const pulse = (on && !reduceMotion())
           ? `<circle cx="${x}" cy="${y}" r="6" fill="none" stroke="${col}" stroke-width="1.2" class="pulse"/>` : '';
 
@@ -561,7 +602,8 @@
           <line x1="${spot.tx > x ? x + r + 4 : x - r - 4}" y1="${y}" x2="${spot.tx}" y2="${spot.ty}" stroke="${col}" stroke-width="0.7" opacity="0.8"/>
           <g transform="translate(${spot.lx.toFixed(1)},${spot.ly.toFixed(1)})">
             <rect width="${lw}" height="13" fill="#05060a" opacity="${on ? 0.92 : 0.7}" stroke="${col}" stroke-width="${on ? 0.9 : 0.5}" stroke-opacity="0.8"/>
-            <text class="lbl" x="5" y="9.2" fill="${col}">${esc((p.label || '').toUpperCase())}</text>
+            <text class="lbl" x="5" y="9.2" fill="${col}">${esc((p.label || '').toUpperCase())}${
+              tally ? `<tspan opacity="0.65"> ${tally}</tspan>` : ''}</text>
             ${p.conf != null ? `<rect x="${lw - 20}" y="4.5" width="16" height="4" fill="none" stroke="${col}" stroke-width="0.5" opacity="0.7"/>
             <rect x="${lw - 19.4}" y="5.1" width="${(14.8 * p.conf).toFixed(1)}" height="2.8" fill="${col}" opacity="0.85"/>` : ''}
           </g>` : '';
@@ -584,12 +626,32 @@
         + (activeIdx >= 0 ? byIndex[activeIdx] : '');
     }
 
-    /** Rival candidates: in-frame as dashed ghost rings, off-frame as edge bearings. */
+    /** Rival candidates: in-frame as dashed ghost rings, off-frame as edge bearings.
+     *
+     * Drawn in `--alt`, not `--warn`. These are places the ranker considered
+     * and did not choose, which is a different statement from "flagged for
+     * review" -- and warn is the colour that already carries that meaning, on
+     * the pins and on the polygons both. `console.js` decides whether there is
+     * anything here to draw at all; see `ghostsFor`.
+     */
     _renderGhosts(proj, t, W, H) {
       let out = '';
       this._ghosts.forEach(g => {
         const xy = proj([g.lon, g.lat]); if (!xy) return;
         let [x, y] = xy;
+        // A leader from the place that won to the one being pointed at. The
+        // distance between them is the argument the ranked list cannot make
+        // -- "Niger the country, not Niger the river" is a statement about
+        // geography -- and without it a lone ring inside a cluster of markers
+        // is invisible, which is what a candidate in a capital city looks
+        // like next to the capital's own pin.
+        const from = g.from && proj(g.from);
+        if (from) {
+          out += `<line x1="${from[0].toFixed(1)}" y1="${from[1].toFixed(1)}"
+                        x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"
+                        stroke="${t.alt}" stroke-width="0.9" opacity="0.5"
+                        stroke-dasharray="4 3" style="pointer-events:none"/>`;
+        }
         const off = x < 14 || x > W - 14 || y < 14 || y > H - 14;
         if (off) {
           const cx = W / 2, cy = H / 2, dx = x - cx, dy = y - cy;
@@ -599,14 +661,18 @@
           const ang = Math.atan2(dy, dx) * 180 / Math.PI;
           const flip = x > W - 150;
           out += `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})" opacity="0.8" style="pointer-events:none">
-            <g transform="rotate(${ang.toFixed(1)})"><path d="M0,-4 L7,0 L0,4 Z" fill="${t.warn}" opacity="0.85"/></g>
-            <text class="lbl" x="${flip ? -12 : 12}" y="3.5" fill="${t.warn}" text-anchor="${flip ? 'end' : 'start'}">${esc(String(g.label).toUpperCase())} · OFF-FRAME</text>
+            <g transform="rotate(${ang.toFixed(1)})"><path d="M0,-4 L7,0 L0,4 Z" fill="${t.alt}" opacity="0.85"/></g>
+            <text class="lbl" x="${flip ? -12 : 12}" y="3.5" fill="${t.alt}" text-anchor="${flip ? 'end' : 'start'}">${esc(String(g.label).toUpperCase())} · OFF-FRAME</text>
           </g>`;
         } else {
-          out += `<g opacity="0.75" style="pointer-events:none">
-            <circle cx="${x}" cy="${y}" r="7" fill="none" stroke="${t.warn}" stroke-width="0.8" stroke-dasharray="2 2"/>
-            <circle cx="${x}" cy="${y}" r="1.4" fill="${t.warn}"/>
-            <text class="lbl" x="${x + 11}" y="${y + 3}" fill="${t.warn}">${esc(String(g.label).toUpperCase())}</text>
+          // Bigger and brighter than it used to be, because it is summoned
+          // now rather than permanent: it has one moment to be found.
+          out += `<g opacity="0.95" style="pointer-events:none">
+            <circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${t.alt}" stroke-width="1.2" stroke-dasharray="3 2.5"/>
+            <circle cx="${x}" cy="${y}" r="1.8" fill="${t.alt}"/>
+            <rect x="${x + 14}" y="${y - 7}" width="${String(g.label).length * 5.9 + 10}" height="13"
+                  fill="#05060a" opacity="0.85" stroke="${t.alt}" stroke-width="0.5" stroke-opacity="0.8"/>
+            <text class="lbl" x="${x + 19}" y="${y + 2.2}" fill="${t.alt}">${esc(String(g.label).toUpperCase())}</text>
           </g>`;
         }
       });

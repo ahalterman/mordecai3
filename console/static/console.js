@@ -38,13 +38,75 @@ const S = {
   scanning: null,       // the entity mid-reveal
   zoom: 1,
   format: 'geojson',
+  ghostCand: null,      // index of the candidate row under the pointer
   batch: null,          // last /api/batch summary
   log: { time: '', line: 'idle' },
 };
 
 const active = () => S.hovered ?? S.selected;
 const entities = () => (S.result && S.result.entities) || [];
-const entityById = id => entities().find(e => e.id === id) || null;
+
+/* Indexed rather than scanned: `spanState` asks for the active entity once
+ * per span, and `renderDoc` runs it for every span on every pointer move.
+ * Linear lookups made that quadratic in the length of the document, which a
+ * three-mention demo never notices and a pasted article does. */
+let _index = { of: null, map: new Map() };
+
+function entityById(id) {
+  if (_index.of !== S.result) {
+    _index = { of: S.result, map: new Map(entities().map(e => [e.id, e])) };
+  }
+  return _index.map.get(id) || null;
+}
+
+/* ── mentions and places ──────────────────────────────────────────────────── */
+/* A *mention* is one span of text. A *place* is one gazetteer record. They are
+ * not the same thing and the console had been treating them as if they were: a
+ * document that says "Ukraine" four times produced four pins on one coordinate
+ * with four identical labels stacked on top of each other, four copies of the
+ * same polygon compounding each other's fill, and a map that looked like it had
+ * found four things when it had found one.
+ *
+ * So the map is keyed on places from here down, and the panels stay keyed on
+ * mentions -- because the candidate list, the margin and the rationale are
+ * about *this* occurrence of the word and genuinely differ between them: the
+ * same record can be an easy call in one sentence and a close one in the next.
+ * The two are joined by `placeKey`, which is what lets one pin light up all
+ * four spans and one span light up its pin.
+ */
+const placeKey = e => (e && e.resolved) ? `p${e.resolved.geonameid}` : null;
+const activePlace = () => placeKey(entityById(active()));
+
+let _places = { of: null, list: [] };
+
+function places() {
+  if (_places.of === S.result) return _places.list;
+  const byKey = new Map();
+  for (const e of entities()) {
+    const k = placeKey(e);
+    if (!k) continue;                       // a mention the model declined
+    let p = byKey.get(k);
+    if (!p) byKey.set(k, p = { key: k, resolved: e.resolved,
+                               boundary: e.boundary, mentions: [] });
+    p.mentions.push(e);
+  }
+  _places = { of: S.result, list: [...byKey.values()] };
+  return _places.list;
+}
+
+const placeOf = key => places().find(p => p.key === key) || null;
+
+/** Which mention a pin stands for.
+ *
+ * A pin can stand for several mentions and the panels below it show one. If
+ * the mention already selected is one of them, keep it: hovering the pin you
+ * are already reading about must not jump the panel to a different sentence.
+ */
+function mentionForPlace(key) {
+  const p = key && placeOf(key);
+  if (!p) return null;
+  return (p.mentions.find(m => m.id === S.selected) || p.mentions[0]).id;
+}
 
 /* ── boot ─────────────────────────────────────────────────────────────────── */
 
@@ -206,8 +268,9 @@ function bindControls() {
     S.zoom = e.detail;
     $('#zoomchip').textContent = '×' + S.zoom.toFixed(1);
   });
-  $('#scope').addEventListener('pinhover', e => setHover(e.detail));
-  $('#scope').addEventListener('pinclick', e => select(e.detail));
+  // The map speaks in places, the rest of the console speaks in mentions.
+  $('#scope').addEventListener('pinhover', e => setHover(mentionForPlace(e.detail)));
+  $('#scope').addEventListener('pinclick', e => select(mentionForPlace(e.detail)));
 
   $('#upload').onchange = ev => {
     const file = ev.target.files && ev.target.files[0];
@@ -298,7 +361,9 @@ async function runParse() {
   const st = S.result.stats;
   setStatus('RESOLVED',
     `${st.resolved}/${st.spans} resolved · ${st.flagged} flagged · `
-    + `${st.with_boundary} with boundary · ${S.result.timing_ms.total} ms`);
+    + `${st.places ?? '?'} places · `
+    + `${st.places_with_boundary ?? st.with_boundary} with boundary · `
+    + `${S.result.timing_ms.total} ms`);
   renderAll();
 }
 
@@ -387,14 +452,16 @@ async function runBatch(file) {
 
 function select(id) {
   if (!id) return;
-  S.selected = id; S.hovered = null;
+  S.selected = id; S.hovered = null; S.ghostCand = null;
   if (S.stage !== 'dis' && S.stage !== 'resolve') { S.stage = 'dis'; renderStages(); }
   renderAll();
 }
 
 function setHover(id) {
   if (S.hovered === id) return;
-  S.hovered = id;
+  // The candidate rows are about to be rebuilt under the pointer, so their
+  // mouseleave will never fire; drop the ghost they summoned here instead.
+  S.hovered = id; S.ghostCand = null;
   renderAll();
 }
 
@@ -451,7 +518,10 @@ function renderDoc() {
   for (const e of ents) {
     if (e.start > cursor) parts.push(escText(text.slice(cursor, e.start)));
     parts.push(
-      `<span data-eid="${esc(e.id)}" data-st="${spanState(e)}" `
+      // `data-place` is the join to the map: several spans carry the same one
+      // and it is the id of the single marker that stands for them.
+      `<span data-eid="${esc(e.id)}" data-place="${esc(placeKey(e) || '')}" `
+      + `data-st="${spanState(e)}" `
       + `title="${esc(spanTitle(e))}">${escText(text.slice(e.start, e.end))}</span>`);
     cursor = e.end;
   }
@@ -472,8 +542,11 @@ function updateDocFoot() {
   $('#doc-foot').innerHTML =
     `<span>SPANS ${st.spans}</span>`
     + `<span class="ok">RESOLVED ${st.resolved}</span>`
+    + `<span>PLACES ${st.places ?? places().length}</span>`
     + `<span class="amb">FLAGGED ${st.flagged}</span>`
-    + `<span>BOUNDARIES ${st.with_boundary}</span>`
+    // Places, not mentions: this sits beside the map and has to agree with
+    // the number of polygons drawn on it.
+    + `<span>BOUNDARIES ${st.places_with_boundary ?? st.with_boundary}</span>`
     + `<span class="rule" data-orn></span>`
     + `<span>${S.result.timing_ms.total} ms · ${S.result.token_count} tok</span>`;
 }
@@ -482,6 +555,11 @@ function spanState(e) {
   if (S.scanning === e.id) return 'scan';
   if (!S.revealed.has(e.id)) return 'pending';
   if (active() === e.id) return 'sel';
+  // Another mention of the same place is active. This is the other half of
+  // deduplicating the map: one pin now stands for several spans, so it has to
+  // be able to point back at all of them.
+  const ap = activePlace();
+  if (ap && placeKey(e) === ap) return 'link';
   return e.review ? 'amb' : 'ok';
 }
 
@@ -494,28 +572,29 @@ function spanTitle(e) {
 function renderMap() {
   const scope = $('#scope');
   const ents = entities();
-  const pins = ents
-    .filter(e => e.resolved)
-    .map(e => ({
-      id: e.id,
-      lat: e.resolved.lat, lon: e.resolved.lon,
-      label: e.resolved.name,
-      conf: e.resolved.confidence,
-      status: !S.revealed.has(e.id) ? 'pending'
-        : (e.review ? 'ambiguous' : 'ok'),
-      boundary: (S.config.boundaries || {}).enabled === false ? null : e.boundary,
-    }));
+  const drawBoundaries = (S.config.boundaries || {}).enabled !== false;
 
-  // The runners-up of the active entity, so the map shows what it was chosen
-  // *against* -- the whole point of the disambiguate view.
+  // One pin per place, not per mention. See the note above `placeKey`.
+  const pins = places().map(p => ({
+    id: p.key,
+    lat: p.resolved.lat, lon: p.resolved.lon,
+    label: p.resolved.name,
+    // Mentions of one record can score differently -- the sentences around
+    // them differ -- so the marker carries the best of them and the panel
+    // carries the one being read.
+    conf: Math.max(...p.mentions.map(m => m.resolved.confidence)),
+    count: p.mentions.length,
+    // A pin appears once its first mention has been revealed, and reads as
+    // flagged if any mention of it is: a place worth a second look in one
+    // sentence is worth a second look on the map.
+    status: !p.mentions.some(m => S.revealed.has(m.id)) ? 'pending'
+      : (p.mentions.some(m => m.review) ? 'ambiguous' : 'ok'),
+    boundary: drawBoundaries ? p.boundary : null,
+  }));
+
   const cur = entityById(active());
-  const ghosts = (cur && S.settled)
-    ? cur.candidates.slice(1)
-        .filter(c => c.lat != null)
-        .map(c => ({ lat: c.lat, lon: c.lon, label: c.name }))
-    : [];
-
-  scope.setScene({ pins, ghosts, mode: S.mapMode, active: active() });
+  scope.setScene({ pins, ghosts: ghostsFor(cur),
+                   mode: S.mapMode, active: activePlace() });
 
   $('#map-region').textContent = (S.doc && S.doc.region) || regionOf(ents);
   $('#map-modemeta').textContent = S.mapMode === 'sat'
@@ -523,7 +602,9 @@ function renderMap() {
     : 'VECTOR OVERLAY · NE 110M · MERCATOR';
   $('#map-badges').innerHTML = (S.mapMode === 'sat'
     ? ['RELIEF · PROCEDURAL', 'NO RASTER SOURCE', 'WGS84']
-    : ['GRATICULE 2°', 'ADMIN-0 MESH', 'NO RASTER'])
+    : [`GRATICULE ${scope.dataset.graticule
+          || (S.config.map || {}).graticuleStepDeg || 2}°`,
+       'ADMIN-0 MESH', 'NO RASTER'])
     .map(b => `<span>${b}</span>`).join('');
 
   if (cur && cur.resolved) {
@@ -537,6 +618,45 @@ function renderMap() {
   } else {
     $('#map-coord').innerHTML = '';
   }
+}
+
+/** The rival candidates to draw on the map, if any.
+ *
+ * These used to be drawn permanently: every runner-up of the active mention,
+ * as dashed warn-coloured rings, with off-frame ones clamped to the edge as
+ * bearings. Faithful to the design handoff, and wrong in practice -- an
+ * unprompted ring on a map reads as "this place is in the document and
+ * something is wrong with it", and on this map red already means "flagged for
+ * review", so the ghosts were quietly spending the one colour that had a job.
+ * The Sahel corpus document drew rings over Antarctic research stations,
+ * which is a candidate list, not a finding.
+ *
+ * The mechanism is still worth having: that "Niger" the country beat "Niger"
+ * the river is the disambiguate panel's whole argument, and a ranked list of
+ * names does not convey *distance* between the options. So it is drawn when
+ * the reader asks for it -- while the pointer is on a candidate row -- and at
+ * no other time. `map.candidateGhosts` switches between that, the old
+ * always-on behaviour, and off.
+ */
+function ghostsFor(cur) {
+  const mode = (S.config.map || {}).candidateGhosts || 'hover';
+  if (!cur || !S.settled || mode === 'off') return [];
+  // The winner already has a pin; a second ring on the same coordinate says
+  // nothing.
+  const rival = c => c.lat != null
+    && (!cur.resolved || c.geonameid !== cur.resolved.geonameid);
+  const ghost = (c, i) => ({
+    lat: c.lat, lon: c.lon,
+    label: `${String(i + 1).padStart(2, '0')} ${c.name}`,
+    // Where the mention actually resolved, so the map can draw the leader
+    // between the two and show how far apart the options were.
+    from: cur.resolved ? [cur.resolved.lon, cur.resolved.lat] : null,
+  });
+  if (mode === 'always') {
+    return cur.candidates.map(ghost).filter((_, i) => rival(cur.candidates[i]));
+  }
+  const c = S.ghostCand != null ? cur.candidates[S.ghostCand] : null;
+  return (c && rival(c)) ? [ghost(c, S.ghostCand)] : [];
 }
 
 function regionOf(ents) {
@@ -633,9 +753,16 @@ function stageDis() {
   const e = entityById(active());
   if (!e) return { meta: '—', html: '<div class="empty">Select a span to see its candidates.</div>' };
 
-  const sameText = entities().filter(x => x.text === e.text).length;
+  // Mentions of the same *record*, not of the same string: "Ukraine" and
+  // "Ukrainian officials" are one place, and "Georgia" twice may well be two.
+  // This is the count the single pin on the map now stands for.
+  const sibs = placeOf(placeKey(e));
+  const kin = sibs ? sibs.mentions : [e];
+  const nth = kin.indexOf(e) + 1;
+
   const cands = e.candidates.map((c, i) =>
-    `<div class="cand${i === 0 ? ' top' : ''}${i === 0 && e.review ? ' flag' : ''}">
+    `<div class="cand${i === 0 ? ' top' : ''}${i === 0 && e.review ? ' flag' : ''}"
+          data-cand="${i}">
        <div class="l1">
          <span class="rk">${String(i + 1).padStart(2, '0')}</span>
          <span class="nm">${esc(c.name)}</span>
@@ -669,10 +796,21 @@ function stageDis() {
     meta: `MARGIN ${e.margin != null ? e.margin.toFixed(2) : '—'} · P(NO MATCH) ${e.p_no_match.toFixed(2)}`,
     html: `<div class="dis-head">
              <h2>${esc(e.text)}</h2>
-             <span class="sub">${esc(e.label)} · ${sameText} MENTION${sameText === 1 ? '' : 'S'} IN DOC ·
+             <span class="sub">${esc(e.label)} · ${kin.length > 1
+               ? `MENTION ${nth} OF ${kin.length} AT THIS PLACE`
+               : 'ONLY MENTION OF THIS PLACE'} ·
                <span class="${e.review ? 'flag' : ''}">${e.review ? 'FLAGGED FOR REVIEW' : 'AUTO-ACCEPT'}</span>
              </span>
            </div>${cands}${notes}`,
+    after: body => {
+      if (((S.config.map || {}).candidateGhosts || 'hover') !== 'hover') return;
+      // Only the map repaints: rebuilding this panel under the pointer would
+      // destroy the row the pointer is on, and its mouseleave with it.
+      body.querySelectorAll('[data-cand]').forEach(el => {
+        el.onmouseenter = () => { S.ghostCand = Number(el.dataset.cand); renderMap(); };
+        el.onmouseleave = () => { S.ghostCand = null; renderMap(); };
+      });
+    },
   };
 }
 
@@ -712,10 +850,13 @@ function stageResolve() {
 }
 
 function stageExport() {
-  const formats = (S.config.export || {}).formats || ['geojson', 'jsonl', 'csv', 'wkt'];
+  const formats = (S.config.export || {}).formats
+    || ['geojson', 'jsonl', 'csv', 'wkt', 'raw'];
   const text = buildExport(S.format);
   return {
-    meta: `${entities().filter(e => e.resolved).length} FEATURES`,
+    meta: S.format === 'raw'
+      ? `GEOPARSE_DOC · ${fmtBytes(text.length)}`
+      : `${entities().filter(e => e.resolved).length} FEATURES`,
     html: `<div class="seg4">${formats.map(f =>
              `<button data-fmt="${f}" class="${f === S.format ? 'on' : ''}">${f.toUpperCase()}</button>`).join('')}</div>
            <pre class="pre">${escText(text)}</pre>
@@ -737,6 +878,20 @@ function stageExport() {
 /** Export the result. GeoJSON uses the boundary polygon where there is one --
  *  a province exported as a point loses the thing the boundary layer added. */
 function buildExport(fmt) {
+  // Mordecai's own result, exactly as `geoparse_doc` returned it: its field
+  // names, its structure, and -- because the console asks for `trim=False` --
+  // every enrichment feature on every candidate. Every other format here is
+  // reshaped for this console's contract, which is the wrong thing to hand
+  // someone who wants to diff the output, script against it, or attach it to
+  // a bug report. It is large, and that is the point; nothing trims it on the
+  // way out. Placed above the guard below because a document where the model
+  // declined everything is exactly when you want to see the raw result.
+  if (fmt === 'raw') {
+    return (S.result && S.result.raw)
+      ? JSON.stringify(S.result.raw, null, 2)
+      : '(this backend did not return the raw result)';
+  }
+
   const ents = entities().filter(e => e.resolved);
   if (!ents.length) return '(nothing resolved yet)';
 
@@ -798,7 +953,8 @@ function buildExport(fmt) {
 }
 
 function downloadExport() {
-  const ext = { geojson: 'geojson', jsonl: 'jsonl', csv: 'csv', wkt: 'wkt' }[S.format];
+  const ext = { geojson: 'geojson', jsonl: 'jsonl', csv: 'csv', wkt: 'wkt',
+                raw: 'json' }[S.format] || 'txt';
   const blob = new Blob([buildExport(S.format)], { type: 'application/octet-stream' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

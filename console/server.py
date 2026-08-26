@@ -161,6 +161,11 @@ class Engine:
             result, doc_id=doc_id, text=text,
             review_gate=options.review_gate, top_k=options.top_k,
             boundary_store=self.boundaries if self.boundaries.available else None,
+            # The single-document path keeps Mordecai's own result so the
+            # export panel can offer it verbatim. The batch path below does
+            # not: one untrimmed result per document, times 500 documents, is
+            # a response nobody asked for.
+            include_raw=True,
         )
         watch.mark("boundaries")
         payload["timing_ms"] = watch.total()

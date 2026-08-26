@@ -39,15 +39,14 @@
       <div class="seclabel">PIPELINE</div>
       <div id="stages"></div>
 
-      <div class="divider"></div>
-      <div class="seclabel">CORPUS</div>
-      <div id="corpus"></div>
-
+      <!-- Above the corpus, not below it. Pasting your own text is what a
+           visitor wants to do first, and it had been the smallest, lowest
+           thing on the screen. -->
       <div class="divider"></div>
       <div class="seclabel">YOUR TEXT</div>
       <div class="pastebox">
-        <textarea id="paste" rows="5" spellcheck="false"
-          placeholder="Paste any text and press PARSE…"></textarea>
+        <textarea id="paste" rows="11" spellcheck="false"
+          placeholder="Paste any text here, then press PARSE below."></textarea>
         <label class="filerow">
           <span class="filebtn">▸ UPLOAD .txt / .jsonl</span>
           <input type="file" id="upload" accept=".txt,.jsonl,.ndjson" hidden>
@@ -56,6 +55,10 @@
           Blank-line separated, or JSONL with a <code>text</code> field.
         </div>
       </div>
+
+      <div class="divider"></div>
+      <div class="seclabel">CORPUS</div>
+      <div id="corpus"></div>
     </div>
 
     <div class="railfoot">

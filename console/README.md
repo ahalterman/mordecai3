@@ -41,7 +41,7 @@ what happened to each.
 | `rationale` — authored prose | **Real.** Built from the ranker's own features. See below. |
 | Telemetry — jittered numbers | **Real, and shorter.** Only measured values are sent; unmeasurable cells are absent rather than invented. |
 | Historical `as_of` gazetteer | **Cut.** No date-scoped lookup exists. The 1977 document stays as an uppercase-OCR stress case and says so. |
-| Off-frame candidate bearings | **Real.** Drawn from actual runner-up coordinates. |
+| Off-frame candidate bearings | **Real, and on request.** Drawn from actual runner-up coordinates, but only while the pointer is on a candidate row. See "Candidate ghosts" below. |
 | Streaming parse | **Not streamed, and not claimed to be.** See "the reveal" below. |
 
 Two things the mock did not have, added here: **boundary polygons** for resolved
@@ -165,6 +165,97 @@ Full report: [`BOUNDARY_JOIN_REPORT.txt`](BOUNDARY_JOIN_REPORT.txt).
 
 ---
 
+## Mentions and places
+
+A document that says "Ukraine" four times used to produce four markers on one
+coordinate, four identical label plates stacked on each other, and four copies
+of the same polygon compounding each other's fill. That is one piece of
+information drawn four times, plus a legibility problem.
+
+So the console distinguishes two things it had been conflating:
+
+- a **mention** is one span of text. The candidate list, the margin, the
+  rationale and the review flag are per mention, and they genuinely differ
+  between them — the same record can be an easy call in one sentence and a
+  close one in the next;
+- a **place** is one gazetteer record. The map is per place: one marker, one
+  polygon, one entry in the coordinate readout.
+
+`placeKey` in `console.js` is the join, and it is a span's `data-place`
+attribute in the DOM. The marker plate carries a `×4` tally so collapsing the
+mentions does not quietly hide that the document leans on one place
+repeatedly, and hovering or selecting any mention lights up its siblings in
+the text as `link` — quieter than the selected span, loud enough to show that
+one pin stands for all of them. The DISAMBIGUATE header names which one you
+are reading: *MENTION 2 OF 4 AT THIS PLACE*.
+
+The footer counts both, because they answer different questions: `RESOLVED` is
+how much of the text was placed, `PLACES` is how many distinct things it was
+placed on, and `BOUNDARIES` counts places rather than mentions so that it
+agrees with the number of polygons visible beside it. `stats.places` and
+`stats.places_with_boundary` come from the adapter, so the batch summary has
+them too.
+
+## Framing a country
+
+The boundary layer looked intermittent, and the cause was not the join.
+
+A shape's bounding box is measured on a map cut at the antimeridian, so a
+country whose territory crosses that line comes back with a box spanning the
+entire globe. Eight of the 218 ADM0 shapes in the store are in that state —
+Russia, the United States, France, the United Kingdom, New Zealand, Fiji,
+Kiribati, Antarctica — and four of those are among the most frequently
+mentioned countries there are. The map fits its view to the union of the pins
+and their boundary extents, so a single mention of Russia framed the whole
+world, on which every polygon is a few pixels wide. Nothing had failed; it was
+all being drawn at a size indistinguishable from absent.
+
+`boundaries.py` now sends `focus_bbox` alongside `bbox`: the extent of the one
+part of the shape that contains the coordinate the ranker committed to.
+Metropolitan France, the Russian mainland, the lower 48. The remaining parts
+are still drawn, they just do not get a vote on the framing. `bbox` is
+unchanged and still the true extent.
+
+The cost is stated in the docstring rather than hidden: an archipelago whose
+extent was never pathological now frames tighter than it needs to, because
+Indonesia's GeoNames centroid lands on Sulawesi. That is a worse frame in one
+case against an unreadable one in eight, and the shape is drawn either way.
+
+A related defect fell out of the same frame: the graticule was drawn at a
+fixed 2°, so a view of half the globe put ninety labelled parallels down the
+left edge, where they merged into a solid bar. The configured value is the
+finest spacing now rather than the only one, and the spacing steps up until
+the frame carries a readable number of lines. The badge reports what was
+actually drawn.
+
+## Candidate ghosts
+
+The active mention's runners-up used to be drawn permanently, as dashed
+warn-coloured rings with off-frame ones clamped to the edge as bearings — the
+handoff's design, faithfully ported, and wrong in practice. An unprompted ring
+on a map reads as *"this place is in the document and something is wrong with
+it"*, and on this map red already means "flagged for review", so the ghosts
+were spending the one colour that had a job. The Sahel document drew rings over
+Antarctic research stations, which is a candidate list, not a finding.
+
+The mechanism was still worth keeping: that "Niger" the country beat "Niger"
+the river is the disambiguate panel's whole argument, and a ranked list of
+names does not convey the *distance* between the options. So it is drawn when
+the reader asks for it — while the pointer is on a candidate row — in `--alt`
+rather than warn, and with a leader line back to the place that won, which is
+the part that carries the argument. `map.candidateGhosts` switches between
+`hover` (the default), `always` (the old behaviour) and `off`.
+
+## The paste box
+
+It sits above the corpus rather than below it, at eleven rows of 11.5px with an
+accent edge. It had been five rows of 10.5px at the bottom of the rail, under
+three corpus cards — the smallest, lowest thing on the screen, and the first
+thing anyone actually wants to use. `index.html` for the order, `.pastebox` in
+`console.css` for the treatment.
+
+---
+
 ## The reveal animation
 
 Entities light up one at a time in document order, and the handoff suggests
@@ -242,11 +333,22 @@ Additive and backward compatible; see the commits on this branch.
 
 ---
 
+### Export formats
+
+Four of the five are shaped for this console's own contract — flattened,
+renamed, with the ranker's features stripped. **RAW** is the fifth: what
+`geoparse_doc` actually returned, its field names and its structure, with every
+enrichment feature still on every candidate because the console asks for
+`trim=False`. It is large, and that is the point — it is the one a person can
+diff, script against, or attach to a bug report. Nothing trims it on the way
+out. Single documents only: one untrimmed result per document across a
+500-document batch is a response nobody asked for.
+
 ## Configuration
 
 `console.config.json` (JSON Schema alongside) drives palette, layout, grit,
-navigation limits, top-k, review gate, reveal timings, export formats and the
-boundary layer. Adding a palette needs no code change: the key becomes a valid
+navigation limits, top-k, review gate, reveal timings, export formats, the
+candidate-ghost mode and the boundary layer. Adding a palette needs no code change: the key becomes a valid
 `theme.palette` value, and the map reads `--acc` / `--map-land` / `--map-tint`
 off its host, so the terrain repaints with no other wiring.
 
@@ -259,58 +361,14 @@ people who find the costume distracting.
 python console/test_console_ui.py     # needs a server on :8077, or set CONSOLE_URL
 ```
 
-25 checks against a real browser and a real backend: span rendering, offset
+35 checks against a real browser and a real backend: span rendering, offset
 fidelity, marker and polygon rendering, bidirectional hover/click sync, all five
-stage panels, GeoJSON validity, and that hover does not rebuild the document
-DOM. **Any browser console error fails the run** — a silent `TypeError` in a
+stage panels, GeoJSON validity, raw-export structure, that repeated mentions
+collapse to one marker and one polygon, that a country with overseas territory
+does not frame the globe, that candidate ghosts appear only while the pointer
+is on a candidate row, and that hover does not rebuild the document DOM. **Any browser console error fails the run** — a silent `TypeError` in a
 render function leaves a pane blank and looks like "no data", which is the one
 failure a screenshot does not catch.
-
-## Next
-
-Two changes Andy asked for after seeing it run, not yet implemented.
-
-**1. Stop drawing rival candidates on the map.** The active entity's runners-up
-are currently drawn as dashed warn-coloured "ghost" rings, with off-frame ones
-clamped to the edge as bearings — the handoff's design, faithfully ported. In
-practice it reads as *"these places are also in the document and something is
-wrong with them"*, which is the opposite of what it means. Red on this map
-already means "flagged for review", and the ghosts steal that meaning.
-
-The mechanism is worth keeping in some form: showing that "Niger" the country
-beat "Niger" the river is the disambiguate panel's whole argument, and the
-panel's ranked list alone does not convey the *distance* between the options.
-Options, roughly in order of how much they change:
-
-- drop the ghosts entirely and let the candidate list carry it (smallest);
-- draw them only while the pointer is on a *candidate row*, so they answer a
-  question the user just asked rather than sitting there unprompted;
-- keep them always-on but recolour to `--dim` with no fill, so they read as
-  "considered and not chosen" rather than as an alert.
-
-Where: `_renderGhosts` in `static/geoscope.js` draws them; `renderMap` in
-`static/console.js` decides what to pass as `ghosts` (currently
-`cur.candidates.slice(1)`). Gate it on a config key so it stays switchable.
-
-**2. Export raw Mordecai output.** The four export formats are all shaped for
-the console's own contract — flattened, renamed, with the ranker's features
-stripped. Someone exporting from a geoparser demo generally wants the thing the
-geoparser actually returned, so they can diff it, feed it to a script, or file
-a bug against it.
-
-Add a format that emits `geoparse_doc`'s own dict verbatim. The adapter
-currently discards the untrimmed result, so the server has to keep it:
-`Engine.parse` would stash the raw result alongside the adapted payload, and
-`to_console` would pass it through under a `raw` key. Note that the raw result
-with `trim=False` carries every enrichment feature on every candidate, which is
-large and is exactly what makes it useful — do not quietly trim it on the way
-out. The existing GeoJSON/CSV/JSONL formats should stay; this is a fifth tab,
-not a replacement.
-
-Where: `buildExport` in `static/console.js`, `to_console` in `adapter.py`,
-`Engine.parse` in `server.py`, and `export.formats` in `console.config.json`.
-
----
 
 ## Known rough edges
 
@@ -323,3 +381,7 @@ Where: `buildExport` in `static/console.js`, `to_console` in `adapter.py`,
   not because the model handles French.
 - **≥1280px.** Below that the console scrolls sideways, by design.
 - **ADM2 boundary precision**, as above.
+- **Archipelago framing.** `focus_bbox` frames on the part of a shape holding
+  the gazetteer centroid, so a document saying only "Indonesia" frames on
+  Sulawesi with the rest of the archipelago spilling off the edges. See
+  "Framing a country" for why that trade was taken.

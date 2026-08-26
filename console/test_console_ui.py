@@ -12,6 +12,7 @@ Any browser console error fails the run. That is deliberate: a silent
 which is exactly the failure a screenshot does not catch.
 """
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -127,12 +128,70 @@ def main():
              "the disambiguate panel follows the selection",
              f"panel says {heading!r}, span was {span_text!r}")
 
-        # The map's active marker must be the same entity: this is the sync.
+        # The map's active marker must be the same *place*: this is the sync.
+        # Markers are keyed on the gazetteer record, not on the span, because
+        # four mentions of Ukraine are one marker; `data-place` on the span is
+        # that key.
+        place = page.eval_on_selector(f'#doc-text [data-eid="{eid}"]',
+                                      "el => el.dataset.place")
         c.ok(page.evaluate(
             "id => { const sr = document.querySelector('#scope').shadowRoot;"
             "  const g = sr.querySelector(`[data-pid=\"${id}\"]`);"
-            "  return g ? g.getAttribute('opacity') : null; }", eid) == "1",
-            "the map marker for the selected entity goes active")
+            "  return g ? g.getAttribute('opacity') : null; }", place) == "1",
+            "the map marker for the selected place goes active",
+            f"place key was {place!r}")
+
+        # ------------------------------------------------------- deduplication
+        # Repeated mentions of one place are one marker and one polygon. The
+        # corpus documents repeat plenty of names, so this is a real test on
+        # them; the assertion is the invariant, not a fixed number.
+        dedup = page.evaluate("""() => {
+          const sr = document.querySelector('#scope').shadowRoot;
+          const spans = [...document.querySelectorAll('#doc-text [data-place]')]
+            .map(s => s.dataset.place).filter(Boolean);
+          const pins = [...sr.querySelectorAll('[data-pid]')]
+            .map(g => g.getAttribute('data-pid'));
+          const bounds = [...sr.querySelectorAll('[data-boundary]')]
+            .map(g => g.getAttribute('data-boundary'));
+          return { places: [...new Set(spans)].length, mentions: spans.length,
+                   pins: pins.length, uniquePins: [...new Set(pins)].length,
+                   bounds: bounds.length, uniqueBounds: [...new Set(bounds)].length };
+        }""")
+        c.ok(dedup["pins"] == dedup["uniquePins"] == dedup["places"],
+             "one marker per place, not per mention", str(dedup))
+        c.ok(dedup["bounds"] == dedup["uniqueBounds"],
+             "one boundary polygon per place", str(dedup))
+
+        # Every other mention of the selected place is marked as linked to it,
+        # which is what makes one marker legible as standing for several spans.
+        kin = page.evaluate(
+            "p => [...document.querySelectorAll('#doc-text [data-place]')]"
+            "  .filter(s => s.dataset.place === p).map(s => s.dataset.st)", place)
+        c.ok(kin.count("sel") == 1 and set(kin) <= {"sel", "link"},
+             "the other mentions of the selected place light up with it",
+             str(kin))
+
+        # --------------------------------------------------- candidate ghosts
+        # Rival candidates are drawn only while the pointer is on a candidate
+        # row. An unprompted ring on the map reads as an alert, and warn is
+        # already spoken for by the review flag.
+        ghosts = ("() => (document.querySelector('#scope').shadowRoot.innerHTML"
+                  "  .match(/OFF-FRAME|stroke-dasharray=\"2 2\"/g) || []).length")
+        at_rest = page.evaluate(ghosts)
+        rows = page.query_selector_all("#stage-body [data-cand]")
+        summoned = at_rest
+        if len(rows) > 1:
+            rows[-1].hover()
+            page.wait_for_timeout(250)
+            summoned = page.evaluate(ghosts)
+            page.mouse.move(4, 4)
+            page.wait_for_timeout(250)
+        c.ok(at_rest == 0, "no candidate ghosts on the resting map", f"{at_rest} drawn")
+        c.ok(len(rows) < 2 or summoned > 0 or page.evaluate(ghosts) == 0,
+             "hovering a candidate row draws it on the map",
+             f"rest={at_rest} hover={summoned}")
+        c.ok(page.evaluate(ghosts) == 0,
+             "the ghost goes away when the pointer leaves the row")
 
         # Hovering a different span must move the highlight without rebuilding
         # the document -- the node identity is the assertion.
@@ -196,6 +255,59 @@ def main():
         c.ok(len(pasted_spans) >= 3, "pasted text parses",
              f"found {len(pasted_spans)} spans")
         page.screenshot(path=str(SHOTS / "pasted.png"), full_page=False)
+
+        # ------------------------------------------- framing a scattered country
+        # A shape's bounding box is measured on a map cut at the antimeridian,
+        # so France's -- Wallis at 176W, Guadeloupe at 61W -- spans 350 degrees,
+        # and Russia's, the United States', Fiji's and New Zealand's span the
+        # full 360. Fitting the view to that shows the whole world, on which
+        # every polygon is a few pixels wide and the boundary layer looks
+        # broken. The server sends `focus_bbox` for this, and the fit uses it.
+        #
+        # Asserted through the graticule spacing, which is chosen from the
+        # visible span -- about ten to fourteen lines across the frame -- and is
+        # therefore a direct read on how much world is showing: a France and
+        # Germany frame is ~20 degrees wide and steps to 2 or 5, while the
+        # whole globe steps to 30.
+        page.fill("#paste", "France and Germany issued a joint statement.")
+        page.click("#run")
+        page.wait_for_function(
+            "document.querySelector('#statusword').textContent === 'RESOLVED'",
+            timeout=90_000)
+        step = page.evaluate(
+            "() => Number(document.querySelector('#scope').dataset.graticule)")
+        c.ok(step <= 5, "a country with overseas territory does not frame the globe",
+             f"graticule stepped to {step} degrees")
+        page.screenshot(path=str(SHOTS / "scattered-country.png"))
+
+        # ---------------------------------------------------------- raw export
+        # The format that hands back what `geoparse_doc` actually returned,
+        # untrimmed, rather than this console's own reshaping of it.
+        page.click('[data-stage="export"]')
+        page.wait_for_timeout(250)
+        raw_tab = page.query_selector('[data-fmt="raw"]')
+        c.ok(raw_tab is not None, "the export panel offers the raw result")
+        if raw_tab:
+            raw_tab.click()
+            page.wait_for_timeout(300)
+            try:
+                doc = json.loads(page.inner_text(".pre"))
+            except ValueError as exc:
+                doc = None
+                c.ok(False, "raw export is valid JSON", str(exc))
+            if doc is not None:
+                ents = doc.get("geolocated_ents") or []
+                first = (ents[0].get("candidates") or [{}])[0] if ents else {}
+                c.ok("geolocated_ents" in doc,
+                     "raw export is Mordecai's own structure", str(list(doc))[:120])
+                # The point of the format: `trim=False` leaves the ranker's
+                # enrichment features on every candidate, and trimming them
+                # here would remove the only reason to export it.
+                c.ok(len(first) > 20,
+                     "raw export keeps the ranker features on candidates",
+                     f"{len(first)} keys on the first candidate")
+        page.click('[data-stage="dis"]')
+        page.wait_for_timeout(200)
 
         # ------------------------------------------------------------- corpus
         page.click('[data-doc="archive"]')

@@ -133,7 +133,7 @@ def _review_flags(entity, candidates, review_gate):
 
 
 def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
-               boundary_store=None, timings=None):
+               boundary_store=None, timings=None, include_raw=False):
     """A Mordecai `geoparse_doc` result -> the console's response body.
 
     Parameters
@@ -150,6 +150,19 @@ def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
         None disables the boundary layer; every place stays a point.
     timings : dict or None
         Stage timings in ms, measured by the caller.
+    include_raw : bool
+        Attach `result` itself under a `raw` key, untouched.
+
+        Everything else in this module exists to keep Mordecai's field names
+        out of the components. This is the deliberate hole in that wall: a
+        person exporting from a geoparser demo generally wants the thing the
+        geoparser actually returned, so they can diff it, feed it to a script
+        or file a bug against it. It carries every enrichment feature on every
+        candidate because `trim=False` -- which is large, and is exactly what
+        makes it worth having. Nothing trims it on the way out.
+
+        Off by default: the batch path would otherwise carry one of these per
+        document.
 
     Returns
     -------
@@ -162,6 +175,11 @@ def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
     # "shares an admin unit with N other mentions" clause. Counted once here
     # rather than recomputed per entity.
     placed = sum(1 for e in ents if not e.get("no_match"))
+
+    # A document that says "Ukraine" four times resolves to the same GeoNames
+    # record four times, and the boundary join is the same query and the same
+    # polygon each time. Looked up once per record instead.
+    boundary_cache = {}
 
     for i, ent in enumerate(ents):
         raw_candidates = ent.get("candidates") or []
@@ -185,7 +203,11 @@ def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
                 "confidence": round(float(ent.get("score", 0.0)), 4),
             }
             if boundary_store is not None:
-                boundary = boundary_store.lookup(ent)
+                gid = ent.get("geonameid")
+                if gid in boundary_cache:
+                    boundary = boundary_cache[gid]
+                else:
+                    boundary = boundary_cache[gid] = boundary_store.lookup(ent)
 
         entities.append({
             # Stable within the document and derived from position, so a re-run
@@ -212,7 +234,7 @@ def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
             "candidates": candidates,
         })
 
-    return {
+    payload = {
         "doc_id": doc_id,
         "text": text,
         "token_count": result.get("token_count"),
@@ -223,8 +245,43 @@ def to_console(result, *, doc_id, text, review_gate=0.40, top_k=5,
             "resolved": sum(1 for e in entities if e["resolved"]),
             "flagged": sum(1 for e in entities if e["review"]),
             "with_boundary": sum(1 for e in entities if e["boundary"]),
+            # Mentions and places are different counts and the console shows
+            # both, because they answer different questions: `resolved` is how
+            # much of the text was placed, `places` is how many distinct
+            # things it was placed on. A document that says "Ukraine" four
+            # times has four of the first and one of the second -- and the map
+            # draws one marker and one polygon, so a footer reporting the
+            # mention counts beside it would be reporting something the reader
+            # cannot see.
+            "places": len({e["resolved"]["geonameid"]
+                           for e in entities if e["resolved"]}),
+            "places_with_boundary": len({e["resolved"]["geonameid"]
+                                         for e in entities if e["boundary"]}),
         },
     }
+    if include_raw:
+        payload["raw"] = _jsonable(result)
+    return payload
+
+
+def _jsonable(obj):
+    """Coerce numpy scalars to Python numbers, recursively.
+
+    The ranker works in torch/numpy and its scores reach the result dict as
+    `float32`, which `json` refuses. Only the scalar types are touched; the
+    structure is passed through exactly as Mordecai built it, which is the
+    whole point of the raw export.
+    """
+    if isinstance(obj, dict):
+        return {k: _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonable(v) for v in obj]
+    item = getattr(obj, "item", None)
+    if item is not None and getattr(obj, "ndim", None) == 0:
+        return item()
+    if hasattr(obj, "tolist") and hasattr(obj, "shape"):
+        return obj.tolist()
+    return obj
 
 
 class Stopwatch:
