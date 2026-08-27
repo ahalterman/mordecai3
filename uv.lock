@@ -7,6 +7,9 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+build-constraints = [{ name = "cython", specifier = "<3.1" }]
+
 [[package]]
 name = "altair"
 version = "5.5.0"

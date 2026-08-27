@@ -105,5 +105,25 @@ train = [
     {include-group = "models"},
 ]
 
+[tool.uv]
+# `curated-tokenizers` publishes wheels only up to cp312. On Python 3.13 there
+# is nothing to download, so uv builds it from the sdist -- and its Cython
+# sources do not compile under Cython 3.1 or later, which is what PyPI now
+# serves by default:
+#
+#     Cython.Compiler.Errors.CompileError: curated_tokenizers/_bbpe.pyx
+#     TypeError: 'NoneType' object is unsliceable
+#
+# It is not a direct dependency: en_core_web_trf 3.8.0 -> spacy-curated-
+# transformers -> curated-tokenizers, and the console needs en_core_web_trf,
+# so it cannot simply be dropped. This constrains the *build* environment only:
+# nothing here is installed at runtime, and adding it moved no resolved
+# version -- uv.lock gained three lines recording the constraint, nothing more.
+#
+# A machine that built the wheel before Cython 3.1 shipped keeps working from
+# uv's cache, which is why this can pass on a laptop and fail on a fresh
+# server. Remove this when curated-tokenizers ships cp313 wheels.
+build-constraint-dependencies = ["cython<3.1"]
+
 [tool.uv.sources]
 en_core_web_trf = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.8.0/en_core_web_trf-3.8.0-py3-none-any.whl" }
