@@ -34,7 +34,26 @@
     boundaryFillOpacity: 0.16,
     boundaryStrokeWidth: 1.1,
     weakMatchBelow: 0.95,
+    // How far a boundary polygon may widen the frame beyond what the markers
+    // themselves need, and how much the markers must already span before that
+    // limit applies at all. See `_fitGeometry`.
+    fitMaxBlowUp: 2,
+    fitMinPinSpanDeg: 5,
+    imagery: null,
+    // The calm variant. Same projection, same fitting, same collision solver,
+    // same pan/zoom, same boundary layer -- what changes is everything the ops
+    // map does to look like a sensor: the terrain relief drops an order of
+    // magnitude, the sweep and the blinking mode chip go, the registration
+    // corners and the centre reticle go, and the markers become dots and
+    // chips instead of crosshairs on plates. See `_renderPins`.
+    calm: false,
+    sweep: true,
+    upper: true,
   };
+
+  const TILE_PX = 256;
+  const TILE_CACHE_MAX = 480;   // ~40 MB of decoded JPEG at this tile size
+  const TILE_BUDGET = 420;      // per frame; a sane frame needs ~30
 
   let atlasPromise = null;
 
@@ -95,6 +114,18 @@
       this._moved = 0;
       this._painted = false;
       this._last = null;
+      // Tiles, by `z/x/y`. GIBS answers with `Cache-Control: no-store`, so the
+      // browser will re-fetch every tile on every repaint if you just hand
+      // `<image href>` the remote URL -- which also means every pan commit
+      // blanks the map while they come back. Each tile is fetched once into
+      // an object URL and kept here instead; insertion order is the LRU.
+      this._tiles = new Map();
+      // Consecutive failures, reset by any success. A running total would mean
+      // that once one tile had ever loaded the console could never notice the
+      // network going away mid-session -- and panning onto tiles that are not
+      // in the cache is exactly when it would.
+      this._tileFailRun = 0;
+      this._imageryDown = false;
       this._opts = { ...DEFAULTS };
     }
 
@@ -106,10 +137,17 @@
     connectedCallback() {
       const sweep = this._opts.sweepSeconds;
       this.shadowRoot.innerHTML = `<style>
-        :host{display:block;width:100%;height:100%;position:relative;overflow:hidden;background:#06070a;
-          cursor:grab;font-family:'JetBrains Mono',ui-monospace,monospace;contain:layout paint}
+        /* Custom properties inherit through the shadow boundary, so the host
+           page's palette reaches in here without any plumbing -- which is what
+           lets a theme switch repaint the map's own ground and label face. */
+        :host{display:block;width:100%;height:100%;position:relative;overflow:hidden;
+          background:var(--map-sea,#06070a);
+          cursor:grab;font-family:var(--mono,'JetBrains Mono'),ui-monospace,monospace;
+          contain:layout paint}
         svg{position:absolute;inset:0;width:100%;height:100%;display:block}
-        .lbl{font:600 8.5px 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em}
+        .lbl{font-weight:600;font-size:8.5px;letter-spacing:.08em;
+          font-family:var(--mono,'JetBrains Mono'),ui-monospace,monospace}
+        .lbl.calm{font-size:10px;letter-spacing:0}
         .sweep{animation:sw ${sweep}s linear infinite}
         @keyframes sw{0%{transform:translateX(-14%)}100%{transform:translateX(114%)}}
         .pulse{animation:pl 1.9s ease-out infinite}
@@ -121,14 +159,21 @@
           .pulse,.blink{animation:none}
         }
         .boot{position:absolute;inset:0;display:grid;place-items:center;color:var(--acc,#f0a13c);
-          font:600 10px 'JetBrains Mono',monospace;letter-spacing:.28em;background:#06070a;
+          font-weight:600;font-size:10px;letter-spacing:.28em;
+          font-family:var(--mono,'JetBrains Mono'),monospace;
+          background:var(--map-sea,#06070a);
           text-align:center;padding:0 20px;line-height:2}
       </style><div class="boot">LOADING BASEMAP…</div>`;
 
+      // Debounced for the same reason the wheel handler is: `render()`
+      // re-rasterises the terrain filters, and dragging the pane splitter
+      // resizes this element on every frame of the gesture.
       this._ro = new ResizeObserver(() => {
         const r = this.getBoundingClientRect();
         if (Math.abs(r.width - this._w) > 1 || Math.abs(r.height - this._h) > 1) {
-          this._w = r.width; this._h = r.height; this.render();
+          this._w = r.width; this._h = r.height;
+          clearTimeout(this._rt);
+          this._rt = setTimeout(() => this.render(), 70);
         }
       });
       this._ro.observe(this);
@@ -149,7 +194,12 @@
         });
     }
 
-    disconnectedCallback() { if (this._ro) this._ro.disconnect(); }
+    disconnectedCallback() {
+      if (this._ro) this._ro.disconnect();
+      clearTimeout(this._rt); clearTimeout(this._wt);
+      this._tiles.forEach(e => { if (e.href) URL.revokeObjectURL(e.href); });
+      this._tiles.clear();
+    }
 
     // ------------------------------------------------------------ transform
 
@@ -166,17 +216,19 @@
       this._zx = this._zx * this._lk + this._lx;
       this._zy = this._zy * this._lk + this._ly;
       this._lk = 1; this._lx = 0; this._ly = 0;
+      // Render first: the listener reads `dataset.tilezoom`, which this call
+      // is what sets.
+      this.render();
       this.dispatchEvent(new CustomEvent('viewchange',
         { detail: this._zk, bubbles: true, composed: true }));
-      this.render();
     }
 
     resetView() {
       this._zk = 1; this._zx = 0; this._zy = 0;
       this._lk = 1; this._lx = 0; this._ly = 0;
+      this.render();
       this.dispatchEvent(new CustomEvent('viewchange',
         { detail: 1, bubbles: true, composed: true }));
-      this.render();
     }
 
     _bindNav() {
@@ -267,7 +319,17 @@
         this._ghosts = o.ghosts || [];
       }
       // The basemap and the terrain seed are the terrain, so these do need it.
-      if (o.mode && o.mode !== this._mode) { this._mode = o.mode; refit = true; }
+      if (o.mode && o.mode !== this._mode) {
+        this._mode = o.mode; refit = true;
+        // Selecting imagery again is a retry: the network may have come back.
+        if (o.mode === 'imagery') {
+          this._imageryDown = false;
+          this._tileFailRun = 0;
+          // Drop the tiles that failed, so a retry actually re-requests them
+          // instead of reading its own failure back out of the cache.
+          for (const [k, v] of [...this._tiles]) if (v.failed) this._tiles.delete(k);
+        }
+      }
       if (o.seed && o.seed !== this._seed) { this._seed = o.seed; refit = true; }
       if ('active' in o && o.active !== this._active) {
         this._active = o.active;
@@ -289,6 +351,11 @@
         land: g('--map-land', '#b9ad8e'),
         sea: g('--map-sea', '#0a0d12'),
         tint: g('--map-tint', '#5d5124'),
+        // The calm marker chips are filled surfaces rather than dark plates,
+        // so they need the panel colour and the colour that sits on the accent.
+        card: g('--panel', '#0f1110'),
+        ink: g('--ink', '#08090a'),
+        dim: g('--dim', '#7a776c'),
       };
     }
 
@@ -311,15 +378,56 @@
      * field existed.
      */
     _fitGeometry(pins) {
-      const coords = [];
+      const o = this._opts;
+      const pts = [], boxes = [];
       pins.forEach(p => {
         if (p.lat == null || p.lon == null) return;
-        coords.push([p.lon, p.lat]);
+        pts.push([p.lon, p.lat]);
         const bd = p.boundary;
         const b = bd && (bd.focus_bbox || bd.bbox);
-        if (b) coords.push([b[0], b[1]], [b[2], b[3]]);
+        if (b) boxes.push(b);
       });
-      return coords.length ? { type: 'MultiPoint', coordinates: coords } : null;
+      if (!pts.length) return null;
+
+      const all = pts.concat(...boxes.map(b => [[b[0], b[1]], [b[2], b[3]]]));
+      const mp = coordinates => ({ type: 'MultiPoint', coordinates });
+      if (!boxes.length) return mp(all);
+
+      const range = (arr, i) => {
+        const v = arr.map(c => c[i]);
+        return [Math.min(...v), Math.max(...v)];
+      };
+      const [px0, px1] = range(pts, 0), [py0, py1] = range(pts, 1);
+      const [ax0, ax1] = range(all, 0), [ay0, ay1] = range(all, 1);
+      const pinW = px1 - px0, pinH = py1 - py0;
+
+      /* A polygon may widen the frame; it may not take it over.
+       *
+       * The ACLED Ukraine report is the case this exists for. It mentions
+       * Russia five times, so the frame picks up Russia's extent -- which
+       * reaches 180E -- while every marker in the document sits between 29E
+       * and 100E. Fitting to the union puts more than half the map east of
+       * anything the document is about, and squeezes Kyiv, Kostiantynivka,
+       * Kramatorsk and Sloviansk into a few pixels of each other.
+       *
+       * So: if the markers already span enough to frame the map themselves,
+       * and the boundaries would blow that out by more than `fitMaxBlowUp`,
+       * frame on the markers plus a margin and let the oversized polygon run
+       * off the edge. Both guards matter. Without the span floor, a document
+       * naming one country would frame on a single point; without the blow-up
+       * ratio, every document would lose the polygon context that made the
+       * boundary layer worth adding. Measured over the shipped corpus, the
+       * three ops documents come in at x1.0-x1.5 and this one at x3.0.
+       */
+      const blowUp = Math.max((ax1 - ax0) / Math.max(pinW, 1e-9),
+                              (ay1 - ay0) / Math.max(pinH, 1e-9));
+      if (Math.max(pinW, pinH) < o.fitMinPinSpanDeg || blowUp <= o.fitMaxBlowUp) {
+        return mp(all);
+      }
+      // 15% of the marker span on each side: enough that a country polygon
+      // still reads as context around the edge rather than being cut flush.
+      const mx = pinW * 0.15, my = pinH * 0.15;
+      return mp([[px0 - mx, py0 - my], [px1 + mx, py1 + my]]);
     }
 
     /** Graticule spacing for the frame currently on screen.
@@ -369,11 +477,25 @@
       const gratD = path(d3.geoGraticule().step([step, step])()) || '';
       const gratMajD = path(d3.geoGraticule().step([majStep, majStep])()) || '';
       const wire = this._mode === 'wire';
+      // Imagery that never arrived falls back to the relief rather than to a
+      // black rectangle; see `_checkImagery`.
+      const imagery = this._mode === 'imagery' && !this._imageryDown
+        && !!(this._opts.imagery && this._opts.imagery.urlTemplate);
       const uid = 'g' + this._seed;
 
       const defs = `
       <defs>
         <clipPath id="${uid}land"><path d="${landD}"/></clipPath>
+        <!-- The calm relief: a third of the octaves, a third of the surface
+             scale, and laid over a flat land fill at 62% rather than being the
+             land. A suggestion of terrain, an order of magnitude softer than
+             the ops filter below it. -->
+        <filter id="${uid}terrcalm" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.011 0.014" numOctaves="3" seed="${this._seed}" result="n"/>
+          <feDiffuseLighting in="n" lighting-color="${t.land}" surfaceScale="2.2" diffuseConstant="1" result="l">
+            <feDistantLight azimuth="315" elevation="58"/>
+          </feDiffuseLighting>
+        </filter>
         <filter id="${uid}terr" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
           <feTurbulence type="fractalNoise" baseFrequency="0.0075 0.0105" numOctaves="6" seed="${this._seed}" result="n"/>
           <feDiffuseLighting in="n" lighting-color="${t.land}" surfaceScale="7" diffuseConstant="1.05" result="l">
@@ -385,6 +507,20 @@
           <feDiffuseLighting in="n" lighting-color="#2b3d4c" surfaceScale="3" diffuseConstant="0.75" result="l">
             <feDistantLight azimuth="300" elevation="60"/>
           </feDiffuseLighting>
+        </filter>
+        <!-- Imagery grading. Real tiles are fixed-colour and the rest of this
+             screen is not, so they get pulled toward the palette rather than
+             sitting on it as a foreign rectangle: desaturate, lift (Blue
+             Marble is dark under the vignette this map already carries), then
+             a --map-tint multiply over the top. All three are config knobs;
+             set desaturate to 1 and tint to 0 for the untouched pixels. -->
+        <filter id="${uid}desat" color-interpolation-filters="sRGB">
+          <feColorMatrix type="saturate" values="${(this._opts.imagery || {}).desaturate ?? 0.62}"/>
+          <feComponentTransfer>
+            <feFuncR type="linear" slope="${(this._opts.imagery || {}).brightness ?? 1.3}"/>
+            <feFuncG type="linear" slope="${(this._opts.imagery || {}).brightness ?? 1.3}"/>
+            <feFuncB type="linear" slope="${(this._opts.imagery || {}).brightness ?? 1.3}"/>
+          </feComponentTransfer>
         </filter>
         <filter id="${uid}glow" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
@@ -406,7 +542,47 @@
         </radialGradient>
       </defs>`;
 
-      const base = wire ? `
+      const calm = !!o.calm;
+      const tint = (this._opts.imagery || {}).tint ?? 0.2;
+
+      // The calm bases. Deliberately kept as their own strings rather than as
+      // conditionals threaded through the ops ones: the two looks disagree
+      // about almost every stroke, and interleaving them made both unreadable.
+      const calmBase = imagery ? `
+        <rect width="${W}" height="${H}" fill="${t.sea}"/>
+        ${this._tileLayer(proj, W, H, uid)}
+        <rect width="${W}" height="${H}" fill="${t.tint}" opacity="${tint * 0.6}" style="mix-blend-mode:multiply"/>
+        <path d="${landD}" fill="none" stroke="${t.tint}" stroke-width="0.8" opacity="0.55"/>
+        <path d="${bordD}" fill="none" stroke="${t.card}" stroke-width="0.8" opacity="0.5"/>
+      ` : wire ? `
+        <rect width="${W}" height="${H}" fill="${t.sea}"/>
+        <path d="${gratD}" fill="none" stroke="${t.tint}" stroke-width="0.4" opacity="0.4"/>
+        <path d="${gratMajD}" fill="none" stroke="${t.tint}" stroke-width="0.7" opacity="0.6"/>
+        <path d="${landD}" fill="none" stroke="${t.alt}" stroke-width="1" opacity="0.85"/>
+        <path d="${bordD}" fill="none" stroke="${t.alt}" stroke-width="0.6" opacity="0.45"/>
+      ` : `
+        <rect width="${W}" height="${H}" fill="${t.sea}"/>
+        <g clip-path="url(#${uid}land)">
+          <rect width="${W}" height="${H}" fill="${t.land}"/>
+          <rect x="-40" y="-40" width="${W + 80}" height="${H + 80}"
+                filter="url(#${uid}terrcalm)" opacity="0.62"/>
+        </g>
+        <path d="${gratD}" fill="none" stroke="${t.tint}" stroke-width="0.4" opacity="0.28"/>
+        <path d="${gratMajD}" fill="none" stroke="${t.tint}" stroke-width="0.7" opacity="0.45"/>
+        <path d="${landD}" fill="none" stroke="${t.tint}" stroke-width="1" opacity="0.9"/>
+        <path d="${bordD}" fill="none" stroke="${t.tint}" stroke-width="0.7" opacity="0.75"/>
+      `;
+
+      const opsBase = imagery ? `
+        <rect width="${W}" height="${H}" fill="${t.sea}"/>
+        ${this._tileLayer(proj, W, H, uid)}
+        <rect width="${W}" height="${H}" fill="${t.tint}" opacity="${tint}" style="mix-blend-mode:multiply"/>
+        <path d="${landD}" fill="none" stroke="${t.acc}" stroke-width="0.7" opacity="0.35"/>
+        <path d="${gratD}" fill="none" stroke="${t.acc}" stroke-width="0.3" opacity="0.09"/>
+        <path d="${gratMajD}" fill="none" stroke="${t.acc}" stroke-width="0.55" opacity="0.22"/>
+        <path d="${bordD}" fill="none" stroke="${t.warn}" stroke-width="0.9" opacity="0.5" stroke-dasharray="5 3"/>
+        <rect width="${W}" height="${H}" fill="url(#${uid}vig)"/>
+      ` : wire ? `
         <rect width="${W}" height="${H}" fill="#05070a"/>
         <g clip-path="url(#${uid}land)">
           <rect width="${W}" height="${H}" fill="url(#${uid}dots)" opacity="0.5"/>
@@ -428,6 +604,7 @@
         <path d="${bordD}" fill="none" stroke="${t.warn}" stroke-width="0.9" opacity="0.42" stroke-dasharray="5 3"/>
         <rect width="${W}" height="${H}" fill="url(#${uid}vig)"/>
       `;
+      const base = calm ? calmBase : opsBase;
 
       const boundarySvg = this._renderBoundaries(pins, path, t, o);
 
@@ -439,13 +616,13 @@
         for (let lon = Math.ceil(w0 / step) * step; lon < e0; lon += step) {
           const x = proj([lon, (n0 + s0) / 2])[0];
           if (x > 26 && x < W - 26) {
-            ticks += `<text class="lbl" x="${x.toFixed(1)}" y="${H - 7}" fill="${t.acc}" opacity="0.45" text-anchor="middle">${lon > 0 ? lon.toFixed(0) + 'E' : (lon < 0 ? (-lon).toFixed(0) + 'W' : '0')}</text>`;
+            ticks += `<text class="lbl${calm ? ' calm' : ''}" x="${x.toFixed(1)}" y="${H - 7}" fill="${calm ? t.dim : t.acc}" opacity="${calm ? 0.75 : 0.45}" text-anchor="middle">${lon > 0 ? lon.toFixed(0) + 'E' : (lon < 0 ? (-lon).toFixed(0) + 'W' : '0')}</text>`;
           }
         }
         for (let lat = Math.ceil(s0 / step) * step; lat < n0; lat += step) {
           const y = proj([(w0 + e0) / 2, lat])[1];
           if (y > 24 && y < H - 24) {
-            ticks += `<text class="lbl" x="7" y="${(y + 3).toFixed(1)}" fill="${t.acc}" opacity="0.45">${lat > 0 ? lat.toFixed(0) + 'N' : (-lat).toFixed(0) + 'S'}</text>`;
+            ticks += `<text class="lbl${calm ? ' calm' : ''}" x="7" y="${(y + 3).toFixed(1)}" fill="${calm ? t.dim : t.acc}" opacity="${calm ? 0.75 : 0.45}">${lat > 0 ? lat.toFixed(0) + 'N' : (-lat).toFixed(0) + 'S'}</text>`;
           }
         }
       }
@@ -549,42 +726,180 @@
       return out;
     }
 
-    /** Markers, with label placement that does not pile up.
+    /* ── raster imagery ───────────────────────────────────────────────── */
+
+    /** A web-mercator tile layer, aligned to the same projection as everything
+     *  else on the map.
+     *
+     * This is exact rather than approximate, and it is worth writing down why.
+     * `d3.geoMercator` *is* web mercator: it maps lon/lat to
+     *
+     *     sx = s·λ + tx        sy = ty − s·ln tan(π/4 + φ/2)
+     *
+     * and a tile pyramid at level z lays the same sphere out over
+     * W = 256·2^z pixels. Substituting one into the other, both axes collapse
+     * to the same affine map -- `screen = f·world + offset`, with
+     * f = 2πs/W and offset = (tx − sπ, ty − sπ). So there is no tile-specific
+     * projection here and no second source of truth about where things are:
+     * a tile lands where the projection says its corner is, which is why the
+     * markers sit on the right pixels of the imagery.
+     *
+     * The zoom level is chosen so f ≈ 1 (tiles at their native resolution),
+     * clamped to what the layer actually publishes. Past that the last level
+     * is stretched, because a blurry true position beats a sharp wrong one --
+     * and the badge says so rather than letting it read as full resolution.
+     */
+    _tileLayer(proj, W, H, uid) {
+      const im = this._opts.imagery || {};
+      const s = proj.scale(), tr = proj.translate();
+      const zWant = Math.log2(2 * Math.PI * s / TILE_PX);
+      const zMax = im.maxNativeZoom ?? 8;
+      const z = Math.max(0, Math.min(zMax, Math.round(zWant)));
+      const n = 2 ** z;
+      const world = TILE_PX * n;
+      const f = 2 * Math.PI * s / world;
+      const size = f * TILE_PX;
+      const ox = tr[0] - s * Math.PI, oy = tr[1] - s * Math.PI;
+
+      const x0 = Math.floor(-ox / size), x1 = Math.ceil((W - ox) / size);
+      const y0 = Math.max(0, Math.floor(-oy / size));
+      const y1 = Math.min(n, Math.ceil((H - oy) / size));
+
+      let out = '', drawn = 0;
+      for (let ty = y0; ty < y1 && drawn < TILE_BUDGET; ty++) {
+        for (let tx = x0; tx < x1 && drawn < TILE_BUDGET; tx++) {
+          drawn++;
+          // Mercator wraps in x and does not in y, so only x is folded.
+          const wx = ((tx % n) + n) % n;
+          const key = `${z}/${wx}/${ty}`;
+          const e = this._tile(z, wx, ty);
+          if (e.failed) continue;
+          // 0.6px of bleed: neighbouring tiles must not show a hairline of
+          // sea between them at fractional scales.
+          out += `<image data-tile="${esc(key)}"`
+            + (e.href ? ` href="${esc(e.href)}"` : '')
+            + ` x="${(ox + tx * size).toFixed(2)}" y="${(oy + ty * size).toFixed(2)}"`
+            + ` width="${(size + 0.6).toFixed(2)}" height="${(size + 0.6).toFixed(2)}"`
+            + ` preserveAspectRatio="none"/>`;
+        }
+      }
+      this.dataset.tilezoom = String(z);
+      this.dataset.tileoverzoom = zWant > zMax + 0.5 ? '1' : '';
+      return `<g class="tiles" filter="url(#${uid}desat)">${out}</g>`;
+    }
+
+    _tileUrl(z, x, y) {
+      const im = this._opts.imagery || {};
+      return String(im.urlTemplate || '')
+        .replace('{layer}', im.layer || '')
+        .replace('{time}', im.time || 'default')
+        .replace('{matrix}', im.matrix || '')
+        .replace('{ext}', im.ext || 'jpeg')
+        .replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    }
+
+    /** One tile, fetched at most once. Returns immediately with a record whose
+     *  `href` fills in later; `_paintTile` patches the single `<image>` that
+     *  is waiting for it rather than repainting the frame. */
+    _tile(z, x, y) {
+      const key = `${z}/${x}/${y}`;
+      const hit = this._tiles.get(key);
+      if (hit) {                              // touch: Map keeps insertion order
+        this._tiles.delete(key); this._tiles.set(key, hit);
+        return hit;
+      }
+      const e = { href: null, failed: false };
+      this._tiles.set(key, e);
+
+      fetch(this._tileUrl(z, x, y), { mode: 'cors' })
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); })
+        .then(b => {
+          e.href = URL.createObjectURL(b);
+          this._tileFailRun = 0;
+          this._paintTile(key, e.href);
+        })
+        .catch(() => { e.failed = true; this._tileFailRun++; this._checkImagery(); });
+
+      while (this._tiles.size > TILE_CACHE_MAX) {
+        const [k, v] = this._tiles.entries().next().value;
+        this._tiles.delete(k);
+        if (v.href) URL.revokeObjectURL(v.href);
+      }
+      return e;
+    }
+
+    _paintTile(key, href) {
+      this.shadowRoot.querySelectorAll(`[data-tile="${CSS.escape(key)}"]`)
+        .forEach(el => el.setAttribute('href', href));
+    }
+
+    /** Give up on imagery, once, and say so.
+     *
+     * The rest of this component is vendored precisely so the console works in
+     * a room with no network. Tiles cannot be -- so the honest behaviour when
+     * they do not arrive is to fall back to the procedural relief and put that
+     * on the screen, rather than leaving a black rectangle that looks like a
+     * document with nothing in it. Four failures in a row is a network, not a
+     * bad tile.
+     */
+    _checkImagery() {
+      if (this._imageryDown || this._tileFailRun < 4) return;
+      this._imageryDown = true;
+      this.dispatchEvent(new CustomEvent('imagerystate',
+        { detail: { ok: false }, bubbles: true, composed: true }));
+      if (this._mode === 'imagery') this.render();
+    }
+
+    /** Markers, with label placement that does not pile up -- or move.
      *
      * A Sahel document resolves a dozen places inside a few degrees, and the
      * handoff's fixed up-and-right label offset turns that into an unreadable
-     * stack. Labels are placed greedily instead: the active pin first so its
-     * label is never the one dropped, then the rest by confidence, each taking
+     * stack. Labels are placed greedily instead: by confidence, each taking
      * the first of four corner positions that does not overlap an already
      * placed label. A pin whose label will not fit anywhere keeps its marker
      * and loses only the plate -- the marker is the click target and the
      * hover already names the place.
+     *
+     * Nothing in that layout may depend on which pin is active, and that is
+     * the whole of the fix for the bounce a cluster of nearby places used to
+     * have. The order used to put the active pin first and its marker grew
+     * from r=6 to r=9, so every hover re-solved the packing: plates jumped
+     * between corners, plates were hit targets themselves, and a plate
+     * landing under the pointer made a *different* pin active, which re-solved
+     * the packing again. Moving the mouse a pixel could keep that going
+     * indefinitely. So: the packing is solved from geometry alone and is
+     * identical across hovers, the plates are `pointer-events:none`, and each
+     * marker carries one invisible disc as its hit target -- generous enough
+     * to cross without dropping, and, because the active marker is painted
+     * last, the one you are already on wins any overlap.
      */
     _renderPins(pins, proj, t) {
+      const calm = !!this._opts.calm;
+      const up = this._opts.upper !== false;
       const placed = [];
       const hits = (a, b) => !(a.x + a.w < b.x || b.x + b.w < a.x
                             || a.y + a.h < b.y || b.y + b.h < a.y);
 
-      // Active first, then most confident, so the labels that survive a
-      // crowded frame are the ones worth reading.
-      const order = pins.map((p, i) => [p, i]).sort((A, B) => {
-        const a = A[0], b = B[0];
-        if ((a.id === this._active) !== (b.id === this._active)) {
-          return a.id === this._active ? -1 : 1;
-        }
-        return (b.conf ?? 0) - (a.conf ?? 0);
-      });
+      // Most confident first: the labels that survive a crowded frame are the
+      // ones worth reading. Ties break on id so the order is total -- Array
+      // sort stability would otherwise leave it up to the pin order, which
+      // does change as a document reveals.
+      const order = pins.map((p, i) => [p, i]).sort((A, B) =>
+        ((B[0].conf ?? 0) - (A[0].conf ?? 0))
+        || String(A[0].id).localeCompare(String(B[0].id)));
+
+      // The active marker is the larger of the two radii. Reserving that much
+      // for every pin costs 3px of slack on the inactive ones and buys a
+      // layout that does not shift when the active pin changes.
+      const rGeo = 9;
+      const HIT = 12;   // invisible hit disc; ~2 pins' tick arms across
 
       const byIndex = [];
+      const spotByIndex = [];
       for (const [p, i] of order) {
         const xy = proj([p.lon, p.lat]);
-        if (!xy) { byIndex[i] = ''; continue; }
+        if (!xy) { spotByIndex[i] = null; continue; }
         const [x, y] = xy;
-        const on = p.id === this._active;
-        const amb = p.status === 'ambiguous';
-        const col = amb ? t.warn : (on ? t.acc : t.alt);
-        const op = on ? 1 : (p.status === 'pending' ? 0.25 : 0.72);
-        const r = on ? 9 : 6;
         // 5.9px per character is JetBrains Mono's advance at 8.5px with a
         // little slack for the fallback face, plus 5px of left padding and
         // 24px reserved for the confidence bar -- which the label text ran
@@ -593,23 +908,50 @@
         // says how many, so that collapsing them does not quietly hide that
         // the document leans on this one repeatedly.
         const tally = p.count > 1 ? `×${p.count}` : '';
-        const lw = Math.max(38, ((p.label || '').length + tally.length * 1.2) * 5.9 + 34);
-        const pulse = (on && !reduceMotion())
-          ? `<circle cx="${x}" cy="${y}" r="6" fill="none" stroke="${col}" stroke-width="1.2" class="pulse"/>` : '';
+        // 5.9px per character is JetBrains Mono's advance at 8.5px; the calm
+        // chip is set at 10px and carries no confidence bar, so it is wider
+        // per character and shorter overall.
+        const lw = calm
+          ? Math.max(34, ((p.label || '').length + tally.length * 1.2) * 6.6 + 16)
+          : Math.max(38, ((p.label || '').length + tally.length * 1.2) * 5.9 + 34);
 
         // Four corners, in preference order: the handoff's up-right first.
         const spots = [
-          { lx: x + r + 13, ly: y - 22, tx: x + r + 13, ty: y - 11 },
-          { lx: x + r + 13, ly: y + 9,  tx: x + r + 13, ty: y + 9 },
-          { lx: x - r - 13 - lw, ly: y - 22, tx: x - r - 13, ty: y - 11 },
-          { lx: x - r - 13 - lw, ly: y + 9,  tx: x - r - 13, ty: y + 9 },
+          { lx: x + rGeo + 13, ly: y - 22, tx: x + rGeo + 13, ty: y - 11 },
+          { lx: x + rGeo + 13, ly: y + 9,  tx: x + rGeo + 13, ty: y + 9 },
+          { lx: x - rGeo - 13 - lw, ly: y - 22, tx: x - rGeo - 13, ty: y - 11 },
+          { lx: x - rGeo - 13 - lw, ly: y + 9,  tx: x - rGeo - 13, ty: y + 9 },
         ];
         // 2px of slack, so labels that merely touch still both render.
         const spot = spots.find(sp => !placed.some(
           q => hits({ x: sp.lx - 2, y: sp.ly - 2, w: lw + 4, h: 17 }, q)));
         if (spot) placed.push({ x: spot.lx, y: spot.ly, w: lw, h: 13 });
+        // The pin the reader is pointing at always gets a plate. It is the
+        // only pin allowed to overlap one, and it is painted last, so it
+        // lands on top rather than pushing anything else out of the way --
+        // which would be a reflow again.
+        spotByIndex[i] = { x, y, lw, tally,
+                           spot: spot || (p.id === this._active ? spots[0] : null) };
+      }
 
-        const label = spot ? `
+      for (let i = 0; i < pins.length; i++) {
+        const g = spotByIndex[i];
+        if (!g) { byIndex[i] = ''; continue; }
+        const p = pins[i];
+        const { x, y, lw, tally, spot } = g;
+        const on = p.id === this._active;
+        const amb = p.status === 'ambiguous';
+        const pending = p.status === 'pending';
+
+        if (calm) { byIndex[i] = this._calmPin(p, g, on, amb, pending, t, up); continue; }
+
+        const col = amb ? t.warn : (on ? t.acc : t.alt);
+        const op = on ? 1 : (pending ? 0.25 : 0.72);
+        const r = on ? 9 : 6;
+        const pulse = (on && !reduceMotion())
+          ? `<circle cx="${x}" cy="${y}" r="6" fill="none" stroke="${col}" stroke-width="1.2" class="pulse"/>` : '';
+
+        const label = spot ? `<g style="pointer-events:none">
           <line x1="${spot.tx > x ? x + r + 4 : x - r - 4}" y1="${y}" x2="${spot.tx}" y2="${spot.ty}" stroke="${col}" stroke-width="0.7" opacity="0.8"/>
           <g transform="translate(${spot.lx.toFixed(1)},${spot.ly.toFixed(1)})">
             <rect width="${lw}" height="13" fill="#05060a" opacity="${on ? 0.92 : 0.7}" stroke="${col}" stroke-width="${on ? 0.9 : 0.5}" stroke-opacity="0.8"/>
@@ -617,9 +959,10 @@
               tally ? `<tspan opacity="0.65"> ${tally}</tspan>` : ''}</text>
             ${p.conf != null ? `<rect x="${lw - 20}" y="4.5" width="16" height="4" fill="none" stroke="${col}" stroke-width="0.5" opacity="0.7"/>
             <rect x="${lw - 19.4}" y="5.1" width="${(14.8 * p.conf).toFixed(1)}" height="2.8" fill="${col}" opacity="0.85"/>` : ''}
-          </g>` : '';
+          </g></g>` : '';
 
         byIndex[i] = `<g data-pid="${esc(p.id)}" style="cursor:crosshair" opacity="${op}">
+          <circle cx="${x}" cy="${y}" r="${HIT}" fill="transparent" stroke="none"/>
           ${pulse}
           <circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${col}" stroke-width="${on ? 1.3 : 0.9}" ${amb ? 'stroke-dasharray="2.5 2"' : ''}/>
           <line x1="${x - r - 5}" y1="${y}" x2="${x - r + 1}" y2="${y}" stroke="${col}" stroke-width="0.9"/>
@@ -635,6 +978,60 @@
       const activeIdx = pins.findIndex(p => p.id === this._active);
       return byIndex.filter((_, i) => i !== activeIdx).join('')
         + (activeIdx >= 0 ? byIndex[activeIdx] : '');
+    }
+
+    /** One marker in the calm variant.
+     *
+     * A dot for a confident match, a dashed ring for a close call, a hollow
+     * grey ring for one that has not been placed yet -- the three states the
+     * legend names, and nothing else. No crosshair arms, no dark plate, no
+     * confidence bar: on paper those read as instrumentation, and this map is
+     * illustrating a report rather than aiming at anything. The active marker
+     * still haloes, because that is tied to where the reader is pointing and
+     * stops the moment they stop.
+     */
+    _calmPin(p, g, on, amb, pending, t, up) {
+      const { x, y, lw, tally, spot } = g;
+      const col = amb ? t.warn : t.acc;
+      const HIT = 12;
+      const r = on ? 6.4 : (amb ? 5.6 : 4.6);
+
+      const halo = (on && !reduceMotion())
+        ? `<circle cx="${x}" cy="${y}" r="6" fill="none" stroke="${col}"
+                   stroke-width="1.4" class="pulse"/>` : '';
+
+      const marker = pending
+        ? `<circle cx="${x}" cy="${y}" r="3.4" fill="none" stroke="${t.dim}"
+                   stroke-width="1.2" opacity="0.34"/>`
+        : amb
+        // A ring, not a filled dot: a close call should not look as settled as
+        // a confident one, and the dash is the legend's own mark for it.
+        ? `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${col}"
+                   stroke-width="1.6" stroke-dasharray="3 2.4"/>
+           <circle cx="${x}" cy="${y}" r="1.9" fill="${col}"/>`
+        // The 1.4px surround is the land showing through, so the dot stays
+        // readable over the darker end of the relief.
+        : `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}"
+                   stroke="${t.card}" stroke-width="1.4"/>`;
+
+      const label = spot ? `<g style="pointer-events:none">
+        <line x1="${spot.tx > x ? x + r + 3 : x - r - 3}" y1="${y}"
+              x2="${spot.tx}" y2="${spot.ty}" stroke="${col}"
+              stroke-width="0.9" opacity="0.55"/>
+        <g transform="translate(${spot.lx.toFixed(1)},${spot.ly.toFixed(1)})">
+          <rect width="${lw}" height="17" y="-2" rx="4"
+                fill="${on ? col : t.card}" opacity="${on ? 1 : 0.94}"
+                stroke="${col}" stroke-width="${on ? 0 : 1}" stroke-opacity="0.5"/>
+          <text class="lbl calm" x="8" y="10.4" fill="${on ? t.ink : col}">${
+            esc(up ? (p.label || '').toUpperCase() : (p.label || ''))}${
+            tally ? `<tspan opacity="0.6"> ${tally}</tspan>` : ''}</text>
+        </g></g>` : '';
+
+      return `<g data-pid="${esc(p.id)}" style="cursor:pointer"
+                 opacity="${pending ? 0.5 : 1}">
+        <circle cx="${x}" cy="${y}" r="${HIT}" fill="transparent" stroke="none"/>
+        ${halo}${marker}${label}
+      </g>`;
     }
 
     /** Rival candidates: in-frame as dashed ghost rings, off-frame as edge bearings.
@@ -682,7 +1079,8 @@
             <circle cx="${x}" cy="${y}" r="11" fill="none" stroke="${t.alt}" stroke-width="1.2" stroke-dasharray="3 2.5"/>
             <circle cx="${x}" cy="${y}" r="1.8" fill="${t.alt}"/>
             <rect x="${x + 14}" y="${y - 7}" width="${String(g.label).length * 5.9 + 10}" height="13"
-                  fill="#05060a" opacity="0.85" stroke="${t.alt}" stroke-width="0.5" stroke-opacity="0.8"/>
+                  fill="${this._opts.calm ? t.card : '#05060a'}" opacity="0.9"
+                  stroke="${t.alt}" stroke-width="0.5" stroke-opacity="0.8"/>
             <text class="lbl" x="${x + 19}" y="${y + 2.2}" fill="${t.alt}">${esc(String(g.label).toUpperCase())}</text>
           </g>`;
         }
@@ -700,6 +1098,20 @@
           + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.cos((b[0] - a[0]) * rad);
         km = Math.round(Math.acos(Math.min(1, Math.max(-1, cosd))) * R / 10) * 10;
       }
+      // The calm variant keeps only the scale bar. The registration corners,
+      // the centre reticle and the sweep are all the map claiming to be an
+      // instrument; a scale bar is the one piece of chrome that is simply a
+      // fact about the picture.
+      if (this._opts.calm) {
+        return `
+        <g transform="translate(20,${H - 34})" opacity="0.75">
+          <line x1="0" y1="0" x2="100" y2="0" stroke="${t.dim}" stroke-width="1"/>
+          <line x1="0" y1="-4" x2="0" y2="4" stroke="${t.dim}" stroke-width="1"/>
+          <line x1="100" y1="-4" x2="100" y2="4" stroke="${t.dim}" stroke-width="1"/>
+          <text class="lbl calm" x="50" y="-8" fill="${t.dim}" text-anchor="middle">${km} km</text>
+        </g>`;
+      }
+
       return `
         <g opacity="0.55">
           <path d="M14,14 L14,34 M14,14 L34,14" fill="none" stroke="${t.acc}" stroke-width="1"/>
@@ -722,7 +1134,9 @@
           <circle cx="0" cy="-3" r="2.4" fill="${t.warn}"/>
           <text class="lbl" x="9" y="0" fill="${t.acc}" opacity="0.8">${wire ? 'VECTOR · NE 110M' : 'RELIEF · SYNTHETIC'}</text>
         </g>
-        <rect class="sweep" x="${-W * 0.16}" y="0" width="${W * 0.3}" height="${H}" fill="url(#${uid}sw)" style="pointer-events:none"/>
+        ${this._opts.sweep === false ? '' :
+          `<rect class="sweep" x="${-W * 0.16}" y="0" width="${W * 0.3}" height="${H}"
+                 fill="url(#${uid}sw)" style="pointer-events:none"/>`}
       `;
     }
   }

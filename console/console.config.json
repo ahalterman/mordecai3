@@ -6,16 +6,14 @@
     "build": "3.4.0",
     "rankerLabel": "mordecai-rank",
     "showClassificationBanner": false,
-    "classificationBanner": ""
+    "classificationBanner": "",
+    "demoBadge": "Demo — sample text, not live data",
+    "showDemoBadge": true
   },
   "theme": {
-    "palette": "amber",
-    "grit": 0.55,
-    "chrome": "full",
+    "name": "ops",
     "layout": "split",
-    "scanlines": true,
-    "vignette": true,
-    "flicker": true
+    "chrome": "full"
   },
   "map": {
     "defaultMode": "sat",
@@ -25,6 +23,8 @@
     "minZoom": 0.6,
     "maxZoom": 28,
     "fitPaddingRatio": 0.26,
+    "fitMaxBlowUp": 2,
+    "fitMinPinSpanDeg": 5,
     "graticuleStepDeg": 2,
     "graticuleMajorStepDeg": 10,
     "sweepSeconds": 9,
@@ -34,7 +34,22 @@
       "projection": "mercator",
       "attribution": "Natural Earth (public domain)"
     },
-    "candidateGhosts": "hover"
+    "candidateGhosts": "hover",
+    "imagery": {
+      "enabled": true,
+      "source": "NASA EOSDIS GIBS",
+      "urlTemplate": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/{matrix}/{z}/{y}/{x}.{ext}",
+      "layer": "BlueMarble_NextGeneration",
+      "matrix": "GoogleMapsCompatible_Level8",
+      "ext": "jpeg",
+      "time": "default",
+      "maxNativeZoom": 8,
+      "resolution": "500 M/PX",
+      "attribution": "NASA EOSDIS GIBS · PUBLIC DOMAIN",
+      "desaturate": 0.62,
+      "tint": 0.16,
+      "brightness": 1.34
+    }
   },
   "pipeline": {
     "stages": [
@@ -55,77 +70,19 @@
   },
   "export": {
     "formats": [
+      "raw",
       "geojson",
       "jsonl",
       "csv",
-      "wkt",
-      "raw"
+      "wkt"
     ],
-    "defaultFormat": "geojson",
+    "defaultFormat": "raw",
     "crs": "urn:ogc:def:crs:OGC::CRS84"
   },
   "telemetry": {
     "clockIntervalMs": 1000,
     "pollIntervalMs": 4000,
     "showFooterStats": true
-  },
-  "palettes": {
-    "amber": {
-      "--acc": "#f2a33c",
-      "--alt": "#86a6b8",
-      "--warn": "#e2452c",
-      "--map-land": "#c2b391",
-      "--map-tint": "#5d5124",
-      "--map-sea": "#080b10",
-      "--bg": "#0a0a09",
-      "--panel": "#101110",
-      "--panel2": "#0c0d0c",
-      "--edge": "rgba(226,214,182,.13)",
-      "--fg": "#cdc8b8",
-      "--dim": "#7a776c"
-    },
-    "olive": {
-      "--acc": "#c8d074",
-      "--alt": "#93a46e",
-      "--warn": "#e0692a",
-      "--map-land": "#b9c085",
-      "--map-tint": "#3d4c1c",
-      "--map-sea": "#0c1310",
-      "--bg": "#0a0c08",
-      "--panel": "#11140e",
-      "--panel2": "#0d0f0a",
-      "--edge": "rgba(202,212,158,.14)",
-      "--fg": "#cbceb1",
-      "--dim": "#787c62"
-    },
-    "phosphor": {
-      "--acc": "#74ef8f",
-      "--alt": "#b7c46d",
-      "--warn": "#ff6a2b",
-      "--map-land": "#a6c49c",
-      "--map-tint": "#274526",
-      "--map-sea": "#040a07",
-      "--bg": "#070a08",
-      "--panel": "#0d110e",
-      "--panel2": "#090d0a",
-      "--edge": "rgba(170,230,185,.13)",
-      "--fg": "#c1d6c4",
-      "--dim": "#6d7f71"
-    },
-    "graphite": {
-      "--acc": "#e8e3d5",
-      "--alt": "#8f9aa3",
-      "--warn": "#d0512f",
-      "--map-land": "#a9a59a",
-      "--map-tint": "#3a3a3c",
-      "--map-sea": "#090a0c",
-      "--bg": "#0b0b0c",
-      "--panel": "#101113",
-      "--panel2": "#0c0c0e",
-      "--edge": "rgba(220,220,220,.12)",
-      "--fg": "#c7c6c1",
-      "--dim": "#75767b"
-    }
   },
   "boundaries": {
     "enabled": true,
@@ -141,5 +98,303 @@
       ".jsonl",
       ".ndjson"
     ]
+  },
+  "themes": {
+    "ops": {
+      "label": "Operations",
+      "hint": "Dark console. The original look.",
+      "defaultPalette": "amber",
+      "palettes": {
+        "amber": {
+          "--acc": "#f2a33c",
+          "--alt": "#86a6b8",
+          "--warn": "#e2452c",
+          "--map-land": "#c2b391",
+          "--map-tint": "#5d5124",
+          "--map-sea": "#080b10",
+          "--bg": "#0a0a09",
+          "--panel": "#101110",
+          "--panel2": "#0c0d0c",
+          "--edge": "rgba(226,214,182,.13)",
+          "--fg": "#cdc8b8",
+          "--dim": "#7a776c",
+          "--ink": "#08090a"
+        },
+        "olive": {
+          "--acc": "#c8d074",
+          "--alt": "#93a46e",
+          "--warn": "#e0692a",
+          "--map-land": "#b9c085",
+          "--map-tint": "#3d4c1c",
+          "--map-sea": "#0c1310",
+          "--bg": "#0a0c08",
+          "--panel": "#11140e",
+          "--panel2": "#0d0f0a",
+          "--edge": "rgba(202,212,158,.14)",
+          "--fg": "#cbceb1",
+          "--dim": "#787c62",
+          "--ink": "#08090a"
+        },
+        "phosphor": {
+          "--acc": "#74ef8f",
+          "--alt": "#b7c46d",
+          "--warn": "#ff6a2b",
+          "--map-land": "#a6c49c",
+          "--map-tint": "#274526",
+          "--map-sea": "#040a07",
+          "--bg": "#070a08",
+          "--panel": "#0d110e",
+          "--panel2": "#090d0a",
+          "--edge": "rgba(170,230,185,.13)",
+          "--fg": "#c1d6c4",
+          "--dim": "#6d7f71",
+          "--ink": "#08090a"
+        },
+        "graphite": {
+          "--acc": "#e8e3d5",
+          "--alt": "#8f9aa3",
+          "--warn": "#d0512f",
+          "--map-land": "#a9a59a",
+          "--map-tint": "#3a3a3c",
+          "--map-sea": "#090a0c",
+          "--bg": "#0b0b0c",
+          "--panel": "#101113",
+          "--panel2": "#0c0c0e",
+          "--edge": "rgba(220,220,220,.12)",
+          "--fg": "#c7c6c1",
+          "--dim": "#75767b",
+          "--ink": "#08090a"
+        }
+      },
+      "chrome": {
+        "scanlines": true,
+        "vignette": true,
+        "flicker": true,
+        "grit": 0.55,
+        "sweep": true,
+        "clock": true,
+        "hairline": true,
+        "upper": true
+      },
+      "map": {
+        "calm": false
+      },
+      "fonts": {
+        "ui": "Barlow Condensed",
+        "mono": "JetBrains Mono",
+        "serif": "Source Serif 4"
+      },
+      "copy": {}
+    },
+    "field": {
+      "label": "Field brief",
+      "hint": "Warm paper. Plain language. No ambient motion.",
+      "defaultPalette": "field",
+      "palettes": {
+        "field": {
+          "--acc": "#0b6e75",
+          "--alt": "#5c6f6a",
+          "--warn": "#b45309",
+          "--map-land": "#efe9dc",
+          "--map-tint": "#cfc8b6",
+          "--map-sea": "#dfe9e8",
+          "--bg": "#f2efe6",
+          "--panel": "#fffefb",
+          "--panel2": "#fbf9f3",
+          "--edge": "#e0d9c9",
+          "--fg": "#23211c",
+          "--dim": "#6f6a5f",
+          "--ink": "#fffefb"
+        },
+        "slate": {
+          "--acc": "#175f7a",
+          "--alt": "#5f6d76",
+          "--warn": "#a1541b",
+          "--map-land": "#e8ebed",
+          "--map-tint": "#c3cbd1",
+          "--map-sea": "#dbe4ea",
+          "--bg": "#eef1f3",
+          "--panel": "#ffffff",
+          "--panel2": "#f7f9fa",
+          "--edge": "#d7dde1",
+          "--fg": "#1d2226",
+          "--dim": "#646d74",
+          "--ink": "#ffffff"
+        }
+      },
+      "chrome": {
+        "scanlines": false,
+        "vignette": false,
+        "flicker": true,
+        "grit": 0.05,
+        "sweep": false,
+        "clock": false,
+        "hairline": false,
+        "upper": false
+      },
+      "map": {
+        "calm": true
+      },
+      "fonts": {
+        "ui": "Public Sans",
+        "mono": "IBM Plex Mono",
+        "serif": "Source Serif 4"
+      },
+      "copy": {
+        "brandName": "Mordecai",
+        "brandSub": "Reads a report and finds the places in it",
+        "railPipeline": "How it works",
+        "railYourText": "Your text",
+        "railCorpus": "Sample reports",
+        "pastePlaceholder": "Paste a report here, then press Run it below.",
+        "uploadLabel": "Upload a .txt or .jsonl file",
+        "fileHint": "One report per blank-line-separated block, or JSONL with a <code>text</code> field.",
+        "run": "Run it",
+        "runAgain": "Run it again",
+        "running": "Working…",
+        "batching": "Reading file…",
+        "tokenized": "",
+        "resetLabel": "Reset",
+        "download": "Download",
+        "navHint": "Scroll to zoom · drag to pan",
+        "gazPrefix": "Gazetteer · GeoNames",
+        "boundaryPrefix": "Boundaries",
+        "boundaryNone": "not loaded",
+        "boundaryShapes": "shapes",
+        "stages": {
+          "ingest": "Reading text",
+          "parse": "Finding places",
+          "dis": "Why this match",
+          "resolve": "The chosen place",
+          "export": "Take the results"
+        },
+        "status": {
+          "booting": "Starting",
+          "ready": "Ready",
+          "parsing": "Working",
+          "resolved": "Done",
+          "error": "Problem",
+          "offline": "Offline"
+        },
+        "foot": {
+          "spans": "mentions",
+          "resolved": "located",
+          "places": "places",
+          "flagged": "close calls",
+          "boundaries": "shapes",
+          "parsing": "Working…",
+          "none": "No place names found"
+        },
+        "notes": {
+          "rationale": "Why this match · ",
+          "review": "Close call · ",
+          "boundary": "Boundary · ",
+          "batch": "Batch · ",
+          "note": "Note · ",
+          "nomatch": "No match · "
+        },
+        "verdict": {
+          "flagged": "Close call",
+          "ok": "Confident"
+        },
+        "tbl": {
+          "source": "Report",
+          "adapter": "Source",
+          "size": "Size",
+          "state": "State",
+          "active": "open",
+          "idle": "",
+          "span": "Place name",
+          "label": "Type",
+          "char": "Characters",
+          "pspan": "Detector",
+          "presolve": "Confidence"
+        },
+        "kv": {
+          "geonameid": "GeoNames id",
+          "name": "Name",
+          "feature": "Feature type",
+          "admin1": "Region",
+          "admin2": "District",
+          "country": "Country",
+          "population": "Population",
+          "coordinates": "Coordinates",
+          "confidence": "Confidence",
+          "pnomatch": "Chance of no match",
+          "geometry": "Shape",
+          "geomsource": "Shape source",
+          "accepted": "confident",
+          "flagged": "close call",
+          "pointonly": "point only"
+        },
+        "empty": {
+          "span": "Hover or click a place name in the report to see why the engine chose the place it did.",
+          "nospans": "No place names yet.",
+          "nocands": "Nothing in the gazetteer matched."
+        },
+        "mentionOf": "mention {n} of {total} of this place",
+        "onlyMention": "the only mention of this place",
+        "mapRelief": "Shaded relief",
+        "mapVector": "Outlines only",
+        "mapNoRaster": "no satellite layer",
+        "mapUnreachable": "satellite layer unreachable",
+        "menu": {
+          "look": "Look",
+          "palette": "Colours",
+          "chrome": "Detail",
+          "map": "Map",
+          "panes": "Panes",
+          "layoutSplit": "Side by side",
+          "layoutTheater": "Map on top",
+          "resetPanes": "Reset pane sizes",
+          "ornaments": "Decorative marks",
+          "scanlines": "Scanlines",
+          "vignette": "Vignette",
+          "grain": "Film grain",
+          "sweep": "Map sweep",
+          "hairline": "Pane hairline",
+          "boundaries": "Boundary shapes",
+          "modeSat": "Relief",
+          "modeImagery": "Satellite",
+          "modeWire": "Outlines"
+        },
+        "batchMeta": "{n} reports in this file",
+        "pastedTitle": "Your text",
+        "pastedSource": "Pasted in",
+        "pastedMeta": "{n} characters",
+        "inCorpus": "{n} sample reports",
+        "margin": "Margin",
+        "coordPolygon": "boundary shape",
+        "coordPoint": "point",
+        "mapProjection": "Mercator",
+        "mapGraticule": "Grid",
+        "mapBorders": "National borders",
+        "mapDatum": "WGS84",
+        "exportFeatures": "places",
+        "noMatchMeta": "No match",
+        "noMatchBody": "The engine declined to place “{text}”. Its calibrated probability that none of the candidates is correct is {p}. The ones it rejected are under {stage}.",
+        "stats": {
+          "build": "build",
+          "model": "model",
+          "spans": "detector",
+          "device": "running on"
+        },
+        "stageMeta": {
+          "docs": "docs",
+          "spans": "found",
+          "topk": "top",
+          "fmt": "formats"
+        }
+      }
+    }
+  },
+  "routes": {
+    "/console": {
+      "theme": "ops"
+    },
+    "/demo": {
+      "theme": "field",
+      "lock": false
+    }
   }
 }

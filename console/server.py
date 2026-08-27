@@ -432,6 +432,37 @@ def healthz():
     return {"ok": ENGINE is not None}
 
 
+def _register_entry_points():
+    """One named URL per look, from `routes` in console.config.json.
+
+    `/console` opens the ops theme and `/demo` the field one, so a link can
+    carry its audience with it -- which is the whole point: the Europeans get a
+    URL that lands on the humanitarian console without anyone having to
+    remember to switch it first.
+
+    Each route serves the same `index.html`; the client reads `location.pathname`
+    back out of the config and picks the theme from it, ahead of whatever is in
+    `localStorage`. An explicit URL beats a stale preference.
+
+    Registered *before* the static mount below, which is mounted at "/" and
+    would otherwise answer these paths with a 404 of its own. Routes are read
+    once at import, so adding one needs a restart -- unlike the rest of the
+    config, which is re-read per request.
+    """
+    routes = _load_json(CONFIG_PATH, {}).get("routes") or {}
+    index = STATIC_DIR / "index.html"
+    named = []
+    for path in routes:
+        if not isinstance(path, str) or not path.startswith("/") or path == "/":
+            continue
+        app.add_api_route(path, lambda: FileResponse(index), methods=["GET"],
+                          include_in_schema=False)
+        named.append(path)
+    return named
+
+
+CONSOLE_ROUTES = _register_entry_points() if STATIC_DIR.exists() else []
+
 if STATIC_DIR.exists():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 

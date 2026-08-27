@@ -20,17 +20,66 @@
   --ink:#08090a;              /* fixed "ink on accent" across every palette */
   --grit:.55;
   --micro:8.5px;              /* smallest label size; raise for real use */
+  --small:9px;                /* the second-smallest, and the commonest */
+
+  /* Letter-spacing, as four roles rather than fourteen literals. The ops look
+     sets everything wide -- it is most of what makes the screen read as
+     hardware -- and the field look sets it nearly normal. Having these as
+     tokens is what lets a theme change the register of the whole screen
+     without a rule-by-rule override block. */
+  --tr-brand:.22em;           /* wordmark, map region, stage titles */
+  --tr-label:.16em;           /* section kickers, table heads, meta lines */
+  --tr-title:.14em;           /* pane titles, place names, candidate rows */
+  --tr-btn:.16em;             /* buttons and segmented controls */
+
+  --radius:0;                 /* panels, buttons, plates */
+  /* Plates float over the map, so they cannot use --panel: they have to be
+     the map's own ground, half-transparent. */
+  --plate:rgba(4,6,9,.72);
+  --plate-strong:rgba(4,6,9,.92);
+  --pre-bg:#06070a;
+  --uifont:var(--mono);       /* what the chrome is set in */
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   --cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
   --serif:'Source Serif 4',Georgia,serif;
+
+  /* Pane geometry. These are the *only* place the layout proportions are
+     written down: the grid reads them, the drag handles position themselves
+     from them, and dragging one sets it as an inline style on :root. The
+     defaults are the design's original fr ratios expressed as percentages
+     (1.02fr / 1.3fr -> 44%, 1.42fr / 1fr -> 59%). */
+  --rail-w:214px;
+  --split-col:44%;
+  --split-row:59%;
 }
+:root[data-layout="theater"]{--split-col:52%;--split-row:56%}
 
 *,*::before,*::after{box-sizing:border-box}
+
+/* Scrollbars. Four things on this screen scroll -- the rail, both text panes
+   and the export preview -- and the platform default is a light grey slab
+   that reads as a piece of some other application showing through. Firefox
+   takes `scrollbar-color`; Blink and WebKit need the pseudo-elements, which
+   is why both are here. The thumb is the accent at low strength, so it moves
+   with the palette like everything else. */
+*{scrollbar-width:thin;
+  scrollbar-color:color-mix(in srgb,var(--acc) 30%,var(--edge)) transparent}
+::-webkit-scrollbar{width:10px;height:10px;background:transparent}
+::-webkit-scrollbar-track{background:var(--panel2)}
+::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,var(--acc) 30%,var(--edge));
+  border:2px solid transparent;background-clip:padding-box;
+}
+::-webkit-scrollbar-thumb:hover{
+  background:color-mix(in srgb,var(--acc) 62%,transparent);
+  border:2px solid transparent;background-clip:padding-box;
+}
+::-webkit-scrollbar-corner{background:var(--panel2)}
 
 html,body{height:100%}
 body{
   margin:0; background:var(--bg); color:var(--fg);
-  font-family:var(--mono);
+  font-family:var(--uifont);
   display:flex; flex-direction:column;
   min-width:980px; overflow-x:auto; overflow-y:hidden;
 }
@@ -44,15 +93,16 @@ body{
   background:var(--panel2); border-bottom:1px solid var(--edge);
 }
 .lockup{
-  width:214px; flex:none; display:flex; align-items:center; gap:11px;
+  width:var(--rail-w); flex:none; display:flex; align-items:center; gap:11px;
   padding:0 14px; border-right:1px solid var(--edge);
 }
 .diamond{
   width:14px; height:14px; background:var(--acc); transform:rotate(45deg);
   box-shadow:0 0 14px color-mix(in srgb,var(--acc) 60%,transparent); flex:none;
 }
-.brandname{font-family:var(--cond);font-weight:700;font-size:20px;letter-spacing:.22em;line-height:1}
-.brandsub{font-size:var(--micro);letter-spacing:.2em;color:var(--dim);margin-top:3px}
+.brandname{font-family:var(--cond);font-weight:700;font-size:20px;letter-spacing:var(--tr-brand);line-height:1}
+.brandsub{font-size:var(--micro);letter-spacing:var(--tr-label);color:var(--dim);margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .titlecenter{flex:1;display:flex;align-items:center;gap:14px;padding:0 16px;min-width:0}
 .rule{
@@ -60,7 +110,7 @@ body{
   background:repeating-linear-gradient(90deg,var(--edge) 0 5px,transparent 5px 11px);
 }
 .stats{display:flex;gap:22px;font-size:10px;white-space:nowrap}
-.stats b{color:var(--dim);font-weight:400;margin-right:6px;letter-spacing:.1em}
+.stats b{color:var(--dim);font-weight:400;margin-right:6px;letter-spacing:var(--tr-label)}
 .stats span{color:var(--fg)}
 
 .clock{
@@ -69,13 +119,13 @@ body{
   align-items:flex-end;
 }
 .clocktime{font-size:15px;font-weight:500;color:var(--acc);letter-spacing:.04em}
-.clocksub{font-size:var(--micro);letter-spacing:.18em;color:var(--dim);margin-top:2px}
+.clocksub{font-size:var(--micro);letter-spacing:var(--tr-label);color:var(--dim);margin-top:2px}
 
 /* ── shell ───────────────────────────────────────────────────────────────── */
-[data-el="shell"]{flex:1;display:flex;min-height:0}
+[data-el="shell"]{flex:1;display:flex;min-height:0;position:relative}
 
 [data-el="rail"]{
-  width:214px; flex:none; background:var(--panel2);
+  width:var(--rail-w); flex:none; background:var(--panel2);
   border-right:1px solid var(--edge);
   display:flex; flex-direction:column; overflow:hidden;
 }
@@ -87,7 +137,7 @@ body{
   padding:12px 14px 14px; display:flex; flex-direction:column; gap:9px;
 }
 .seclabel{
-  font-size:9.5px;font-weight:500;letter-spacing:.24em;color:var(--dim);
+  font-size:var(--small);font-weight:500;letter-spacing:var(--tr-brand);color:var(--dim);
   padding:13px 14px 9px;
 }
 .divider{height:1px;background:var(--edge)}
@@ -96,8 +146,8 @@ body{
   display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;
   color:var(--fg);opacity:.68;transition:background .16s,color .16s;
 }
-.stage-row .idx{font-size:9px;color:var(--dim);width:16px;flex:none}
-.stage-row .nm{font-family:var(--cond);font-weight:600;font-size:13.5px;letter-spacing:.16em;flex:1}
+.stage-row .idx{font-size:var(--small);color:var(--dim);width:16px;flex:none}
+.stage-row .nm{font-family:var(--cond);font-weight:600;font-size:13.5px;letter-spacing:var(--tr-label);flex:1}
 .stage-row .mt{font-size:var(--micro);color:var(--dim)}
 .stage-row .sd{width:6px;height:6px;border-radius:50%;background:var(--edge);flex:none}
 .stage-row.on{
@@ -109,7 +159,7 @@ body{
 .doc-card{padding:9px 14px;border-left:2px solid transparent;cursor:pointer;opacity:.62;transition:background .16s}
 .doc-card.on{border-left-color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent);opacity:1;color:var(--acc)}
 .doc-card .t{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
-.doc-card .t b{font-family:var(--cond);font-weight:600;font-size:12.5px;letter-spacing:.13em;
+.doc-card .t b{font-family:var(--cond);font-weight:600;font-size:12.5px;letter-spacing:var(--tr-title);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .doc-card .t i{font-style:normal;font-size:8px;color:var(--dim);flex:none}
 .doc-card .s{font-size:var(--micro);color:var(--dim);margin-top:3px;
@@ -136,23 +186,39 @@ body{
 .filerow{display:block;margin-top:7px;cursor:pointer}
 .filebtn{
   display:block;text-align:center;padding:6px;border:1px dashed var(--edge);
-  font-size:9px;letter-spacing:.16em;color:var(--dim);transition:color .16s,border-color .16s;
+  font-size:var(--small);letter-spacing:var(--tr-label);color:var(--dim);transition:color .16s,border-color .16s;
 }
 .filerow:hover .filebtn{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
 .filehint{font-size:var(--micro);color:var(--dim);line-height:1.7;margin-top:6px}
 .filehint code{color:var(--alt)}
 
-.seg2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--edge);border:1px solid var(--edge)}
-.seg2 button{
-  padding:7px;border:0;background:var(--panel);color:var(--dim);cursor:pointer;
-  font-family:var(--cond);font-weight:600;font-size:10px;letter-spacing:.2em;
+/* One swatch per palette in console.config.json -- accent on the left, the
+   terrain colour on the right, because those two are what actually change
+   the look of the screen. No labels: four names at 8.5px would cost more
+   room than the control is worth. */
+.palrow{display:flex;gap:5px;flex:1}
+.palrow button{
+  flex:1;height:15px;padding:0;cursor:pointer;border:1px solid var(--edge);
+  transition:border-color .14s,transform .14s;
 }
+.palrow button:hover{border-color:var(--dim);transform:translateY(-1px)}
+.palrow button.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+
+/* Sizes itself to however many modes there are -- it grew a third. */
+.seg2{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:1px;
+  background:var(--edge);border:1px solid var(--edge)}
+.seg2 button{
+  padding:7px 4px;border:0;background:var(--panel);color:var(--dim);cursor:pointer;
+  font-family:var(--cond);font-weight:600;font-size:10px;letter-spacing:var(--tr-btn);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.seg2 button:disabled{opacity:.4;cursor:not-allowed}
 .seg2 button.on{background:var(--acc);color:var(--ink)}
 
 .runbtn{
   width:100%;padding:10px;cursor:pointer;
   border:1px solid var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent);
-  color:var(--acc);font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:.2em;
+  color:var(--acc);font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:var(--tr-label);
   display:flex;align-items:center;justify-content:center;gap:9px;transition:background .16s,color .16s;
 }
 .runbtn:hover:not(:disabled){background:var(--acc);color:var(--ink)}
@@ -162,15 +228,37 @@ body{
 /* ── workspace grid ──────────────────────────────────────────────────────── */
 [data-el="main"]{
   display:grid;gap:1px;background:var(--edge);flex:1;min-width:0;min-height:0;
-  grid-template-columns:1.02fr 1.3fr;
-  grid-template-rows:1.42fr 1fr;
+  position:relative;
+  grid-template-columns:var(--split-col) 1fr;
+  grid-template-rows:var(--split-row) 1fr;
   grid-template-areas:"doc map" "doc stage";
 }
 :root[data-layout="theater"] [data-el="main"]{
-  grid-template-columns:1.1fr 1fr;
-  grid-template-rows:1.25fr 1fr;
   grid-template-areas:"map map" "doc stage";
 }
+
+/* ── drag handles ────────────────────────────────────────────────────────── */
+/* The 1px grid gaps are the visual dividers; these are invisible 9px strips
+   sitting on top of them, because a 1px hit target is not a control. They are
+   absolutely positioned from the same tokens the grid uses, so a handle can
+   never drift away from the seam it moves. Double-click resets one. */
+.gutter{position:absolute;z-index:6;background:transparent;transition:background .14s}
+.gutter:hover,.gutter.drag{background:color-mix(in srgb,var(--acc) 55%,transparent)}
+.gutter.gv{top:0;bottom:0;width:9px;margin-left:-4px;cursor:col-resize}
+.gutter.gh{left:0;right:0;height:9px;margin-top:-4px;cursor:row-resize}
+#gut-rail{left:var(--rail-w)}
+#gut-col{left:var(--split-col)}
+#gut-row{left:var(--split-col);top:var(--split-row)}
+/* Theater puts the map across the top, so the seams swap orientation: the
+   row split runs the full width and the column split only divides the
+   bottom row. */
+:root[data-layout="theater"] #gut-col{top:var(--split-row)}
+:root[data-layout="theater"] #gut-row{left:0}
+/* While a drag is in flight the pointer must not be able to start selecting
+   document text or hand the map a grab gesture. */
+body.resizing{cursor:col-resize;user-select:none}
+body.resizing.rowdrag{cursor:row-resize}
+body.resizing [data-el="main"],body.resizing [data-el="rail"]{pointer-events:none}
 [data-el="doc"]{grid-area:doc}
 [data-el="map"]{grid-area:map;background:var(--map-sea);position:relative;overflow:hidden}
 [data-el="stage"]{grid-area:stage}
@@ -185,9 +273,9 @@ body{
   flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;
   padding:12px 18px 11px;border-bottom:1px solid var(--edge);
 }
-.pane-title{font-family:var(--cond);font-weight:600;font-size:16px;letter-spacing:.15em}
-.pane-meta{font-size:9px;letter-spacing:.09em;color:var(--dim);margin-top:4px}
-.tokchip{display:flex;align-items:center;gap:7px;font-size:var(--micro);letter-spacing:.16em;color:var(--dim);flex:none}
+.pane-title{font-family:var(--cond);font-weight:600;font-size:16px;letter-spacing:var(--tr-title)}
+.pane-meta{font-size:var(--small);letter-spacing:var(--tr-label);color:var(--dim);margin-top:4px}
+.tokchip{display:flex;align-items:center;gap:7px;font-size:var(--micro);letter-spacing:var(--tr-label);color:var(--dim);flex:none}
 .tokchip .dot,.statecell .dot{width:5px;height:5px;background:var(--acc);animation:blink 1.6s steps(1,end) infinite}
 .statecell .dot{border-radius:50%}
 @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:.25}}
@@ -195,8 +283,13 @@ body{
 .pane-body{flex:1;min-height:0;overflow-y:auto;padding:22px 26px 26px}
 .pane-foot{
   height:30px;flex:none;border-top:1px solid var(--edge);padding:0 18px;
-  display:flex;align-items:center;gap:16px;font-size:9px;letter-spacing:.1em;color:var(--dim);
+  display:flex;align-items:center;gap:16px;font-size:var(--small);letter-spacing:var(--tr-label);color:var(--dim);
+  overflow:hidden;
 }
+/* A 30px strip: the counts drop off the right rather than wrapping into a
+   second line that has nowhere to go. Narrowing the pane by dragging its seam
+   is what makes this reachable. */
+.pane-foot > *{flex:none;white-space:nowrap}
 .pane-foot .ok{color:var(--acc)}
 .pane-foot .amb{color:var(--warn)}
 
@@ -231,45 +324,45 @@ body{
 [data-el="map"] > :not(geo-scope){position:absolute;pointer-events:none;z-index:2}
 .map-top{
   top:0;left:0;right:0;height:34px;display:flex;align-items:center;gap:14px;padding:0 14px;
-  background:linear-gradient(180deg,rgba(4,6,9,.92),rgba(4,6,9,0));
+  background:linear-gradient(180deg,var(--plate-strong),transparent);
 }
-.map-region{font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:.24em;color:var(--acc)}
-.map-mode{font-size:9px;color:var(--dim)}
+.map-region{font-family:var(--cond);font-weight:600;font-size:12px;letter-spacing:var(--tr-brand);color:var(--acc)}
+.map-mode{font-size:var(--small);color:var(--dim)}
 .map-badges{left:14px;top:44px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}
 .map-badges span{
-  font-size:var(--micro);letter-spacing:.14em;color:var(--dim);
-  background:rgba(4,6,9,.6);padding:2px 6px;border-left:2px solid var(--acc);
+  font-size:var(--micro);letter-spacing:var(--tr-btn);color:var(--dim);
+  background:var(--plate);padding:2px 6px;border-left:2px solid var(--acc);
 }
 /* Sits on a plate rather than free-floating: it overlays the graticule tick
    labels, which are the same size and nearly the same colour. */
 .map-coord{
-  right:12px;top:44px;text-align:right;font-size:9px;color:var(--acc);
-  line-height:1.7;background:rgba(4,6,9,.72);padding:3px 7px;
+  right:12px;top:44px;text-align:right;font-size:var(--small);color:var(--acc);
+  line-height:1.7;background:var(--plate);padding:3px 7px;
   border-right:2px solid var(--acc);
 }
 .map-coord:empty{display:none}
 .map-coord .sub{color:var(--dim)}
 .map-nav{right:12px;bottom:12px;display:flex;align-items:center;gap:9px}
 .navhint{font-size:var(--micro);color:var(--dim)}
-.zoomchip{font-size:9px;color:var(--acc);background:rgba(4,6,9,.72);
+.zoomchip{font-size:var(--small);color:var(--acc);background:var(--plate);
   border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);padding:2px 6px}
 .resetbtn{
-  pointer-events:auto;cursor:pointer;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
-  color:var(--acc);background:rgba(4,6,9,.72);border:1px solid var(--acc);padding:3px 8px;
+  pointer-events:auto;cursor:pointer;font-family:var(--mono);font-size:var(--small);letter-spacing:var(--tr-btn);
+  color:var(--acc);background:var(--plate);border:1px solid var(--acc);padding:3px 8px;
   transition:background .16s,color .16s;
 }
 .resetbtn:hover{background:var(--acc);color:var(--ink)}
 
 /* ── stage panel ─────────────────────────────────────────────────────────── */
 .stage-head{height:36px;padding:0 14px}
-.stage-title{font-family:var(--cond);font-weight:600;font-size:13px;letter-spacing:.22em;color:var(--acc);flex:none}
-.stage-meta{font-size:9px;letter-spacing:.12em;color:var(--dim);flex:none}
+.stage-title{font-family:var(--cond);font-weight:600;font-size:13px;letter-spacing:var(--tr-brand);color:var(--acc);flex:none}
+.stage-meta{font-size:var(--small);letter-spacing:var(--tr-label);color:var(--dim);flex:none}
 [data-el="stage"] .pane-body{padding:12px 14px 18px}
 
 .kv{display:grid;grid-template-columns:118px 1fr;gap:1px;background:var(--edge);margin-bottom:1px}
 .kv > *{background:var(--panel2);padding:7px 10px;font-size:10px;min-width:0;
   overflow:hidden;text-overflow:ellipsis}
-.kv .k{color:var(--dim);letter-spacing:.08em}
+.kv .k{color:var(--dim);letter-spacing:var(--tr-label)}
 .kv .v{color:var(--fg)}
 .kv .v.acc{color:var(--acc)}
 .kv .v.warn{color:var(--warn)}
@@ -279,7 +372,7 @@ body{
 .tbl span{background:var(--panel2);padding:7px 9px;font-size:10px;min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tbl .hd span{background:transparent;color:var(--dim);font-size:var(--micro);
-  font-weight:500;letter-spacing:.16em;padding:4px 9px}
+  font-weight:500;letter-spacing:var(--tr-label);padding:4px 9px}
 .tbl .row{cursor:pointer}
 .tbl .row:hover span{background:color-mix(in srgb,var(--acc) 8%,var(--panel2))}
 .tbl .row.on span{background:color-mix(in srgb,var(--acc) 14%,var(--panel2));color:var(--acc)}
@@ -288,8 +381,8 @@ body{
 .tbl .dim{color:var(--dim)}
 
 .dis-head{display:flex;align-items:baseline;gap:12px;margin-bottom:11px;flex-wrap:wrap}
-.dis-head h2{margin:0;font-family:var(--cond);font-weight:600;font-size:19px;letter-spacing:.13em;color:var(--fg)}
-.dis-head .sub{font-size:9px;color:var(--dim)}
+.dis-head h2{margin:0;font-family:var(--cond);font-weight:600;font-size:19px;letter-spacing:var(--tr-title);color:var(--fg)}
+.dis-head .sub{font-size:var(--small);color:var(--dim)}
 .dis-head .flag{color:var(--warn)}
 
 .cand{padding:9px 11px;border-left:2px solid var(--edge);background:var(--panel2);
@@ -300,10 +393,10 @@ body{
 .cand.top{border-left-color:var(--acc);background:color-mix(in srgb,var(--acc) 9%,var(--panel2))}
 .cand.top.flag{border-left-color:var(--warn);background:color-mix(in srgb,var(--warn) 9%,var(--panel2))}
 .cand .l1{display:flex;align-items:baseline;gap:9px}
-.cand .rk{font-size:9px;color:var(--dim);width:16px;flex:none}
-.cand .nm{font-family:var(--cond);font-weight:500;font-size:12.5px;letter-spacing:.11em;flex:1;
+.cand .rk{font-size:var(--small);color:var(--dim);width:16px;flex:none}
+.cand .nm{font-family:var(--cond);font-weight:500;font-size:12.5px;letter-spacing:var(--tr-title);flex:1;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cand .cf{font-size:9px;color:var(--acc);flex:none}
+.cand .cf{font-size:var(--small);color:var(--acc);flex:none}
 .cand .l2{display:flex;align-items:center;gap:10px;margin-top:5px;padding-left:25px}
 .cand .ds{font-size:var(--micro);color:var(--dim);flex:1;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -314,21 +407,21 @@ body{
 
 .note{border-left:2px solid var(--acc);background:var(--panel2);padding:9px 11px;
   font-size:10px;line-height:1.75;margin-top:10px}
-.note b{color:var(--acc);font-weight:400;letter-spacing:.1em}
+.note b{color:var(--acc);font-weight:400;letter-spacing:var(--tr-label)}
 .note.warn{border-left-color:var(--warn)}
 .note.warn b{color:var(--warn)}
 
-.pre{background:#06070a;border:1px solid var(--edge);padding:10px 11px;font-size:9.5px;
+.pre{background:var(--pre-bg);border:1px solid var(--edge);padding:10px 11px;font-size:var(--small);
   line-height:1.65;color:var(--alt);max-height:230px;overflow:auto;white-space:pre;margin:0}
 /* Named for the four formats it started with; it sizes itself now. */
 .seg4{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:1px;
   background:var(--edge);border:1px solid var(--edge);margin-bottom:10px}
 .seg4 button{padding:6px;border:0;background:var(--panel);color:var(--dim);cursor:pointer;
-  font-family:var(--cond);font-weight:600;font-size:10px;letter-spacing:.18em}
+  font-family:var(--cond);font-weight:600;font-size:10px;letter-spacing:var(--tr-label)}
 .seg4 button.on{background:var(--acc);color:var(--ink)}
 .exportfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px;
-  font-size:9px;color:var(--dim);letter-spacing:.1em}
-.writebtn{cursor:pointer;font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--acc);
+  font-size:var(--small);color:var(--dim);letter-spacing:var(--tr-label)}
+.writebtn{cursor:pointer;font-family:var(--mono);font-size:var(--small);letter-spacing:var(--tr-label);color:var(--acc);
   background:transparent;border:1px solid var(--acc);padding:4px 10px;transition:background .16s,color .16s}
 .writebtn:hover{background:var(--acc);color:var(--ink)}
 
@@ -340,14 +433,14 @@ body{
   background:var(--panel2);border-top:1px solid var(--edge);
 }
 .statecell{width:154px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;
-  border-right:1px solid var(--edge);font-size:9px;letter-spacing:.18em;color:var(--acc)}
+  border-right:1px solid var(--edge);font-size:var(--small);letter-spacing:var(--tr-label);color:var(--acc)}
 .logcell{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:0 14px;
-  font-size:9.5px;color:var(--dim);white-space:nowrap;overflow:hidden}
+  font-size:var(--small);color:var(--dim);white-space:nowrap;overflow:hidden}
 .logcell #logtime{color:var(--alt);flex:none}
 .logcell #logline{overflow:hidden;text-overflow:ellipsis}
 .caret{flex:none;animation:blink 1s steps(1,end) infinite}
 .telemcell{flex:none;display:flex;gap:18px;align-items:center;padding:0 14px;
-  border-left:1px solid var(--edge);font-size:9px;color:var(--dim);white-space:nowrap}
+  border-left:1px solid var(--edge);font-size:var(--small);color:var(--dim);white-space:nowrap}
 .telemcell b{font-weight:400;color:var(--fg);margin-left:6px}
 
 /* ── grit ────────────────────────────────────────────────────────────────── */
@@ -362,7 +455,217 @@ body{
 :root[data-scanlines="off"] .scanlines,
 :root[data-vignette="off"] .vignette,
 :root[data-noise="off"] .noise{display:none}
+:root[data-hairline="off"] .hairline{display:none}
+:root[data-clock="off"] .clock{display:none}
 
 @media (prefers-reduced-motion: reduce){
   .hairline,.noise,.caret,.tokchip .dot,.statecell .dot{animation:none}
 }
+
+/* ── menu bar ────────────────────────────────────────────────────────────── */
+/* Built from the spec in `menuSpec()`; nothing here knows what any particular
+   menu contains. The four item types the renderer emits -- radio, toggle,
+   action, swatches -- are the whole vocabulary, so adding a control is a row
+   in that array and no CSS at all. */
+[data-el="menubar"]{
+  height:28px; flex:none; display:flex; align-items:stretch;
+  background:var(--panel2); border-bottom:1px solid var(--edge);
+  position:relative; z-index:60;
+}
+.menus{display:flex;align-items:stretch}
+.menu{position:relative;display:flex}
+.mtrig{
+  border:0;background:transparent;color:var(--dim);cursor:pointer;
+  font-family:var(--uifont);font-weight:500;font-size:var(--small);
+  letter-spacing:var(--tr-label);padding:0 13px;
+  transition:color .14s,background .14s;
+}
+.mtrig:hover{color:var(--fg)}
+.menu.open .mtrig{background:var(--acc);color:var(--ink)}
+/* Above the map, the grit overlays and the drag handles, all of which are
+   z-indexed into the 6-42 range. */
+.mdrop{
+  display:none;position:absolute;top:100%;left:0;min-width:236px;
+  background:var(--panel);border:1px solid var(--edge);
+  border-radius:var(--radius);padding:5px 0;z-index:61;
+}
+.menu.open .mdrop{display:block}
+.mitem{
+  display:flex;align-items:baseline;gap:8px;width:100%;
+  border:0;background:transparent;cursor:pointer;text-align:left;
+  color:var(--fg);font-family:var(--uifont);font-size:11px;padding:6px 12px;
+  transition:background .12s,color .12s;
+}
+.mitem:hover:not(:disabled){
+  background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc);
+}
+.mitem.on{color:var(--acc)}
+.mitem:disabled{opacity:.4;cursor:not-allowed}
+.mmark{width:12px;flex:none;font-size:10px;color:var(--acc)}
+.mitem:not(.on) .mmark{color:var(--dim)}
+.mlab{flex:none}
+/* The one-line description of a look. Right-aligned and dim so the menu still
+   scans as a list of choices rather than as prose. */
+.mhint{
+  flex:1;text-align:right;padding-left:16px;color:var(--dim);
+  font-size:var(--micro);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.mhead{
+  font-size:var(--micro);letter-spacing:var(--tr-label);color:var(--dim);
+  padding:7px 12px 4px;
+}
+.msep{height:1px;background:var(--edge);margin:5px 0}
+.mdrop .palrow{padding:2px 12px 8px;gap:6px}
+.mdrop .palrow button{height:20px}
+.menuspacer{flex:1}
+.menuright{display:flex;align-items:center;gap:12px;padding:0 14px}
+/* Said out loud because the console will be shown to people who have not seen
+   it before, and a screen full of place names and coordinates looks like a
+   live feed whether or not it is one. */
+.demobadge{
+  font-size:var(--micro);letter-spacing:var(--tr-label);color:var(--warn);
+  border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);
+  background:color-mix(in srgb,var(--warn) 10%,transparent);
+  padding:2px 9px;border-radius:20px;white-space:nowrap;
+}
+.demobadge:empty{display:none}
+
+/* ── field theme ─────────────────────────────────────────────────────────── */
+/* The humanitarian look.
+ *
+ * Same shell, same panes, same drag seams, same map component -- what changes
+ * is register, not structure. A palette alone cannot get there: the ops look
+ * is built out of glow, wide tracking, 8.5px labels and things that blink,
+ * and every one of those survives a colour swap. So this block is the
+ * *physics* of the calm look, and the colours themselves still come from
+ * whichever palette is selected under it.
+ *
+ * The rule the design handoff states outright and that most of this enforces:
+ * there are no shadows. Depth is borders, tints, and 3px halos.
+ */
+:root[data-theme="field"]{
+  --uifont:var(--cond);       /* Public Sans; the field look is not a terminal */
+  --micro:10px;               /* the ops floor of 8.5px is unreadable on paper */
+  --small:11px;
+  --tr-brand:-.008em; --tr-label:.09em; --tr-title:0; --tr-btn:.02em;
+  --radius:7px;
+  --plate:rgba(255,255,254,.94);
+  --plate-strong:rgba(255,255,254,.9);
+  --pre-bg:var(--panel2);
+}
+
+/* Numbers, coordinates and transcripts stay monospaced -- IBM Plex Mono under
+   this theme. Everything else is the UI face, which under ops was the same
+   font and so never needed saying. */
+:root[data-theme="field"] .map-coord,
+:root[data-theme="field"] .zoomchip,
+:root[data-theme="field"] .stats span,
+:root[data-theme="field"] .clocktime,
+:root[data-theme="field"] .pane-foot,
+:root[data-theme="field"] .pane-meta,
+:root[data-theme="field"] .stage-meta,
+:root[data-theme="field"] .doc-card .t i,
+:root[data-theme="field"] .cand .cf,
+:root[data-theme="field"] .kv .v,
+:root[data-theme="field"] .tbl .num,
+:root[data-theme="field"] .telemcell,
+:root[data-theme="field"] .logcell{font-family:var(--mono)}
+
+/* Public Sans sets a size smaller than Barlow Condensed at the same px, so
+   the headings come up to compensate. */
+:root[data-theme="field"] .brandname{font-size:17px;font-weight:700}
+:root[data-theme="field"] .brandsub{font-size:11.5px}
+:root[data-theme="field"] .pane-title{font-size:15px;font-weight:600}
+:root[data-theme="field"] .stage-title{font-size:12.5px;font-weight:600}
+:root[data-theme="field"] .stage-row .nm{font-size:12.5px;font-weight:500}
+:root[data-theme="field"] .doc-card .t b{font-size:12px;font-weight:600}
+:root[data-theme="field"] .cand .nm{font-size:12.5px;font-weight:600}
+:root[data-theme="field"] .map-region{font-size:11.5px;font-weight:600}
+:root[data-theme="field"] .seclabel{font-size:10px;font-weight:600}
+/* The one serif moment outside the report body, tying the panel that explains
+   a decision to the document the decision was made in. */
+:root[data-theme="field"] .dis-head h2{
+  font-family:var(--serif);font-size:19px;font-weight:600;letter-spacing:0;
+}
+
+/* No glow, no shadow, no rotated diamond: a small square mark instead. */
+:root[data-theme="field"] .diamond{
+  width:12px;height:12px;transform:none;border-radius:3px;box-shadow:none;
+}
+:root[data-theme="field"] .pastebox textarea:focus{
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 16%,transparent);
+}
+/* Paper grain rather than CRT noise: multiplied into the whites at a twentieth
+   of the ops strength, and not animated, because nothing on this screen
+   idles. Without it the panels read as screen-white rather than as paper. */
+:root[data-theme="field"] .grit.noise{mix-blend-mode:multiply;animation:none}
+
+/* Rounded surfaces, per the handoff: 2px on mention spans, 7px on cards,
+   buttons and rows, 0 on the panels themselves. */
+:root[data-theme="field"] .pastebox textarea,
+:root[data-theme="field"] .filebtn,
+:root[data-theme="field"] .seg2,
+:root[data-theme="field"] .seg4,
+:root[data-theme="field"] .runbtn,
+:root[data-theme="field"] .writebtn,
+:root[data-theme="field"] .resetbtn,
+:root[data-theme="field"] .zoomchip,
+:root[data-theme="field"] .map-badges span,
+:root[data-theme="field"] .map-coord{border-radius:var(--radius)}
+:root[data-theme="field"] .seg2,
+:root[data-theme="field"] .seg4{overflow:hidden}
+:root[data-theme="field"] .cand{border-radius:var(--radius);border-left-width:3px}
+:root[data-theme="field"] .note{
+  border-radius:0 var(--radius) var(--radius) 0;border-left-width:3px;
+}
+:root[data-theme="field"] [data-eid]{border-radius:2px;cursor:pointer}
+/* .34 opacity is legible against a dark panel and nearly invisible on paper. */
+:root[data-theme="field"] [data-st="pending"]{opacity:.55}
+
+/* The run button is the primary action and reads as one: solid, not outlined. */
+:root[data-theme="field"] .runbtn{
+  background:var(--acc);color:var(--ink);font-size:12.5px;font-weight:600;
+}
+:root[data-theme="field"] .runbtn:hover:not(:disabled){
+  background:color-mix(in srgb,var(--acc) 84%,#000);color:var(--ink);
+}
+:root[data-theme="field"] .seg2 button,
+:root[data-theme="field"] .seg4 button{font-weight:600;font-size:11px}
+:root[data-theme="field"] .filebtn{font-size:10px}
+
+/* A printed report has ruled edges, not hairlines that glow. Per-edge, because
+   `border-style` alone would revive the other three sides at their initial
+   `medium` width and box each pane in 3px of dots. */
+:root[data-theme="field"] .pane-head{border-bottom-style:dotted}
+:root[data-theme="field"] .pane-foot{border-top-style:dotted}
+:root[data-theme="field"] .rule{
+  background:repeating-linear-gradient(90deg,var(--edge) 0 2px,transparent 2px 5px);
+}
+/* Sitting over a document rather than over a dark console, the dropdown needs
+   more separation than a 1px border gives it. The one shadow in the theme,
+   and it is a separation cue rather than a depth effect. */
+:root[data-theme="field"] .mdrop{box-shadow:0 8px 22px rgba(35,33,28,.13)}
+
+/* Nothing idles. The single sharpest break from the ops look, and the main
+   reason the screen reads as calm rather than as an alarm waiting to go off.
+   The reveal still animates -- that is information arriving. */
+:root[data-theme="field"] .caret{animation:none;opacity:.3}
+:root[data-theme="field"] .tokchip .dot,
+:root[data-theme="field"] .statecell .dot{animation:none}
+
+/* Report body. Serif at reading size for prose, mono for transcripts and
+   anything that arrived as typed text. */
+:root[data-theme="field"] .doc-text{max-width:64ch}
+:root[data-theme="field"] .doc-text[data-kind="wire"]{font-size:16px;line-height:1.86}
+:root[data-theme="field"] .doc-text[data-kind="social"],
+:root[data-theme="field"] .doc-text[data-kind="paste"]{font-size:13px;line-height:2.05}
+
+/* The field tagline is a sentence, not a two-word subtitle, so the lockup
+   stops matching the rail width and takes what it needs. Losing that
+   alignment is the cheaper trade: a wrapped tagline pushed the wordmark out
+   of the 52px title bar entirely. The rail itself comes up a little too --
+   "Finding places" beside a count does not fit 214px in Public Sans. */
+:root[data-theme="field"]{--rail-w:238px}
+:root[data-theme="field"] .lockup{width:auto;min-width:var(--rail-w);padding-right:22px}
+:root[data-theme="field"] .brandsub{max-width:52ch}
+:root[data-theme="field"] .stage-row .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
