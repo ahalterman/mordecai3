@@ -1,0 +1,138 @@
+# Outlet domain -> newsroom home, rebuilt from public sources (e53 condition 2).
+#
+# Independent of the curated table in tools/outlet_home_table.py: two research
+# passes were given ONLY the list of 120 domain strings -- never the curated
+# answers -- and told to resolve each against Wikipedia, the Library of
+# Congress newspaper catalogue, archive.org snapshots of the outlet's own
+# contact page, FCC/station records and media directories, and to return
+# UNKNOWN rather than guess. Every row carries the URL it came from.
+#
+# place = city of publication, a region when the outlet is explicitly regional,
+# or NONE for an outlet with no home market (wire services, national
+# broadcasters). A row with a place gets a point-level home; NONE gets a
+# country-level home. That differs from the curated table's convention, under
+# which a national newspaper with a real head office (Haaretz, the Irish
+# Independent) was given only its country -- the researchers found the city and
+# it is recorded here, which is one of the disagreements the report quantifies.
+#
+# domain	place	admin1	iso3	scope	confidence	source
+ajc.com	Atlanta	Georgia	USA	local	high	https://en.wikipedia.org/wiki/The_Atlanta_Journal-Constitution
+alextimes.com	Alexandria	Virginia	USA	local	high	https://en.wikipedia.org/wiki/Alexandria_Times
+alligator.org	Gainesville	Florida	USA	local	high	https://en.wikipedia.org/wiki/The_Independent_Florida_Alligator
+amarillo.com	Amarillo	Texas	USA	local	high	https://en.wikipedia.org/wiki/Amarillo_Globe-News
+athensreview.com	Athens	Texas	USA	local	high	https://en.wikipedia.org/wiki/Athens_Daily_Review
+bclocalnews.com	British Columbia	British Columbia	CAN	local	medium	https://en.wikipedia.org/wiki/Black_Press
+bnonews.com	NONE		NLD	national	high	https://en.wikipedia.org/wiki/BNO_News
+brantnews.com	Brantford	Ontario	CAN	local	medium	https://directory.brantford.ca/Home/View/brant-news-ltd
+cambridge-news.co.uk	Cambridge	England	GBR	local	high	https://en.wikipedia.org/wiki/Cambridge_News
+chronicle.augusta.com	Augusta	Georgia	USA	local	high	https://en.wikipedia.org/wiki/The_Augusta_Chronicle
+civil.ge	Tbilisi	T'bilisi	GEO	national	high	https://www.una.ge/civil_ge
+columbiadailyherald.com	Columbia	Tennessee	USA	local	high	https://en.wikipedia.org/wiki/The_Daily_Herald_(Columbia,_Tennessee)
+columbuslocalnews.com	Columbus	Ohio	USA	local	high	http://web.archive.org/web/20110303171202/http://columbuslocalnews.com/
+columbustelegram.com	Columbus	Nebraska	USA	local	high	https://en.wikipedia.org/wiki/Columbus_Telegram
+concordmonitor.com	Concord	New Hampshire	USA	local	high	https://en.wikipedia.org/wiki/Concord_Monitor
+courant.com	Hartford	Connecticut	USA	local	high	https://en.wikipedia.org/wiki/Hartford_Courant
+daily-chronicle.com	DeKalb	Illinois	USA	local	high	http://web.archive.org/web/20110601000000/http://www.daily-chronicle.com/
+daily-jeff.com	Cambridge	Ohio	USA	local	high	https://en.wikipedia.org/wiki/The_Daily_Jeffersonian
+dailyherald.com	Arlington Heights	Illinois	USA	local	high	http://web.archive.org/web/20110601000000/http://www.dailyherald.com/
+dailymail.com	Charleston	West Virginia	USA	local	high	http://web.archive.org/web/20110601000000/http://www.dailymail.com/
+dailynews.com	Los Angeles	California	USA	local	high	https://en.wikipedia.org/wiki/Los_Angeles_Daily_News
+dailypostathenian.com	Athens	Tennessee	USA	local	high	https://en.wikipedia.org/wiki/The_Daily_Post_Athenian
+dailystar.com.lb	Beirut	Beyrouth	LBN	national	high	https://en.wikipedia.org/wiki/The_Daily_Star_(Lebanon)
+dailytribune.net	Mount Pleasant	Texas	USA	local	high	http://web.archive.org/web/20110603105310/http://www.dailytribune.net/contact_us/
+dallasnews.com	Dallas	Texas	USA	local	high	https://en.wikipedia.org/wiki/The_Dallas_Morning_News
+dispatch.com	Columbus	Ohio	USA	local	high	https://en.wikipedia.org/wiki/The_Columbus_Dispatch
+echopress.com	Alexandria	Minnesota	USA	local	high	https://www.echopress.com/contact-us
+edmontonjournal.com	Edmonton	Alberta	CAN	local	high	https://en.wikipedia.org/wiki/Edmonton_Journal
+engineeringnews.co.za	Johannesburg	Gauteng	ZAF	national	high	https://www.creamermedia.co.za/page/contact-details
+eparisextra.com	Paris	Texas	USA	local	high	https://www.thepaperboy.com/newspaper.cfm?PaperID=2146115053
+gainesville.com	Gainesville	Florida	USA	local	high	https://en.wikipedia.org/wiki/The_Gainesville_Sun
+gainesvilleregister.com	Gainesville	Texas	USA	local	high	https://en.wikipedia.org/wiki/Gainesville_Daily_Register
+gainesvilletimes.com	Gainesville	Georgia	USA	local	high	https://en.wikipedia.org/wiki/The_Gainesville_Times_(Georgia)
+gazette.com	Colorado Springs	Colorado	USA	local	high	https://en.wikipedia.org/wiki/The_Gazette_(Colorado_Springs)
+globalnews.ca	NONE		CAN	national	high	https://en.wikipedia.org/wiki/Global_News
+goldentrianglenewspapers.com	Mount Pleasant	Iowa	USA	local	medium	https://web.archive.org/web/20110305050058/http://goldentrianglenewspapers.com/
+haaretz.com	Tel Aviv	Tel Aviv	ISR	national	high	https://en.wikipedia.org/wiki/Haaretz
+heraldonline.com	Rock Hill	South Carolina	USA	local	high	https://en.wikipedia.org/wiki/The_Herald_(Rock_Hill)
+independent.ie	Dublin	Leinster	IRL	national	high	https://en.wikipedia.org/wiki/Irish_Independent
+insidebayarea.com	Oakland	California	USA	local	medium	https://en.wikipedia.org/wiki/Oakland_Tribune
+itemonline.com	Huntsville	Texas	USA	local	high	https://en.wikipedia.org/wiki/The_Huntsville_Item
+jordannews.com	Jordan	Minnesota	USA	local	high	https://www.loc.gov/item/sn90057682/
+jpost.com	Jerusalem	Jerusalem	ISR	national	high	https://en.wikipedia.org/wiki/The_Jerusalem_Post
+kansascity.com	Kansas City	Missouri	USA	local	high	https://en.wikipedia.org/wiki/The_Kansas_City_Star
+katv.com	Little Rock	Arkansas	USA	local	high	https://en.wikipedia.org/wiki/KATV
+lansingstatejournal.com	Lansing	Michigan	USA	local	high	https://en.wikipedia.org/wiki/Lansing_State_Journal
+lasvegassun.com	Las Vegas	Nevada	USA	local	high	https://www.loc.gov/item/2018203342/
+latimes.com	Los Angeles	California	USA	local	high	https://en.wikipedia.org/wiki/Los_Angeles_Times
+ldnews.com	Lebanon	Pennsylvania	USA	local	high	https://en.wikipedia.org/wiki/Lebanon_Daily_News
+ledger-enquirer.com	Columbus	Georgia	USA	local	high	https://en.wikipedia.org/wiki/Ledger-Enquirer
+lfpress.ca	London	Ontario	CAN	local	high	https://en.wikipedia.org/wiki/The_London_Free_Press
+masslive.com	Springfield	Massachusetts	USA	local	high	https://en.wikipedia.org/wiki/MassLive
+mercurynews.com	San Jose	California	USA	local	high	https://en.wikipedia.org/wiki/The_Mercury_News
+messenger.com.ge	Tbilisi	T'bilisi	GEO	national	high	http://www.messenger.com.ge/aboutus_old.html
+miamiherald.com	Miami	Florida	USA	local	high	https://en.wikipedia.org/wiki/Miami_Herald
+middletownpress.com	Middletown	Connecticut	USA	local	high	https://en.wikipedia.org/wiki/The_Middletown_Press
+moscowtimes.ru	Moscow	Moscow	RUS	national	high	https://en.wikipedia.org/wiki/The_Moscow_Times
+myinrich.com	Richmond	Virginia	USA	local	high	http://web.archive.org/web/20110705094730/http://www.myinrich.com/discoverrichmond/dis/online/site_information/contacts
+newarkadvocate.com	Newark	Ohio	USA	local	high	https://en.wikipedia.org/wiki/The_Advocate_(Newark)
+news-leader.com	Springfield	Missouri	USA	local	high	https://en.wikipedia.org/wiki/Springfield_News-Leader
+news.postbulletin.com	Rochester	Minnesota	USA	local	high	https://en.wikipedia.org/wiki/Post-Bulletin
+norfolkdailynews.com	Norfolk	Nebraska	USA	local	high	https://en.wikipedia.org/wiki/Norfolk_Daily_News
+onlineathens.com	Athens	Georgia	USA	local	high	https://en.wikipedia.org/wiki/Athens_Banner-Herald
+oxfordpress.com	Oxford	Ohio	USA	local	high	https://web.archive.org/web/20110601/http://www.oxfordpress.com/
+pal-item.com	Richmond	Indiana	USA	local	high	https://en.wikipedia.org/wiki/Palladium-Item
+palestineherald.com	Palestine	Texas	USA	local	high	https://en.wikipedia.org/wiki/Palestine_Herald-Press
+parisbeacon.com	Paris	Illinois	USA	local	high	https://www.loc.gov/item/sn90054991/
+parispi.net	Paris	Tennessee	USA	local	high	https://www.parispi.net/about/
+philly.com	Philadelphia	Pennsylvania	USA	local	high	https://en.wikipedia.org/wiki/The_Philadelphia_Inquirer
+post-gazette.com	Pittsburgh	Pennsylvania	USA	local	high	https://en.wikipedia.org/wiki/Pittsburgh_Post-Gazette
+postandcourier.com	Charleston	South Carolina	USA	local	high	https://en.wikipedia.org/wiki/The_Post_and_Courier
+recordernewspapers.com	Bernardsville	New Jersey	USA	local	medium	https://en.wikipedia.org/wiki/New_Jersey_Hills_Media_Group
+registercitizen.com	Torrington	Connecticut	USA	local	high	https://www.loc.gov/item/sn84007955/
+reporter.net	Lebanon	Indiana	USA	local	high	https://en.wikipedia.org/wiki/The_Lebanon_Reporter
+richmond.com	Richmond	Virginia	USA	local	high	https://en.wikipedia.org/wiki/Richmond_Times-Dispatch
+richmondandtwickenhamtimes.co.uk	Richmond	England	GBR	local	high	https://en.wikipedia.org/wiki/Richmond_and_Twickenham_Times
+richmondregister.com	Richmond	Kentucky	USA	local	high	https://en.wikipedia.org/wiki/Richmond_Register
+sentinel-echo.com	London	Kentucky	USA	local	high	https://www.loc.gov/item/sn85052107/
+springfieldnewssun.com	Springfield	Ohio	USA	local	high	https://en.wikipedia.org/wiki/Springfield_News-Sun
+sptimes.ru	Saint Petersburg	St.-Petersburg	RUS	local	high	https://en.wikipedia.org/wiki/The_St._Petersburg_Times_(Russia)
+star-telegram.com	Fort Worth	Texas	USA	local	high	https://en.wikipedia.org/wiki/Fort_Worth_Star-Telegram
+thecolumbiastar.com	Columbia	South Carolina	USA	local	high	https://www.thecolumbiastar.com/contact-us/
+theday.com	New London	Connecticut	USA	local	high	https://en.wikipedia.org/wiki/The_Day_(New_London)
+theintelligencer.com	Edwardsville	Illinois	USA	local	high	http://web.archive.org/web/20110601/http://www.theintelligencer.com/
+thelancasterandmorecambecitizen.co.uk	Lancaster	England	GBR	local	high	https://www.abc.org.uk/product/1922-the-lancaster-and-morecambe-citizen
+themercury.com	Manhattan	Kansas	USA	local	high	https://en.wikipedia.org/wiki/The_Manhattan_Mercury
+theparisnews.com	Paris	Texas	USA	local	high	https://en.wikipedia.org/wiki/The_Paris_News
+thestate.com	Columbia	South Carolina	USA	local	high	https://en.wikipedia.org/wiki/The_State_(newspaper)
+thetowntalk.com	Alexandria	Louisiana	USA	local	high	https://en.wikipedia.org/wiki/The_Town_Talk
+thisisoxfordshire.co.uk	Oxford	England	GBR	local	high	https://web.archive.org/web/20120114123705/http://www.thisisoxfordshire.co.uk/
+timesdispatch.com	Richmond	Virginia	USA	local	high	https://en.wikipedia.org/wiki/Richmond_Times-Dispatch
+wcluradio.com	Glasgow	Kentucky	USA	local	high	https://en.wikipedia.org/wiki/WCLU_(AM)
+weekly.ahram.org.eg	NONE		EGY	national	high	https://en.wikipedia.org/wiki/Al-Ahram_Weekly
+woodstocksentinelreview.com	Woodstock	Ontario	CAN	local	high	https://en.wikipedia.org/wiki/Woodstock_Sentinel-Review
+wvgazette.com	Charleston	West Virginia	USA	local	high	https://www.loc.gov/item/sn83045151/
+www.abc.net.au	NONE		AUS	national	high	https://en.wikipedia.org/wiki/Australian_Broadcasting_Corporation
+www.bbc.com	NONE		GBR	national	high	https://en.wikipedia.org/wiki/BBC
+www.cbc.ca	NONE		CAN	national	high	https://en.wikipedia.org/wiki/CBC_News
+www.chinapost.com.tw	NONE		TWN	national	high	https://en.wikipedia.org/wiki/The_China_Post
+www.cnn.com	NONE		USA	national	high	https://en.wikipedia.org/wiki/CNN
+www.ctvnews.ca	NONE		CAN	national	high	https://en.wikipedia.org/wiki/CTV_News
+www.enfield-today.co.uk	Enfield	England	GBR	local	high	https://web.archive.org/web/20120111054539/http://www.enfield-today.co.uk/
+www.freshplaza.com	NONE		NLD	national	high	https://www.freshplaza.com/content/about-us/
+www.huntingtonnews.net	Huntington	West Virginia	USA	local	medium	https://www.einpresswire.com/world-media-directory/detail/83785
+www.independent.co.uk	NONE		GBR	national	high	https://en.wikipedia.org/wiki/The_Independent
+www.innisfailprovince.ca	Innisfail	Alberta	CAN	local	high	https://greatwest.ca/publications/innisfail-province/
+www.kwwl.com	Waterloo	Iowa	USA	local	high	https://en.wikipedia.org/wiki/KWWL_(TV)
+www.lemarssentinel.com	Le Mars	Iowa	USA	local	high	https://muckrack.com/media-outlet/lemarssentinel
+www.lfpress.com	London	Ontario	CAN	local	high	https://en.wikipedia.org/wiki/The_London_Free_Press
+www.marketwired.com	NONE		CAN	national	high	https://en.wikipedia.org/wiki/Marketwired
+www.missourifarmertoday.com	Missouri	Missouri	USA	local	medium	https://agupdate.com/missourifarmertoday/
+www.moberlymonitor.com	Moberly	Missouri	USA	local	high	https://en.wikipedia.org/wiki/Moberly_Monitor-Index
+www.nationalpost.com	NONE		CAN	national	high	https://en.wikipedia.org/wiki/National_Post
+www.nlhnews.co.uk	London	England	GBR	local	medium	https://web.archive.org/web/20120324191411/http://www.nlhnews.co.uk/
+www.nytimes.com	NONE		USA	national	high	https://en.wikipedia.org/wiki/The_New_York_Times
+www.qconline.com	Moline	Illinois	USA	local	medium	https://en.wikipedia.org/wiki/The_Dispatch_/_The_Rock_Island_Argus
+www.registercitizen.com	Torrington	Connecticut	USA	local	high	https://www.loc.gov/item/sn84007955/
+www.reuters.com	NONE		GBR	national	high	https://en.wikipedia.org/wiki/Reuters
+www.wbko.com	Bowling Green	Kentucky	USA	local	high	https://en.wikipedia.org/wiki/WBKO
+www.wkyt.com	Lexington	Kentucky	USA	local	high	https://en.wikipedia.org/wiki/WKYT-TV

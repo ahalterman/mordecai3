@@ -1,5 +1,6 @@
 ## Read in the BERT embedding for each place name
 ## and predict the country using pytorch
+import hashlib
 import json
 import logging
 import os
@@ -46,6 +47,15 @@ FEATURE_BLOCKS = {
     # ADM3H). Appended last so every earlier column keeps its index and caches
     # built before this stay readable for recipes that do not ask for it.
     "strip": ["ap_twin_stripped", "ap_twin_stripped_wide", "is_historical"],
+    # Where the newspaper is. Only the two Gritta corpora carry an outlet
+    # domain (LGL on 100% of articles, TR-News on 100%), so for every other
+    # source this block is a well-defined null -- see mordecai3.outlet_features
+    # for the columns and the two mask channels. Appended after `strip` for the
+    # same reason `strip` was appended after `cf`: every earlier column keeps
+    # its index, so a recipe that does not ask for `outlet` reads byte-identical
+    # features out of a pickle that carries it.
+    "outlet": ["has_outlet_home", "log_km_to_outlet_home", "outlet_same_adm1",
+               "outlet_same_country", "has_outlet_country"],
 }
 
 # What a padding row gets: the bad/neutral end of each feature, mirroring the
@@ -55,6 +65,7 @@ FEATURE_BLOCKS = {
 # case-folded edit distances take the worst normalised distance.
 _PAD_SENTINEL = {"log_min_km_anchor": 4.301051709845226,
                  "log_mean_sibmin": 4.301051709845226,
+                 "log_km_to_outlet_home": 4.301051709845226,
                  "min_dist_cf": 1.0, "max_dist_cf": 1.0,
                  "avg_dist_cf": 1.0, "ascii_dist_cf": 1.0}
 
@@ -341,6 +352,90 @@ class TrainData(ProductionData):
                          feature_blocks, full_null_row)
         self.labels, self.countries = self.create_labels(es_data)
         self.feature_classes = self.create_class_labels(es_data)
+        self._prepare_outlet_dropout(es_data)
+
+    #
+    #   Outlet dropout (e53)
+    #
+    #   e50 showed the outlet block is worth +0.030 TLG-hard when the outlet is
+    #   there, and -0.032 on LGL when it is not: the model leans on the prior
+    #   for news-shaped documents and has no fallback, because in training LGL
+    #   almost always had an outlet and the four sources that never did taught
+    #   it a no-outlet policy only for *their* kind of document. Randomly
+    #   blanking the block for whole documents fixes that by putting news
+    #   documents on both sides of the mask.
+    #
+    #   Whole *documents*, not entities: dropping one mention of an article and
+    #   not its neighbour would leak the prior back in through the document's
+    #   other entities and would not resemble any serving condition.
+    #
+    def _prepare_outlet_dropout(self, es_data):
+        """Cache what `set_outlet_dropout` needs; cheap no-op without the block."""
+        self._outlet_cols = None
+        if not self.extra_keys:
+            return
+        outlet_keys = [k for k in FEATURE_BLOCKS["outlet"] if k in self.extra_keys]
+        if len(outlet_keys) != len(FEATURE_BLOCKS["outlet"]):
+            return
+        base = len(GAZ_BASE_KEYS)
+        cols = np.array([base + self.extra_keys.index(k) for k in outlet_keys])
+        null_row = np.array([pad_value(k) for k in outlet_keys], dtype=np.float32)
+
+        # Only documents that actually have an outlet can be dropped; the rest
+        # are already at the null encoding and dropping them is a no-op.
+        mask_col = base + self.extra_keys.index("has_outlet_country")
+        active = self.gaz_info[:, 0, mask_col] > 0.5
+        rows = np.flatnonzero(active)
+        if rows.size == 0:
+            return
+
+        doc_ids = np.array([
+            int(hashlib.sha1(convert_to_numpy(ex["doc_tensor"]).tobytes())
+                .hexdigest()[:15], 16)
+            for ex in es_data], dtype=np.int64)
+
+        self._outlet_cols = cols
+        self._outlet_null = null_row
+        self._outlet_rows = rows
+        self._outlet_doc_ids = doc_ids
+        # Pristine copy of just these columns for just these rows (~30 MB).
+        self._outlet_pristine = self.gaz_info[np.ix_(rows, np.arange(
+            self.gaz_info.shape[1]), cols)].copy()
+
+    def set_outlet_dropout(self, p, epoch, seed):
+        """Blank the outlet block for a deterministic random subset of documents.
+
+        The draw is a pure function of ``(document, epoch, seed)``, so a rerun at
+        a fixed seed sees the identical sequence of dropped documents -- the
+        campaign's bit-reproducibility rule applies to this as much as to the
+        weight init. It is not taken from the global RNG, which the shuffling
+        DataLoader also draws from.
+
+        ``p <= 0`` restores every document, so a run with dropout disabled is
+        byte-identical to one built without this code path.
+        """
+        if self._outlet_cols is None:
+            return 0
+        rows = self._outlet_rows
+        n_choices = self.gaz_info.shape[1]
+
+        # One draw per document, then broadcast to that document's entities.
+        docs = self._outlet_doc_ids[rows]
+        uniq, inverse = np.unique(docs, return_inverse=True)
+        keep_doc = np.ones(len(uniq), dtype=bool)
+        if p > 0:
+            for i, doc_id in enumerate(uniq):
+                mix = (int(doc_id)
+                       ^ (int(seed) * 1000003)
+                       ^ (int(epoch) * 65537)) & 0xFFFFFFFF
+                keep_doc[i] = np.random.default_rng(mix).random() >= p
+        keep = keep_doc[inverse]
+
+        idx = np.ix_(rows, np.arange(n_choices), self._outlet_cols)
+        restored = np.where(keep[:, None, None], self._outlet_pristine,
+                            self._outlet_null[None, None, :])
+        self.gaz_info[idx] = restored.astype(np.float32)
+        return int((~keep_doc).sum())
 
     def create_class_labels(self, es_data):
         """Feature class of the gold candidate, for the auxiliary head."""

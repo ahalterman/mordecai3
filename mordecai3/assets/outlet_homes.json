@@ -1,0 +1,1592 @@
+{
+ "ajc.com": {
+  "admin1": [
+   "USA",
+   "GA"
+  ],
+  "admin1_name": "Georgia",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4180439",
+  "lat": 33.749,
+  "level": "point",
+  "lon": -84.38798,
+  "resolved": "Atlanta"
+ },
+ "alextimes.com": {
+  "admin1": [
+   "USA",
+   "VA"
+  ],
+  "admin1_name": "Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4744091",
+  "lat": 38.80484,
+  "level": "point",
+  "lon": -77.04692,
+  "resolved": "Alexandria"
+ },
+ "alligator.org": {
+  "admin1": [
+   "USA",
+   "FL"
+  ],
+  "admin1_name": "Florida",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4156404",
+  "lat": 29.65163,
+  "level": "point",
+  "lon": -82.32483,
+  "resolved": "Gainesville"
+ },
+ "amarillo.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5516233",
+  "lat": 35.222,
+  "level": "point",
+  "lon": -101.8313,
+  "resolved": "Amarillo"
+ },
+ "athensreview.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4671545",
+  "lat": 32.20487,
+  "level": "point",
+  "lon": -95.85552,
+  "resolved": "Athens"
+ },
+ "bclocalnews.com": {
+  "admin1": [
+   "CAN",
+   "02"
+  ],
+  "admin1_name": "British Columbia",
+  "country_code3": "CAN",
+  "feature_code": "ADM1",
+  "geonameid": "5909050",
+  "lat": 53.99983,
+  "level": "point",
+  "lon": -125.0032,
+  "resolved": "British Columbia"
+ },
+ "bnonews.com": {
+  "admin1": null,
+  "country_code3": "NLD",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Kingdom of the Netherlands"
+ },
+ "brantnews.com": {
+  "admin1": [
+   "CAN",
+   "08"
+  ],
+  "admin1_name": "Ontario",
+  "country_code3": "CAN",
+  "feature_code": "PPL",
+  "geonameid": "5907990",
+  "lat": 43.1334,
+  "level": "point",
+  "lon": -80.26636,
+  "resolved": "Brantford"
+ },
+ "cambridge-news.co.uk": {
+  "admin1": [
+   "GBR",
+   "ENG"
+  ],
+  "admin1_name": "England",
+  "country_code3": "GBR",
+  "feature_code": "PPLA2",
+  "geonameid": "2653941",
+  "lat": 52.2,
+  "level": "point",
+  "lon": 0.11667,
+  "resolved": "Cambridge"
+ },
+ "chronicle.augusta.com": {
+  "admin1": [
+   "USA",
+   "GA"
+  ],
+  "admin1_name": "Georgia",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4180531",
+  "lat": 33.47097,
+  "level": "point",
+  "lon": -81.97484,
+  "resolved": "Augusta"
+ },
+ "civil.ge": {
+  "admin1": [
+   "GEO",
+   "51"
+  ],
+  "admin1_name": "T'bilisi",
+  "country_code3": "GEO",
+  "feature_code": "PPLC",
+  "geonameid": "611717",
+  "lat": 41.69411,
+  "level": "point",
+  "lon": 44.83368,
+  "resolved": "Tbilisi"
+ },
+ "columbiadailyherald.com": {
+  "admin1": [
+   "USA",
+   "TN"
+  ],
+  "admin1_name": "Tennessee",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4614867",
+  "lat": 35.61507,
+  "level": "point",
+  "lon": -87.03528,
+  "resolved": "Columbia"
+ },
+ "columbuslocalnews.com": {
+  "admin1": [
+   "USA",
+   "OH"
+  ],
+  "admin1_name": "Ohio",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4509177",
+  "lat": 39.96118,
+  "level": "point",
+  "lon": -82.99879,
+  "resolved": "Columbus"
+ },
+ "columbustelegram.com": {
+  "admin1": [
+   "USA",
+   "NE"
+  ],
+  "admin1_name": "Nebraska",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5066001",
+  "lat": 41.42973,
+  "level": "point",
+  "lon": -97.36838,
+  "resolved": "Columbus"
+ },
+ "concordmonitor.com": {
+  "admin1": [
+   "USA",
+   "NH"
+  ],
+  "admin1_name": "New Hampshire",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "5084868",
+  "lat": 43.20814,
+  "level": "point",
+  "lon": -71.53757,
+  "resolved": "Concord"
+ },
+ "courant.com": {
+  "admin1": [
+   "USA",
+   "CT"
+  ],
+  "admin1_name": "Connecticut",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4835797",
+  "lat": 41.76371,
+  "level": "point",
+  "lon": -72.68509,
+  "resolved": "Hartford"
+ },
+ "daily-chronicle.com": {
+  "admin1": [
+   "USA",
+   "IL"
+  ],
+  "admin1_name": "Illinois",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4889553",
+  "lat": 41.92947,
+  "level": "point",
+  "lon": -88.75036,
+  "resolved": "DeKalb"
+ },
+ "daily-jeff.com": {
+  "admin1": [
+   "USA",
+   "OH"
+  ],
+  "admin1_name": "Ohio",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5149007",
+  "lat": 40.03118,
+  "level": "point",
+  "lon": -81.58846,
+  "resolved": "Cambridge"
+ },
+ "dailyherald.com": {
+  "admin1": [
+   "USA",
+   "IL"
+  ],
+  "admin1_name": "Illinois",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4883555",
+  "lat": 42.08836,
+  "level": "point",
+  "lon": -87.98063,
+  "resolved": "Arlington Heights"
+ },
+ "dailymail.com": {
+  "admin1": [
+   "USA",
+   "WV"
+  ],
+  "admin1_name": "West Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4801859",
+  "lat": 38.34982,
+  "level": "point",
+  "lon": -81.63262,
+  "resolved": "Charleston"
+ },
+ "dailynews.com": {
+  "admin1": [
+   "USA",
+   "CA"
+  ],
+  "admin1_name": "California",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5368361",
+  "lat": 34.05223,
+  "level": "point",
+  "lon": -118.24368,
+  "resolved": "Los Angeles"
+ },
+ "dailypostathenian.com": {
+  "admin1": [
+   "USA",
+   "TN"
+  ],
+  "admin1_name": "Tennessee",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4603284",
+  "lat": 35.44285,
+  "level": "point",
+  "lon": -84.59299,
+  "resolved": "Athens"
+ },
+ "dailystar.com.lb": {
+  "admin1": [
+   "LBN",
+   "04"
+  ],
+  "admin1_name": "Beyrouth",
+  "country_code3": "LBN",
+  "feature_code": "PPLC",
+  "geonameid": "276781",
+  "lat": 33.89332,
+  "level": "point",
+  "lon": 35.50157,
+  "resolved": "Beirut"
+ },
+ "dailytribune.net": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4712933",
+  "lat": 33.15679,
+  "level": "point",
+  "lon": -94.96827,
+  "resolved": "Mount Pleasant"
+ },
+ "dallasnews.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4684888",
+  "lat": 32.78306,
+  "level": "point",
+  "lon": -96.80667,
+  "resolved": "Dallas"
+ },
+ "dispatch.com": {
+  "admin1": [
+   "USA",
+   "OH"
+  ],
+  "admin1_name": "Ohio",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4509177",
+  "lat": 39.96118,
+  "level": "point",
+  "lon": -82.99879,
+  "resolved": "Columbus"
+ },
+ "echopress.com": {
+  "admin1": [
+   "USA",
+   "MN"
+  ],
+  "admin1_name": "Minnesota",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5016108",
+  "lat": 45.88524,
+  "level": "point",
+  "lon": -95.37754,
+  "resolved": "Alexandria"
+ },
+ "edmontonjournal.com": {
+  "admin1": [
+   "CAN",
+   "01"
+  ],
+  "admin1_name": "Alberta",
+  "country_code3": "CAN",
+  "feature_code": "PPLA",
+  "geonameid": "5946768",
+  "lat": 53.55014,
+  "level": "point",
+  "lon": -113.46871,
+  "resolved": "Edmonton"
+ },
+ "engineeringnews.co.za": {
+  "admin1": [
+   "ZAF",
+   "06"
+  ],
+  "admin1_name": "Gauteng",
+  "country_code3": "ZAF",
+  "feature_code": "PPLA",
+  "geonameid": "993800",
+  "lat": -26.20227,
+  "level": "point",
+  "lon": 28.04363,
+  "resolved": "Johannesburg"
+ },
+ "eparisextra.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4717560",
+  "lat": 33.66094,
+  "level": "point",
+  "lon": -95.55551,
+  "resolved": "Paris"
+ },
+ "gainesville.com": {
+  "admin1": [
+   "USA",
+   "FL"
+  ],
+  "admin1_name": "Florida",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4156404",
+  "lat": 29.65163,
+  "level": "point",
+  "lon": -82.32483,
+  "resolved": "Gainesville"
+ },
+ "gainesvilleregister.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4692746",
+  "lat": 33.62594,
+  "level": "point",
+  "lon": -97.13335,
+  "resolved": "Gainesville"
+ },
+ "gainesvilletimes.com": {
+  "admin1": [
+   "USA",
+   "GA"
+  ],
+  "admin1_name": "Georgia",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4196586",
+  "lat": 34.29788,
+  "level": "point",
+  "lon": -83.82407,
+  "resolved": "Gainesville"
+ },
+ "gazette.com": {
+  "admin1": [
+   "USA",
+   "CO"
+  ],
+  "admin1_name": "Colorado",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5417598",
+  "lat": 38.83388,
+  "level": "point",
+  "lon": -104.82136,
+  "resolved": "Colorado Springs"
+ },
+ "globalnews.ca": {
+  "admin1": null,
+  "country_code3": "CAN",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Canada"
+ },
+ "goldentrianglenewspapers.com": {
+  "admin1": [
+   "USA",
+   "IA"
+  ],
+  "admin1_name": "Iowa",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4868205",
+  "lat": 40.96364,
+  "level": "point",
+  "lon": -91.55794,
+  "resolved": "Mount Pleasant"
+ },
+ "haaretz.com": {
+  "admin1": [
+   "ISR",
+   "05"
+  ],
+  "admin1_name": "Tel Aviv",
+  "country_code3": "ISR",
+  "feature_code": "PPLA",
+  "geonameid": "293397",
+  "lat": 32.08088,
+  "level": "point",
+  "lon": 34.78057,
+  "resolved": "Tel Aviv"
+ },
+ "heraldonline.com": {
+  "admin1": [
+   "USA",
+   "SC"
+  ],
+  "admin1_name": "South Carolina",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4593142",
+  "lat": 34.92487,
+  "level": "point",
+  "lon": -81.02508,
+  "resolved": "Rock Hill"
+ },
+ "independent.ie": {
+  "admin1": [
+   "IRL",
+   "L"
+  ],
+  "admin1_name": "Leinster",
+  "country_code3": "IRL",
+  "feature_code": "PPLC",
+  "geonameid": "2964574",
+  "lat": 53.33306,
+  "level": "point",
+  "lon": -6.24889,
+  "resolved": "Dublin"
+ },
+ "insidebayarea.com": {
+  "admin1": [
+   "USA",
+   "CA"
+  ],
+  "admin1_name": "California",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5378538",
+  "lat": 37.80437,
+  "level": "point",
+  "lon": -122.2708,
+  "resolved": "Oakland"
+ },
+ "itemonline.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4699540",
+  "lat": 30.72353,
+  "level": "point",
+  "lon": -95.55078,
+  "resolved": "Huntsville"
+ },
+ "jordannews.com": {
+  "admin1": [
+   "USA",
+   "MN"
+  ],
+  "admin1_name": "Minnesota",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "5032106",
+  "lat": 44.66691,
+  "level": "point",
+  "lon": -93.6269,
+  "resolved": "Jordan"
+ },
+ "jpost.com": {
+  "admin1": [
+   "ISR",
+   "06"
+  ],
+  "admin1_name": "Jerusalem",
+  "country_code3": "ISR",
+  "feature_code": "PPLA",
+  "geonameid": "281184",
+  "lat": 31.76904,
+  "level": "point",
+  "lon": 35.21633,
+  "resolved": "Jerusalem"
+ },
+ "kansascity.com": {
+  "admin1": [
+   "USA",
+   "MO"
+  ],
+  "admin1_name": "Missouri",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4393217",
+  "lat": 39.09973,
+  "level": "point",
+  "lon": -94.57857,
+  "resolved": "Kansas City"
+ },
+ "katv.com": {
+  "admin1": [
+   "USA",
+   "AR"
+  ],
+  "admin1_name": "Arkansas",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4119403",
+  "lat": 34.74648,
+  "level": "point",
+  "lon": -92.28959,
+  "resolved": "Little Rock"
+ },
+ "lansingstatejournal.com": {
+  "admin1": [
+   "USA",
+   "MI"
+  ],
+  "admin1_name": "Michigan",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4998830",
+  "lat": 42.73253,
+  "level": "point",
+  "lon": -84.55553,
+  "resolved": "Lansing"
+ },
+ "lasvegassun.com": {
+  "admin1": [
+   "USA",
+   "NV"
+  ],
+  "admin1_name": "Nevada",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5506956",
+  "lat": 36.17497,
+  "level": "point",
+  "lon": -115.13722,
+  "resolved": "Las Vegas"
+ },
+ "latimes.com": {
+  "admin1": [
+   "USA",
+   "CA"
+  ],
+  "admin1_name": "California",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5368361",
+  "lat": 34.05223,
+  "level": "point",
+  "lon": -118.24368,
+  "resolved": "Los Angeles"
+ },
+ "ldnews.com": {
+  "admin1": [
+   "USA",
+   "PA"
+  ],
+  "admin1_name": "Pennsylvania",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5197517",
+  "lat": 40.34093,
+  "level": "point",
+  "lon": -76.41135,
+  "resolved": "Lebanon"
+ },
+ "ledger-enquirer.com": {
+  "admin1": [
+   "USA",
+   "GA"
+  ],
+  "admin1_name": "Georgia",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4188985",
+  "lat": 32.46098,
+  "level": "point",
+  "lon": -84.98771,
+  "resolved": "Columbus"
+ },
+ "lfpress.ca": {
+  "admin1": [
+   "CAN",
+   "08"
+  ],
+  "admin1_name": "Ontario",
+  "country_code3": "CAN",
+  "feature_code": "PPL",
+  "geonameid": "6058560",
+  "lat": 42.98339,
+  "level": "point",
+  "lon": -81.23304,
+  "resolved": "London"
+ },
+ "masslive.com": {
+  "admin1": [
+   "USA",
+   "MA"
+  ],
+  "admin1_name": "Massachusetts",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4951788",
+  "lat": 42.10148,
+  "level": "point",
+  "lon": -72.58981,
+  "resolved": "Springfield"
+ },
+ "mercurynews.com": {
+  "admin1": [
+   "USA",
+   "CA"
+  ],
+  "admin1_name": "California",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5392171",
+  "lat": 37.33939,
+  "level": "point",
+  "lon": -121.89496,
+  "resolved": "San Jose"
+ },
+ "messenger.com.ge": {
+  "admin1": [
+   "GEO",
+   "51"
+  ],
+  "admin1_name": "T'bilisi",
+  "country_code3": "GEO",
+  "feature_code": "PPLC",
+  "geonameid": "611717",
+  "lat": 41.69411,
+  "level": "point",
+  "lon": 44.83368,
+  "resolved": "Tbilisi"
+ },
+ "miamiherald.com": {
+  "admin1": [
+   "USA",
+   "FL"
+  ],
+  "admin1_name": "Florida",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4164138",
+  "lat": 25.77427,
+  "level": "point",
+  "lon": -80.19366,
+  "resolved": "Miami"
+ },
+ "middletownpress.com": {
+  "admin1": [
+   "USA",
+   "CT"
+  ],
+  "admin1_name": "Connecticut",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4838633",
+  "lat": 41.56232,
+  "level": "point",
+  "lon": -72.65065,
+  "resolved": "Middletown"
+ },
+ "moscowtimes.ru": {
+  "admin1": [
+   "RUS",
+   "48"
+  ],
+  "admin1_name": "Moscow",
+  "country_code3": "RUS",
+  "feature_code": "PPLC",
+  "geonameid": "524901",
+  "lat": 55.75222,
+  "level": "point",
+  "lon": 37.61556,
+  "resolved": "Moscow"
+ },
+ "myinrich.com": {
+  "admin1": [
+   "USA",
+   "VA"
+  ],
+  "admin1_name": "Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4781708",
+  "lat": 37.55376,
+  "level": "point",
+  "lon": -77.46026,
+  "resolved": "Richmond"
+ },
+ "newarkadvocate.com": {
+  "admin1": [
+   "USA",
+   "OH"
+  ],
+  "admin1_name": "Ohio",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5164466",
+  "lat": 40.05812,
+  "level": "point",
+  "lon": -82.40126,
+  "resolved": "Newark"
+ },
+ "news-leader.com": {
+  "admin1": [
+   "USA",
+   "MO"
+  ],
+  "admin1_name": "Missouri",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4409896",
+  "lat": 37.21533,
+  "level": "point",
+  "lon": -93.29824,
+  "resolved": "Springfield"
+ },
+ "news.postbulletin.com": {
+  "admin1": [
+   "USA",
+   "MN"
+  ],
+  "admin1_name": "Minnesota",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5043473",
+  "lat": 44.02163,
+  "level": "point",
+  "lon": -92.4699,
+  "resolved": "Rochester"
+ },
+ "norfolkdailynews.com": {
+  "admin1": [
+   "USA",
+   "NE"
+  ],
+  "admin1_name": "Nebraska",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "5073965",
+  "lat": 42.02834,
+  "level": "point",
+  "lon": -97.417,
+  "resolved": "Norfolk"
+ },
+ "onlineathens.com": {
+  "admin1": [
+   "USA",
+   "GA"
+  ],
+  "admin1_name": "Georgia",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4180386",
+  "lat": 33.96095,
+  "level": "point",
+  "lon": -83.37794,
+  "resolved": "Athens"
+ },
+ "oxfordpress.com": {
+  "admin1": [
+   "USA",
+   "OH"
+  ],
+  "admin1_name": "Ohio",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4520760",
+  "lat": 39.507,
+  "level": "point",
+  "lon": -84.74523,
+  "resolved": "Oxford"
+ },
+ "pal-item.com": {
+  "admin1": [
+   "USA",
+   "IN"
+  ],
+  "admin1_name": "Indiana",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4263681",
+  "lat": 39.82894,
+  "level": "point",
+  "lon": -84.89024,
+  "resolved": "Richmond"
+ },
+ "palestineherald.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4717232",
+  "lat": 31.76212,
+  "level": "point",
+  "lon": -95.63079,
+  "resolved": "Palestine"
+ },
+ "parisbeacon.com": {
+  "admin1": [
+   "USA",
+   "IL"
+  ],
+  "admin1_name": "Illinois",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4246659",
+  "lat": 39.61115,
+  "level": "point",
+  "lon": -87.69614,
+  "resolved": "Paris"
+ },
+ "parispi.net": {
+  "admin1": [
+   "USA",
+   "TN"
+  ],
+  "admin1_name": "Tennessee",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4647963",
+  "lat": 36.302,
+  "level": "point",
+  "lon": -88.32671,
+  "resolved": "Paris"
+ },
+ "philly.com": {
+  "admin1": [
+   "USA",
+   "PA"
+  ],
+  "admin1_name": "Pennsylvania",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4560349",
+  "lat": 39.95238,
+  "level": "point",
+  "lon": -75.16362,
+  "resolved": "Philadelphia"
+ },
+ "post-gazette.com": {
+  "admin1": [
+   "USA",
+   "PA"
+  ],
+  "admin1_name": "Pennsylvania",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "5206379",
+  "lat": 40.44062,
+  "level": "point",
+  "lon": -79.99589,
+  "resolved": "Pittsburgh"
+ },
+ "postandcourier.com": {
+  "admin1": [
+   "USA",
+   "SC"
+  ],
+  "admin1_name": "South Carolina",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4574324",
+  "lat": 32.77657,
+  "level": "point",
+  "lon": -79.93092,
+  "resolved": "Charleston"
+ },
+ "recordernewspapers.com": {
+  "admin1": [
+   "USA",
+   "NJ"
+  ],
+  "admin1_name": "New Jersey",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "5095626",
+  "lat": 40.71871,
+  "level": "point",
+  "lon": -74.56932,
+  "resolved": "Bernardsville"
+ },
+ "registercitizen.com": {
+  "admin1": [
+   "USA",
+   "CT"
+  ],
+  "admin1_name": "Connecticut",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4844309",
+  "lat": 41.80065,
+  "level": "point",
+  "lon": -73.12122,
+  "resolved": "Torrington"
+ },
+ "reporter.net": {
+  "admin1": [
+   "USA",
+   "IN"
+  ],
+  "admin1_name": "Indiana",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4922673",
+  "lat": 40.04837,
+  "level": "point",
+  "lon": -86.46917,
+  "resolved": "Lebanon"
+ },
+ "richmond.com": {
+  "admin1": [
+   "USA",
+   "VA"
+  ],
+  "admin1_name": "Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4781708",
+  "lat": 37.55376,
+  "level": "point",
+  "lon": -77.46026,
+  "resolved": "Richmond"
+ },
+ "richmondandtwickenhamtimes.co.uk": {
+  "admin1": [
+   "GBR",
+   "ENG"
+  ],
+  "admin1_name": "England",
+  "country_code3": "GBR",
+  "feature_code": "PPL",
+  "geonameid": "2639389",
+  "lat": 51.46171,
+  "level": "point",
+  "lon": -0.30633,
+  "resolved": "Richmond"
+ },
+ "richmondregister.com": {
+  "admin1": [
+   "USA",
+   "KY"
+  ],
+  "admin1_name": "Kentucky",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4305974",
+  "lat": 37.74786,
+  "level": "point",
+  "lon": -84.29465,
+  "resolved": "Richmond"
+ },
+ "sentinel-echo.com": {
+  "admin1": [
+   "USA",
+   "KY"
+  ],
+  "admin1_name": "Kentucky",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4298960",
+  "lat": 37.12898,
+  "level": "point",
+  "lon": -84.08326,
+  "resolved": "London"
+ },
+ "springfieldnewssun.com": {
+  "admin1": [
+   "USA",
+   "OH"
+  ],
+  "admin1_name": "Ohio",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4525353",
+  "lat": 39.92423,
+  "level": "point",
+  "lon": -83.80882,
+  "resolved": "Springfield"
+ },
+ "sptimes.ru": {
+  "admin1": [
+   "RUS",
+   "66"
+  ],
+  "admin1_name": "St.-Petersburg",
+  "country_code3": "RUS",
+  "feature_code": "PPLA",
+  "geonameid": "498817",
+  "lat": 59.93863,
+  "level": "point",
+  "lon": 30.31413,
+  "resolved": "Saint Petersburg"
+ },
+ "star-telegram.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4691930",
+  "lat": 32.72541,
+  "level": "point",
+  "lon": -97.32085,
+  "resolved": "Fort Worth"
+ },
+ "thecolumbiastar.com": {
+  "admin1": [
+   "USA",
+   "SC"
+  ],
+  "admin1_name": "South Carolina",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4575352",
+  "lat": 34.00071,
+  "level": "point",
+  "lon": -81.03481,
+  "resolved": "Columbia"
+ },
+ "theday.com": {
+  "admin1": [
+   "USA",
+   "CT"
+  ],
+  "admin1_name": "Connecticut",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4839416",
+  "lat": 41.35565,
+  "level": "point",
+  "lon": -72.09952,
+  "resolved": "New London"
+ },
+ "theintelligencer.com": {
+  "admin1": [
+   "USA",
+   "IL"
+  ],
+  "admin1_name": "Illinois",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4237717",
+  "lat": 38.81144,
+  "level": "point",
+  "lon": -89.95316,
+  "resolved": "Edwardsville"
+ },
+ "thelancasterandmorecambecitizen.co.uk": {
+  "admin1": [
+   "GBR",
+   "ENG"
+  ],
+  "admin1_name": "England",
+  "country_code3": "GBR",
+  "feature_code": "PPL",
+  "geonameid": "2644972",
+  "lat": 54.04649,
+  "level": "point",
+  "lon": -2.79988,
+  "resolved": "Lancaster"
+ },
+ "themercury.com": {
+  "admin1": [
+   "USA",
+   "KS"
+  ],
+  "admin1_name": "Kansas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4274994",
+  "lat": 39.18361,
+  "level": "point",
+  "lon": -96.57167,
+  "resolved": "Manhattan"
+ },
+ "theparisnews.com": {
+  "admin1": [
+   "USA",
+   "TX"
+  ],
+  "admin1_name": "Texas",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4717560",
+  "lat": 33.66094,
+  "level": "point",
+  "lon": -95.55551,
+  "resolved": "Paris"
+ },
+ "thestate.com": {
+  "admin1": [
+   "USA",
+   "SC"
+  ],
+  "admin1_name": "South Carolina",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4575352",
+  "lat": 34.00071,
+  "level": "point",
+  "lon": -81.03481,
+  "resolved": "Columbia"
+ },
+ "thetowntalk.com": {
+  "admin1": [
+   "USA",
+   "LA"
+  ],
+  "admin1_name": "Louisiana",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4314550",
+  "lat": 31.31129,
+  "level": "point",
+  "lon": -92.44514,
+  "resolved": "Alexandria"
+ },
+ "thisisoxfordshire.co.uk": {
+  "admin1": [
+   "GBR",
+   "ENG"
+  ],
+  "admin1_name": "England",
+  "country_code3": "GBR",
+  "feature_code": "PPLA2",
+  "geonameid": "2640729",
+  "lat": 51.75222,
+  "level": "point",
+  "lon": -1.25596,
+  "resolved": "Oxford"
+ },
+ "timesdispatch.com": {
+  "admin1": [
+   "USA",
+   "VA"
+  ],
+  "admin1_name": "Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4781708",
+  "lat": 37.55376,
+  "level": "point",
+  "lon": -77.46026,
+  "resolved": "Richmond"
+ },
+ "wcluradio.com": {
+  "admin1": [
+   "USA",
+   "KY"
+  ],
+  "admin1_name": "Kentucky",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4292826",
+  "lat": 36.99588,
+  "level": "point",
+  "lon": -85.91192,
+  "resolved": "Glasgow"
+ },
+ "weekly.ahram.org.eg": {
+  "admin1": null,
+  "country_code3": "EGY",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Arab Republic of Egypt"
+ },
+ "woodstocksentinelreview.com": {
+  "admin1": [
+   "CAN",
+   "08"
+  ],
+  "admin1_name": "Ontario",
+  "country_code3": "CAN",
+  "feature_code": "PPLA2",
+  "geonameid": "6184365",
+  "lat": 43.13339,
+  "level": "point",
+  "lon": -80.7497,
+  "resolved": "Woodstock"
+ },
+ "wvgazette.com": {
+  "admin1": [
+   "USA",
+   "WV"
+  ],
+  "admin1_name": "West Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA",
+  "geonameid": "4801859",
+  "lat": 38.34982,
+  "level": "point",
+  "lon": -81.63262,
+  "resolved": "Charleston"
+ },
+ "www.abc.net.au": {
+  "admin1": null,
+  "country_code3": "AUS",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Commonwealth of Australia"
+ },
+ "www.bbc.com": {
+  "admin1": null,
+  "country_code3": "GBR",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "United Kingdom of Great Britain and Northern Ireland"
+ },
+ "www.cbc.ca": {
+  "admin1": null,
+  "country_code3": "CAN",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Canada"
+ },
+ "www.chinapost.com.tw": {
+  "admin1": null,
+  "country_code3": "TWN",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Taiwan"
+ },
+ "www.cnn.com": {
+  "admin1": null,
+  "country_code3": "USA",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "United States"
+ },
+ "www.ctvnews.ca": {
+  "admin1": null,
+  "country_code3": "CAN",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Canada"
+ },
+ "www.enfield-today.co.uk": {
+  "admin1": [
+   "GBR",
+   "ENG"
+  ],
+  "admin1_name": "England",
+  "country_code3": "GBR",
+  "feature_code": "ADM3",
+  "geonameid": "3333146",
+  "lat": 51.64875,
+  "level": "point",
+  "lon": -0.0974,
+  "resolved": "Enfield"
+ },
+ "www.freshplaza.com": {
+  "admin1": null,
+  "country_code3": "NLD",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Kingdom of the Netherlands"
+ },
+ "www.huntingtonnews.net": {
+  "admin1": [
+   "USA",
+   "WV"
+  ],
+  "admin1_name": "West Virginia",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4809537",
+  "lat": 38.41925,
+  "level": "point",
+  "lon": -82.44515,
+  "resolved": "Huntington"
+ },
+ "www.independent.co.uk": {
+  "admin1": null,
+  "country_code3": "GBR",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "United Kingdom of Great Britain and Northern Ireland"
+ },
+ "www.innisfailprovince.ca": {
+  "admin1": [
+   "CAN",
+   "01"
+  ],
+  "admin1_name": "Alberta",
+  "country_code3": "CAN",
+  "feature_code": "PPL",
+  "geonameid": "5983430",
+  "lat": 52.02688,
+  "level": "point",
+  "lon": -113.95071,
+  "resolved": "Innisfail"
+ },
+ "www.kwwl.com": {
+  "admin1": [
+   "USA",
+   "IA"
+  ],
+  "admin1_name": "Iowa",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4880889",
+  "lat": 42.49276,
+  "level": "point",
+  "lon": -92.34296,
+  "resolved": "Waterloo"
+ },
+ "www.lemarssentinel.com": {
+  "admin1": [
+   "USA",
+   "IA"
+  ],
+  "admin1_name": "Iowa",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4864337",
+  "lat": 42.79416,
+  "level": "point",
+  "lon": -96.16558,
+  "resolved": "Le Mars"
+ },
+ "www.lfpress.com": {
+  "admin1": [
+   "CAN",
+   "08"
+  ],
+  "admin1_name": "Ontario",
+  "country_code3": "CAN",
+  "feature_code": "PPL",
+  "geonameid": "6058560",
+  "lat": 42.98339,
+  "level": "point",
+  "lon": -81.23304,
+  "resolved": "London"
+ },
+ "www.marketwired.com": {
+  "admin1": null,
+  "country_code3": "CAN",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Canada"
+ },
+ "www.missourifarmertoday.com": {
+  "admin1": [
+   "USA",
+   "MO"
+  ],
+  "admin1_name": "Missouri",
+  "country_code3": "USA",
+  "feature_code": "ADM1",
+  "geonameid": "4398678",
+  "lat": 38.25031,
+  "level": "point",
+  "lon": -92.50046,
+  "resolved": "Missouri"
+ },
+ "www.moberlymonitor.com": {
+  "admin1": [
+   "USA",
+   "MO"
+  ],
+  "admin1_name": "Missouri",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4398730",
+  "lat": 39.41837,
+  "level": "point",
+  "lon": -92.43824,
+  "resolved": "Moberly"
+ },
+ "www.nationalpost.com": {
+  "admin1": null,
+  "country_code3": "CAN",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "Canada"
+ },
+ "www.nlhnews.co.uk": {
+  "admin1": [
+   "GBR",
+   "ENG"
+  ],
+  "admin1_name": "England",
+  "country_code3": "GBR",
+  "feature_code": "PPLC",
+  "geonameid": "2643743",
+  "lat": 51.50853,
+  "level": "point",
+  "lon": -0.12574,
+  "resolved": "London"
+ },
+ "www.nytimes.com": {
+  "admin1": null,
+  "country_code3": "USA",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "United States"
+ },
+ "www.qconline.com": {
+  "admin1": [
+   "USA",
+   "IL"
+  ],
+  "admin1_name": "Illinois",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4902476",
+  "lat": 41.5067,
+  "level": "point",
+  "lon": -90.51513,
+  "resolved": "Moline"
+ },
+ "www.registercitizen.com": {
+  "admin1": [
+   "USA",
+   "CT"
+  ],
+  "admin1_name": "Connecticut",
+  "country_code3": "USA",
+  "feature_code": "PPL",
+  "geonameid": "4844309",
+  "lat": 41.80065,
+  "level": "point",
+  "lon": -73.12122,
+  "resolved": "Torrington"
+ },
+ "www.reuters.com": {
+  "admin1": null,
+  "country_code3": "GBR",
+  "lat": null,
+  "level": "country",
+  "lon": null,
+  "resolved": "United Kingdom of Great Britain and Northern Ireland"
+ },
+ "www.wbko.com": {
+  "admin1": [
+   "USA",
+   "KY"
+  ],
+  "admin1_name": "Kentucky",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4285268",
+  "lat": 36.99032,
+  "level": "point",
+  "lon": -86.4436,
+  "resolved": "Bowling Green"
+ },
+ "www.wkyt.com": {
+  "admin1": [
+   "USA",
+   "KY"
+  ],
+  "admin1_name": "Kentucky",
+  "country_code3": "USA",
+  "feature_code": "PPLA2",
+  "geonameid": "4297983",
+  "lat": 37.98869,
+  "level": "point",
+  "lon": -84.47772,
+  "resolved": "Lexington"
+ }
+}

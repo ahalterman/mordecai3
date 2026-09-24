@@ -140,6 +140,17 @@ Usage (from the repo root):
 
     uv run python tools/enrich_pickles.py
     uv run python tools/enrich_pickles.py --sources prodigy --limit 200 --out-dir /tmp
+
+``--outlet-only`` is a separate, much cheaper mode that does not re-enrich
+anything: it reads the *already enriched* pickles, attaches the ``outlet``
+feature block (mordecai3/outlet_features.py) and writes the compacted cache the
+trainer reads.  Keeping it separate is deliberate -- the outlet arm has to be
+contrasted against a baseline on pickles whose other 33 features are provably
+the frozen ones, and re-deriving those from Elasticsearch would put a second,
+uncontrolled difference into the comparison.
+
+    uv run python tools/enrich_pickles.py --outlet-only \
+        --data-dir raw_data/pickled_es --out-dir /path/to/e50/pickled_es
 """
 
 import argparse
@@ -1042,6 +1053,128 @@ def spot_check_report(es):
     return rows
 
 
+#
+#   The outlet block: a separate pass over the already-enriched pickles
+#
+
+
+def permute_homes(homes, seed):
+    """Give every outlet a *different* outlet's home, keeping the masks fixed.
+
+    This is the control that separates the two things the outlet block could be
+    doing.  It is a locality prior -- "the gold is near this newsroom" -- but it
+    is also, unavoidably, a corpus indicator: ``has_outlet_home`` is 1 for LGL
+    and TR and 0 for the four sources that have no outlet metadata, and the model
+    is already known to exploit corpus identity (it recovers the corpus 93.3% of
+    the time from ``doc_tensor`` alone) to switch annotation conventions.
+
+    Permuting *within* the point-home group and *within* the country-home group
+    leaves ``has_outlet_home`` and ``has_outlet_country`` bit-identical for every
+    entity in the corpus, and leaves the marginal distribution of distances and
+    same-adm1 rates almost unchanged.  The only thing destroyed is the
+    correspondence between an article and its own newsroom.  Whatever survives
+    this permutation is not locality.
+    """
+    import random as _random
+
+    rng = _random.Random(seed)
+    out = dict(homes)
+    for level in ("point", "country"):
+        keys = sorted(k for k, v in homes.items() if v.get("level") == level)
+        vals = [homes[k] for k in keys]
+        # A derangement: no outlet may keep its own home.
+        for _attempt in range(1000):
+            order = list(range(len(vals)))
+            rng.shuffle(order)
+            if all(i != j for i, j in enumerate(order)) or len(vals) < 2:
+                break
+        for k, j in zip(keys, order):
+            out[k] = vals[j]
+    return out
+
+
+def outlet_pass(data_dir, out_dir, sources, suffix, es, cache_path, limit=None,
+                permute_seed=None, table_name="researched"):
+    """Add the ``outlet`` block to enriched pickles and write compacted caches.
+
+    Reads ``{data_dir}/es_formatted_{source}..._enriched.pkl``, attaches the five
+    outlet columns to every candidate (including the NULL placeholder row), and
+    writes ``..._enriched_compact.pkl`` into ``out_dir`` -- which is what
+    ``tools/train.py --data-dir`` picks up.  The other 33 features are copied
+    through untouched, which is what makes the baseline-vs-outlet contrast a
+    one-variable comparison.
+
+    Only ``lgl`` and ``tr`` have outlet metadata; every other source is given the
+    well-defined null.
+    """
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from outlet_align import entity_domains
+    from outlet_home_table import load_or_build, researched_table
+    from train import compact_candidates
+
+    from mordecai3.outlet_features import add_outlet_features, clear_outlet_features
+
+    # The researched table is canonical (e53 §10): it was rebuilt from public
+    # sources with a URL per row, resolves more domains than the curated one,
+    # and a model trained on either scores the same on the other to within
+    # 0.0007 LGL EM. `curated` is kept only so the e50 runs stay reproducible.
+    if os.environ.get("OUTLET_TABLE"):
+        table_name = os.environ["OUTLET_TABLE"]
+    if table_name == "curated":
+        table = None
+        print("using the CURATED outlet table (provenance only)", flush=True)
+    elif table_name == "researched":
+        table = researched_table()
+        print("using the INDEPENDENTLY RESEARCHED outlet table", flush=True)
+    else:
+        sys.exit("unknown --outlet-table {!r}".format(table_name))
+    homes = load_or_build(es, cache_path, table=table)
+    print("resolved {} outlet homes ({} with a point)".format(
+        len(homes), sum(1 for h in homes.values() if h.get("level") == "point")),
+        flush=True)
+    if permute_seed is not None:
+        homes = permute_homes(homes, permute_seed)
+        print("CONTROL: homes permuted within level (seed {}) -- masks unchanged, "
+              "locality destroyed".format(permute_seed), flush=True)
+
+    # The corpus XMLs sit one level above pickled_es.
+    corpus_root = os.path.dirname(os.path.abspath(data_dir))
+    os.makedirs(out_dir, exist_ok=True)
+
+    for source in sources:
+        t0 = time.time()
+        in_path = enriched_path(data_dir, source, suffix)
+        if not os.path.exists(in_path):
+            sys.exit("missing enriched pickle: {}".format(in_path))
+        data = load_pickle(in_path, limit)
+
+        domains = entity_domains(data, source, corpus_root)
+        n_point = n_country = n_none = 0
+        for i, entity in enumerate(data):
+            home = homes.get(domains.get(i)) if domains else None
+            if home is None:
+                clear_outlet_features(entity["es_choices"])
+                n_none += 1
+            else:
+                add_outlet_features(entity["es_choices"], home)
+                if home.get("level") == "point":
+                    n_point += 1
+                else:
+                    n_country += 1
+
+        compact_candidates(data)
+        out_path = enriched_path(out_dir, source, suffix + "_compact")
+        with open(out_path, "wb") as f:
+            pickle.dump(data, f, protocol=4)
+        print("  {:<12} {:>6,} entities  point {:>6,}  country {:>5,}  none {:>6,}"
+              "  -> {} ({:.2f} GB, {:.0f}s)".format(
+                  source, len(data), n_point, n_country, n_none,
+                  os.path.basename(out_path),
+                  os.path.getsize(out_path) / 1e9, time.time() - t0), flush=True)
+        del data
+    print("outlet pass complete", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", default=DEFAULT_DATA_DIR)
@@ -1053,10 +1186,37 @@ def main():
         "--limit", type=int, default=None, help="only process the first N entities (smoke test)"
     )
     parser.add_argument("--skip-validate", action="store_true")
+    parser.add_argument(
+        "--outlet-only", action="store_true",
+        help="add only the outlet block to already-enriched pickles, and write "
+             "the compacted cache (see the module docstring)")
+    parser.add_argument(
+        "--permute-homes", type=int, default=None, metavar="SEED",
+        help="control arm: give each outlet another outlet's home, keeping both "
+             "mask channels bit-identical (see permute_homes)")
+    parser.add_argument(
+        "--outlet-home-cache",
+        default=os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "outlet_homes.json"),
+        help="where the geocoded outlet homes are cached")
+    parser.add_argument(
+        "--outlet-table", choices=["researched", "curated"], default="researched",
+        help="which domain->home table to geocode; 'researched' (the default, "
+             "tools/data/outlet_homes_researched.tsv) is canonical, 'curated' "
+             "is the e50 table kept for provenance")
     args = parser.parse_args()
 
     out_dir = args.out_dir or args.data_dir
     os.makedirs(out_dir, exist_ok=True)
+
+    if args.outlet_only:
+        es = setup_es_client()
+        if not es.ping():
+            sys.exit("cannot reach Elasticsearch at localhost:9200")
+        outlet_pass(args.data_dir, out_dir, args.sources, args.suffix, es,
+                    args.outlet_home_cache, args.limit, args.permute_homes,
+                    table_name=args.outlet_table)
+        return
 
     paths = {}
     for source in args.sources:
