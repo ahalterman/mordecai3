@@ -15,7 +15,7 @@ hold for it to be safe to ship, and both are tested here.
    cannot move any pre-existing behaviour.
 
 The serving tests need the e54 ship-candidate checkpoint
-(`experiments/e54_outlet_ship/seed42.pt`) and the full GeoNames index; they
+(`assets/mordecai_2026-08-20_e54_seed42.pt`) and the full GeoNames index; they
 skip when either is missing. The rest are pure unit tests.
 """
 
@@ -34,8 +34,8 @@ from mordecai3.outlet_features import (OUTLET_KEYS, add_outlet_features,
 from mordecai3.torch_model import FEATURE_BLOCKS, expand_feature_blocks
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SHIP_CANDIDATE = os.path.join(REPO_ROOT, "experiments", "e54_outlet_ship",
-                              "seed42.pt")
+SHIP_CANDIDATE = os.path.join(REPO_ROOT, "mordecai3", "assets",
+                              "mordecai_2026-08-20_e54_seed42.pt")
 
 # The marquee case of experiments/campaign2/outlet_feature_report.md: the Paris
 # Post-Intelligencer is published in Paris, *Tennessee*, and its articles say

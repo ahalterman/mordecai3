@@ -1261,7 +1261,7 @@ requires-dist = [
     { name = "streamlit", marker = "extra == 'streamlit'", specifier = ">=1.0.0" },
     { name = "torch", specifier = ">=2.7,<3.0" },
     { name = "tqdm", specifier = ">=4.56.1,<5.0" },
-    { name = "transformers", specifier = ">=4.2.2,<5.0" },
+    { name = "transformers", specifier = ">=4.2.2,<6.0" },
     { name = "typer", specifier = ">=0.3.2,<1.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'console'", specifier = ">=0.27" },
     { name = "xmltodict", specifier = ">=0.12.0,<1.0" },
