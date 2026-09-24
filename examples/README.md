@@ -1,5 +1,15 @@
 ## Production examples
 
+> **Note:** The scripts in this directory (`batch_process.py`,
+> `batch_process_production.py`, `production_event.py`) all produce *event
+> locations*, which relied on the RoBERTa QA model removed in "remove event loc
+> picking". They do not currently run, and are kept here pending a rewrite.
+> Event geolocation is re-implemented in NGEC-2025.
+>
+> For plain geoparsing of many documents, use `Geoparser.geoparse_batch()`
+> instead -- see the batch processing section in the top-level README. For an
+> interactive demo, use `mordecai3-app` (the packaged Streamlit app).
+
 This directory includes scripts that can be used to put Mordecai3 into production. Before using these files, you must install Mordecai3. From within this directory, you can run `pip install -e ../` to install Mordecai3 from local source.
 
 ### Batch Processing

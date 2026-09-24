@@ -11,6 +11,7 @@ import datetime
 import logging
 
 import mordecai3.elasticsearch as es_util
+from mordecai3.geonames import GeonamesService
 import numpy as np
 import spacy
 import torch
@@ -20,14 +21,14 @@ import typer
 import wandb
 import xmltodict
 from error_utils import make_wandb_dict
-from geoparse import guess_in_rel
+from mordecai3.geoparse import guess_in_rel, add_es_data_doc
 
-from torch_model import geoparse_model
+from mordecai3.torch_model import geoparse_model
 
-from mordecai_utilities import spacy_doc_setup
+from mordecai3.mordecai_utilities import spacy_doc_setup
 from spacy.tokens import DocBin
 from torch.utils.data import DataLoader
-from torch_model import TrainData, geoparse_model
+from mordecai3.torch_model import TrainData, geoparse_model
 from tqdm import tqdm
 
 logger = logging.getLogger()
@@ -445,11 +446,11 @@ def format_source(base_dir, source, conn, max_results, fuzzy,
     esed_data = []
     print("Adding Elasticsearch data...")
     #with multiprocessing.Pool(8) as p:
-    #    esed_data = p.starmap(es_util.add_es_data_doc, zip(formatted, repeat(conn), repeat(max_results), 
+    #    esed_data = p.starmap(add_es_data_doc, zip(formatted, repeat(geonames), repeat(max_results), 
     #                                                       repeat(fuzzy), repeat(limit_types), 
     #                                                       repeat(remove_correct)))
     for ff in tqdm(formatted, leave=False):
-        esd = es_util.add_es_data_doc(ff, conn, max_results, fuzzy, limit_types, remove_correct)
+        esd = add_es_data_doc(ff, geonames, max_results, fuzzy, limit_types, remove_correct)
         for e in esd:
             if e['correct_geonamesid'] != None:
                 esed_data.append(e)
@@ -538,7 +539,7 @@ def add_es(base_dir,
     source: list
       Which sources to process?
     """
-    conn = es_util.make_conn()
+    geonames = GeonamesService(es_client=es_util.setup_es_client())
     print("Loading spacy model...")
     spacy.prefer_gpu()
     nlp = spacy.load("en_core_web_trf")

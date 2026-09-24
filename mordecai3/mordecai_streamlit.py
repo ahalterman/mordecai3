@@ -60,7 +60,6 @@ def load_geo():
                  geo_asset_path=resources.files("mordecai3") / "assets",
                  hosts=["localhost"],
                  nlp=None,
-                 event_geoparse=True,
                  debug=False,
                  trim=None)
     return geo
