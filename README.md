@@ -68,29 +68,69 @@ writeup; `console/DEPLOY.md` stands it up on a fresh server end to end.
 
 ## Installation and Requirements
 
-To install Mordecai3, run
-
 ```bash
 pip install mordecai3
-```
-
-The library has two external dependencies that you'll need to set up.
-
-First, run following command to download the spaCy model used to identify place names and to compute the tensors used in the ranking model.
-
-```bash
 python -m spacy download en_core_web_trf
 ```
 
-Second, Mordecai3 requires a local instance of Elasticsearch with a Geonames index. Instructions for setting up the index are available here: https://github.com/openeventdata/es-geonames
-
-Once built, the index can be started like this:
+Mordecai also needs Elasticsearch with a GeoNames index. The fastest route is
+the prebuilt index (about 2 GB unpacked, GeoNames dump of 2026-09-24):
 
 ```bash
-docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" -v $PWD/geonames_index/:/usr/share/elasticsearch/data elasticsearch:7.10.1
+curl -O https://andrewhalterman.com/files/mordecai3_geonames_index_2026-09-24.tar.gz
+tar -xzf mordecai3_geonames_index_2026-09-24.tar.gz   # -> geonames_index/
+docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" \
+    -v $PWD/geonames_index/:/usr/share/elasticsearch/data elasticsearch:7.10.1
 ```
 
-If you're doing event geoparsing, that step requires other models to be downloaded from https://huggingface.co/. These will be automatically downloaded the first time the program is run (if it's 
+Or build a fresh one from the current GeoNames dump (about 30 minutes; start an
+empty Elasticsearch with the same `docker run` first):
+
+```bash
+mordecai3 index build            # download GeoNames, create and load the index
+mordecai3 index status           # document count and which dump it was built from
+```
+
+Then check that everything is in place:
+
+```bash
+mordecai3 check
+```
+
+`index build` deletes and recreates only the `geonames` index, so it is safe on
+a node that holds other indices. Use `--es-url` (or `MORDECAI_ES_URL`) for a
+node that is not on `localhost:9200`.
+
+## Accuracy and speed
+
+End to end, from raw text, on 260 held-out news documents (LGL, TR-News,
+GeoWebNews): a place counts as correct only if both its span and its GeoNames ID
+are right. Demonyms ("Syrian") are not counted as places.
+
+| configuration | end-to-end exact match |
+|---|---|
+| **default** | **68.8** |
+| `Geoparser(span_detector="gold")` | 79.1 |
+| span head + `model_path=".../mordecai_2026-08-20_e54_seed42.pt"` + `outlet=` | 82.3 |
+
+Given the correct place-name span, the ranker picks the right GeoNames entry
+92.6% of the time, up from 88.1% for the previous model (macro average over six
+held-out corpora, five training seeds).
+
+Speed: `geoparse_batch` handles 60–110 documents/second on one RTX 4090.
+Elasticsearch lookups, not the model, take most of that time.
+
+### What changed in 3.5
+
+- A retrained ranker with 26 new candidate features (prominence, name match,
+  context cues, sibling places, geography, name shape).
+- Abbreviated place names ("Calif.", "N.Y.") are normalized before lookup.
+- Demonyms are no longer returned as places; the `accept_norp` argument is gone.
+- `geoparse_batch()`, batched Elasticsearch queries, and automatic GPU use.
+- Opt-in: a learned place-span detector (`span_detector="gold"`) and an
+  outlet-aware ranker that uses where a story was published
+  (`geoparse_doc(text, outlet="nytimes.com")`).
+- The `mordecai3` command: `index build`, `index status`, `check`.
 
 ## Details and Citation
 
@@ -107,7 +147,7 @@ If you use Mordecai 3, please cite:
 }
 ```
 
-The current version of Mordecai3 includes a retrained model that slightly improves on the results reported in the paper.
+The current version of Mordecai3 includes a retrained model that improves on the results reported in the paper (see "Accuracy and speed" above).
 
 ```
 ┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳
