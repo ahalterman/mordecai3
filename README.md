@@ -57,6 +57,15 @@ results = geo.geoparse_batch(
 )
 ```
 
+## Demos
+
+`mordecai3-app` starts a small Streamlit page for poking at single documents.
+
+`console/` is a fuller one: a single-screen analyst UI showing the document,
+a map, the ranked gazetteer candidates behind each decision, and administrative
+boundary polygons where the resolved place has one. `console/README.md` is the
+writeup; `console/DEPLOY.md` stands it up on a fresh server end to end.
+
 ## Installation and Requirements
 
 To install Mordecai3, run

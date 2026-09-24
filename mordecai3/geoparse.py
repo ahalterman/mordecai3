@@ -474,6 +474,12 @@ def doc_to_ex_expanded(doc, geo_labels=GEO_LABELS, context_labels=CONTEXT_LABELS
             else:
                 locs_tensor = np.zeros(len(tensor))
             d = {"search_name": doc.text[start_char:end_char],
+                 # The detector's own verdict on what kind of span this is.
+                 # Not used by the ranker; carried so a caller can report why
+                 # the mention was picked up at all (GPE/LOC/FAC from spaCy,
+                 # "NESTED" from the gazetteer pass, "SPAN" from the learned
+                 # head).
+                 "label": ent.label_,
                  "tensor": tensor,
                  "doc_tensor": doc_tensor,
                  "locs_tensor": locs_tensor,
@@ -590,6 +596,7 @@ def nested_gazetteer_spans(doc, existing, geonames_service: GeonamesService,
             continue
         tensor = np.mean(np.vstack([t._.tensor for t in span]), axis=0)
         added.append({"search_name": doc.text[lo:hi],
+                      "label": "NESTED",
                       "tensor": tensor,
                       "doc_tensor": doc_tensor,
                       # These mentions sit inside an organisation name, so the
@@ -826,6 +833,10 @@ class Geoparser:
         
         if not model_path:
             model_path = resources.files("mordecai3") / DEFAULT_MODEL_ASSET
+        # Kept so a caller can report which checkpoint is answering. Guessing
+        # it from the assets directory gets the wrong file: the packaged
+        # default is not the alphabetically last mordecai_*.pt there.
+        self.model_path = model_path
         # A checkpoint's config sidecar carries the training flags that the
         # layer shapes do not reveal. Reading it is what lets `Geoparser()`
         # with no arguments load the campaign's model correctly instead of
@@ -925,21 +936,31 @@ class Geoparser:
         return e / max(e.sum(), 1e-300)
 
     @staticmethod
-    def _no_match_result(ent, p_no_match):
+    def _no_match_result(ent, p_no_match, candidates=None):
         """The result for a mention the model declines to place.
 
         Both abstention branches return this, so a caller can tell "no location
         here" from "a location, but a doubtful one" with a single key
         (calibration_report.md §2a: the two branches used to disagree, one
         returning a bare dict and the other dropping the mention entirely).
-        """
-        return {"search_name": ent['search_name'],
-                "start_char": ent['start_char'],
-                "end_char": ent['end_char'],
-                "no_match": True,
-                "p_no_match": p_no_match}
 
-    def _resolve_results(self, es_data, pred_val, debug=False):
+        `candidates` is the ranked list the model rejected, attached only when
+        the caller asked for one with `top_k`. An abstention with its runners-up
+        visible is a far more useful thing to show a human than an empty
+        result: it is the difference between "this is not a place" and "this is
+        a place I cannot choose between".
+        """
+        out = {"search_name": ent['search_name'],
+               "label": ent.get('label'),
+               "start_char": ent['start_char'],
+               "end_char": ent['end_char'],
+               "no_match": True,
+               "p_no_match": p_no_match}
+        if candidates is not None:
+            out["candidates"] = candidates
+        return out
+
+    def _resolve_results(self, es_data, pred_val, debug=False, top_k=None):
         """Select the best geonames candidates based on model predictions.
 
         Parameters
@@ -950,6 +971,13 @@ class Geoparser:
             Model predictions, shape (num_entities, max_choices).
         debug : bool
             If True, return the top 4 candidates per entity instead of just the best.
+        top_k : int or None
+            When set, attach the mention's `top_k` best-scoring candidates to
+            its result under a `candidates` key. This is orthogonal to `debug`:
+            `debug` changes how many *rows* a mention contributes to the output
+            list, while `top_k` leaves the one-row-per-mention shape alone and
+            hangs the runners-up off it. A UI that has to explain why "Gao"
+            beat "Gao Region" wants the latter.
 
         Returns
         -------
@@ -967,7 +995,8 @@ class Geoparser:
             # correct, so return blank
             if pred[-1] == pred.max():
                 logger.debug("Model predicts no answer")
-                best_list.append(self._no_match_result(ent, p_no_match))
+                best_list.append(self._no_match_result(
+                    ent, p_no_match, self._ranked_candidates(ent, probs, top_k)))
                 continue
 
             # The probabilities are a monotone transform of the scores the
@@ -1002,7 +1031,8 @@ class Geoparser:
             scores = np.array([r['score'] for r in results])
             if len(scores) == 0:
                 logger.debug("No scores found.")
-                best_list.append(self._no_match_result(ent, p_no_match))
+                best_list.append(self._no_match_result(ent, p_no_match, 
+                                                       [] if top_k else None))
                 continue
             # The gazetteer "none of the above" row is always the last element
             # of es_choices -- which is inside the scored window only when the
@@ -1018,7 +1048,8 @@ class Geoparser:
                     second_best_idx = np.argsort(scores)[-2]
                     second_best = results[second_best_idx]
                     logger.debug(f"Second best result: {second_best.get('name', 'N/A')} (score: {second_best.get('score', 'N/A')})")
-                best_list.append(self._no_match_result(ent, p_no_match))
+                best_list.append(self._no_match_result(
+                    ent, p_no_match, self._ranked_candidates(ent, probs, top_k)))
                 continue
             results = sorted(results, key=lambda k: -k['score'])
             if not debug:
@@ -1027,16 +1058,46 @@ class Geoparser:
             else:
                 logger.debug("Returning top 4 predicted results for each location")
                 results = results[0:4]
+            # Built before the loop below mutates `results`, and from a copy,
+            # so the runners-up a caller sees are never the same dicts the
+            # chosen result is about to have `search_name`/offsets stamped onto.
+            ranked = self._ranked_candidates(ent, probs, top_k)
             for best in results:
                 best["search_name"] = ent['search_name']
+                best["label"] = ent.get('label')
                 best["start_char"] = ent['start_char']
                 best["end_char"] = ent['end_char']
                 best["no_match"] = False
                 best["p_no_match"] = p_no_match
                 ## Add in city info here
                 best['city_id'], best['city_name'] = self.lookup_city(best)
+                if ranked is not None:
+                    best["candidates"] = ranked
                 best_list.append(best)
         return best_list
+
+    @staticmethod
+    def _ranked_candidates(ent, probs, top_k):
+        """The mention's `top_k` best-scoring candidates, or None if not asked for.
+
+        Scores come from the same temperature-scaled `probs` the choice was made
+        from, so the list a caller displays is the ranking the model actually
+        produced. The gazetteer's own "none of the above" row is dropped: it is
+        an abstention signal, already reported as `p_no_match`, and showing it
+        as a candidate named "NULL" helps nobody.
+        """
+        if not top_k:
+            return None
+        out = []
+        for n in range(candidate_row_count(len(ent['es_choices']), len(probs))):
+            choice = ent['es_choices'][n]
+            if choice.get('geonameid') == 'NULL':
+                continue
+            row = dict(choice)
+            row['score'] = float(probs[n])
+            out.append(row)
+        out.sort(key=lambda c: -c['score'])
+        return out[:top_k]
 
     @staticmethod
     def _trim_results(best_list):
@@ -1047,6 +1108,13 @@ class Geoparser:
         for entry in best_list:
             for key in trim_keys:
                 entry.pop(key, None)
+            # The runners-up carry the same internal keys and are the same
+            # thing to a caller, so trimming has to reach them as well -- a
+            # `trim=True` result with the ranker's private features hanging off
+            # `candidates` would be the worst of both.
+            for cand in entry.get('candidates') or ():
+                for key in trim_keys:
+                    cand.pop(key, None)
 
     def _outlet_homes_for(self, n_docs, outlets):
         """One resolved home (or None) per document, or None if inert.
@@ -1071,7 +1139,8 @@ class Geoparser:
         return [lookup_outlet_home(self.outlet_homes, o) for o in outlets]
 
     def _geoparse_docs(self, docs, max_choices=100, known_country=None,
-                       trim=True, debug=False, es_workers=4, outlets=None):
+                       trim=True, debug=False, es_workers=4, outlets=None,
+                       top_k=None):
         """Core geoparsing pipeline for a list of spaCy docs.
 
         Handles entity extraction, ES lookups (threaded across all documents),
@@ -1091,6 +1160,9 @@ class Geoparser:
             Return the top 4 candidates per entity.
         es_workers : int
             Thread pool size for ES lookups.
+        top_k : int or None
+            Attach each mention's top `top_k` candidates under `candidates`.
+            See `_resolve_results`.
 
         Returns
         -------
@@ -1163,7 +1235,8 @@ class Geoparser:
             pred_val = all_preds[pred_offset:pred_offset + n_ents]
             pred_offset += n_ents
 
-            best_list = self._resolve_results(es_data, pred_val, debug)
+            best_list = self._resolve_results(es_data, pred_val, debug,
+                                              top_k=top_k)
             if (self.trim or trim) and best_list:
                 self._trim_results(best_list)
             output["geolocated_ents"] = best_list
@@ -1177,7 +1250,8 @@ class Geoparser:
                      trim=True,
                      known_country=None,
                      max_choices=100,
-                     outlet=None):
+                     outlet=None,
+                     top_k=None):
         """
         Geoparse a single document.
 
@@ -1205,6 +1279,14 @@ class Geoparser:
             (experiments/campaign2/outlet_integration_report.md). Only used by
             a checkpoint trained with the `outlet` feature block; an unknown or
             absent outlet falls back to the block's null encoding at no cost.
+        top_k : int or None
+            When set, every entry in "geolocated_ents" also carries a
+            "candidates" key: that mention's `top_k` best-scoring gazetteer
+            candidates, each with its own calibrated "score", in rank order.
+            Unlike `debug` this does not change the number of entries -- it is
+            still one per mention -- so it is the key to reach for when
+            something downstream has to show or explain the ranking. Mentions
+            the model declined to place carry the list too.
 
         Returns
         -------
@@ -1237,12 +1319,12 @@ class Geoparser:
 
         return self._geoparse_docs(
             [doc], max_choices=max_choices, known_country=known_country,
-            trim=trim, debug=debug, outlets=[outlet])[0]
+            trim=trim, debug=debug, outlets=[outlet], top_k=top_k)[0]
 
     def geoparse_batch(self, texts, batch_size=32, chunk_size=200,
                        es_workers=4, max_choices=100, known_country=None,
                        trim=True, debug=False, show_progress=False,
-                       outlets=None):
+                       outlets=None, top_k=None):
         """
         Geoparse multiple documents with optimized batching.
 
@@ -1309,7 +1391,7 @@ class Geoparser:
                 chunk_results = self._geoparse_docs(
                     docs, max_choices=max_choices, known_country=known_country,
                     trim=trim, debug=debug, es_workers=es_workers,
-                    outlets=chunk_outlets)
+                    outlets=chunk_outlets, top_k=top_k)
             except Exception as e:
                 logger.error(f"Chunk processing failed: {e}")
                 chunk_results = [
@@ -1459,6 +1541,7 @@ def _null_choice(search_name=None):
               'admin2_code': 'NULL',
               'admin2_name': 'NULL',
               'geonameid': 'NULL',
+              'population': 0,
               'admin1_parent_match': -1,
               'country_code_parent_match': -1,
               'alt_name_length': 0,
@@ -1733,7 +1816,12 @@ def res_formatter(res, search_name, parent=None, extra_features=False):
             "admin1_name": i['admin1_name'],
             "admin2_code": i['admin2_code'],
             "admin2_name": i['admin2_name'],
-            "geonameid": i['geonameid']}
+            "geonameid": i['geonameid'],
+            # Not a model feature in its raw form -- `candidate_features`
+            # derives log_population/is_max_pop from the same ES field -- but
+            # the single most useful number for a human deciding between two
+            # candidates with the same name, so it is kept on the dict.
+            "population": int(i.get('population') or 0)}
         # if we detect a parent country or ADM1, add the parent match features
         if parent: 
             if parent['admin1_name'] == "":

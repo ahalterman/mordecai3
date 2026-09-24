@@ -319,11 +319,18 @@ def test_live_lookup_produces_every_feature(geoparser_all_data):
             for choice in ent["es_choices"]:
                 missing = [k for k in ALL_KEYS if k not in choice]
                 assert not missing, f"{ent['search_name']}: missing {missing}"
-                # The raw ES fields the features are computed from must not be
-                # riding along: alternativenames lists are the reason a
-                # candidate list is expensive to hold.
+                # The bulky raw ES fields the features are computed from must
+                # not be riding along: an alternativenames list per candidate
+                # is the reason a candidate list is expensive to hold, and
+                # every entity copies ~100 of them.
                 assert "alternativenames" not in choice
-                assert "population" not in choice
+                assert "asciiname" not in choice
+                # `population` is the exception, and is kept deliberately: it
+                # is one int rather than a list, it is what a human comparing
+                # two same-named candidates actually wants to see, and
+                # `ALL_FEATURE_KEYS` is a fixed list, so it cannot reach the
+                # model. The features derived from it stay derived.
+                assert isinstance(choice["population"], int)
 
     # ...and the document-level features actually fire. "Syria" is a sibling
     # mention of "Aleppo", so Syrian candidates should be near its anchor.

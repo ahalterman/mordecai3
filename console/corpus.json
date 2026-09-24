@@ -1,0 +1,57 @@
+{
+  "documents": [
+    {
+      "doc_id": "wire",
+      "title": "CONVOY MOVEMENT REPORTED ON RN17 CORRIDOR",
+      "source": "TRANSSAHEL WIRE · fr",
+      "adapter": "wire",
+      "kind": "wire",
+      "meta": "TRANSSAHEL WIRE · REF TSW-4471 · FILED 26 AUG 2026 09:14 UTC · fr-ML · 612 TOK",
+      "region": "SAHEL SECTOR · MALI–NIGER",
+      "text": "BAMAKO — Convoy movement was reported along the RN17 corridor south of Gao on Tuesday, according to three residents reached by telephone in Ansongo and Bourem. A regional official in Mopti, speaking on condition of anonymity, said the column crossed the Niger near Labbezanga before dispersing east toward Ménaka.\n\nAid workers in Niamey confirmed the suspension of overland transport into Tillabéri. Reports circulating on local messaging channels place a second group near Kidal, roughly 40 km north-east of the Tessalit road junction, though the claim could not be independently verified.\n\nA statement issued from Ouagadougou made no reference to the movement.",
+      "themes": [
+        "ops"
+      ]
+    },
+    {
+      "doc_id": "social",
+      "title": "OPEN CHANNEL CHATTER — 4 POSTS",
+      "source": "PUBLIC CHANNELS · noisy",
+      "adapter": "social",
+      "kind": "social",
+      "meta": "PUBLIC SOCIAL COLLECT · 26 AUG 2026 11:04–12:02 UTC · MIXED CASE · NO PUNCT",
+      "region": "SAHEL SECTOR · MALI–NIGER",
+      "text": "@sahel_watch · 11:04\ntrucks on the ansongo road again. maybe twenty. same as last week\n\n@rn17live · 11:22\nbridge at labbezanga shut since morning, nobody crossing\n\n@ndjm_local · 11:31\nppl keep saying gao but it was closer to menaka imo. also heard something abt bourem\n\n@bko_now · 12:02\nnothing out of bamako. all quiet.",
+      "themes": [
+        "ops"
+      ]
+    },
+    {
+      "doc_id": "archive",
+      "title": "SITUATION SUMMARY — HORN OF AFRICA",
+      "source": "ARCHIVE OCR · en",
+      "adapter": "archive",
+      "kind": "archive",
+      "meta": "DECLASSIFIED 2011 · OCR · 14 SEP 1977 · UPPERCASE · NO HISTORICAL GAZETTEER",
+      "region": "HORN OF AFRICA",
+      "text": "CONFIDENTIAL · 14 SEP 1977\nSUBJ: SITUATION SUMMARY — HORN OF AFRICA\n\n1. SOURCE REPORTS RAIL TRAFFIC BETWEEN DIRE DAWA AND DJIBOUTI HALTED SINCE 09 SEP. LINE REPORTED CUT APPROX 60 KM EAST OF AYSHA.\n\n2. FIGHTING CONTINUES IN THE VICINITY OF JIJIGA AND ALONG THE KARA MARDA PASS. UNITS WITHDRAWN WESTWARD TOWARD HARAR.\n\n3. PORT ACTIVITY AT MASSAWA ASSESSED UNCHANGED. FACILITY AT BERBERA REPORTED ACTIVE.\n\n4. COMMENT: ABYSSINIA DESIGNATION PERSISTS IN LOCAL PRESS. TREAT AS ETH THROUGHOUT.",
+      "note": "Historical text against a present-day gazetteer. ABYSSINIA and the 1977 borders are exactly the kind of thing Mordecai has no date-scoped lookup for -- shown rather than hidden.",
+      "themes": [
+        "ops"
+      ]
+    },
+    {
+      "doc_id": "acled",
+      "themes": [
+        "field"
+      ],
+      "title": "Ukraine war situation update | 1 – 7 August 2026",
+      "source": "ACLED · published on ReliefWeb",
+      "adapter": "text",
+      "kind": "wire",
+      "meta": "ACLED, via reliefweb.int/report/ukraine/ukraine-war-situation-update-1-7-august-2026",
+      "region": "",
+      "text": "Ukraine war situation update | 1 – 7 August 2026\n\nRussia intensified strikes on warehouses and storage facilities of civilian enterprises across Ukraine. ACLED records at least 37 Russian strikes in nine regions, which led to at least 30 civilian fatalities. This campaign has focused most heavily on the Kyiv region, where ACLED records over a third of the events. It appears to be a direct, likely temporary, response to Ukrainian strikes against the warehouses of Russia’s largest online retailer since 17 July, which remain ongoing.\nRussian forces are slowly advancing from multiple directions on Kostiantynivka in the Donetsk region, having reached the outskirts of the city in mid-June after a year-long assault. The occupation of Kostiantynivka, one of Donetsk’s three main remaining defense fortresses, is only a matter of time, as Russia continues throwing soldiers and resources into its attempt to capture the city. Its capture will open the path for Russia to attack Druzhkivka and launch an assault on the remainder of Ukraine’s defense belt in Kramatorsk and Sloviansk.\n1 Aug.\n\nKyiv — Russian ballistic missiles hit Kyiv city, killing nine civilians and wounding at least 30\n\n2 Aug.\n\nOmsk, Russia — Ukrainian drones strike a large oil refinery in Omsk, approximately 2,500 kilometers from the Ukraine border\n\n5 Aug.\n\nKyiv — Russian ballistic missiles strike a warehouse near Kvitneve, killing eight civilians"
+    }
+  ]
+}
