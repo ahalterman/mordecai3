@@ -115,7 +115,22 @@ def check(es_url: str = ES_URL):
             meta = ib.provenance(es) or {}
             if meta.get("dump_date"):
                 typer.echo(f"       GeoNames dump of {meta['dump_date']}")
+    typer.echo("\nUsing Mordecai in research? `mordecai3 cite` prints the citation.")
     raise typer.Exit(0 if ok else 1)
+
+
+CITATION = """@article{halterman2023mordecai,
+  title={Mordecai 3: A neural geoparser and event geocoder},
+  author={Halterman, Andrew},
+  journal={arXiv preprint arXiv:2303.13675},
+  year={2023}
+}"""
+
+
+@app.command("cite")
+def cite():
+    """Print the BibTeX citation for Mordecai 3."""
+    typer.echo(CITATION)
 
 
 @app.command("app")

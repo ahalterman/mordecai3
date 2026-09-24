@@ -141,14 +141,14 @@ Elasticsearch lookups, not the model, take most of that time.
 
 More details on the model and its accuracy are available here: https://arxiv.org/abs/2303.13675
 
-If you use Mordecai 3, please cite:
+If you use Mordecai 3, please cite (`mordecai3 cite` prints this):
 
 ```bibtex
 @article{halterman2023mordecai,
-      title={Mordecai 3: A Neural Geoparser and Event Geocoder}, 
-      author={Andrew Halterman},
-      year={2023},
-      journal={arXiv preprint arXiv:2303.13675}
+  title={Mordecai 3: A neural geoparser and event geocoder},
+  author={Halterman, Andrew},
+  journal={arXiv preprint arXiv:2303.13675},
+  year={2023}
 }
 ```
 
