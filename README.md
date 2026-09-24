@@ -103,19 +103,24 @@ node that is not on `localhost:9200`.
 
 ## Accuracy and speed
 
-End to end, from raw text, on 260 held-out news documents (LGL, TR-News,
-GeoWebNews): a place counts as correct only if both its span and its GeoNames ID
-are right. Demonyms ("Syrian") are not counted as places.
+On six held-out evaluation sets (LGL, TR-News, GeoWebNews, the Prodigy news
+annotations, Wikipedia, and synthetic sentences), given the place name, the
+3.5 model picks the correct GeoNames entry more often than the previous one:
 
-| configuration | end-to-end exact match |
-|---|---|
-| **default** | **68.8** |
-| `Geoparser(span_detector="gold")` | 79.1 |
-| span head + `model_path=".../mordecai_2026-08-20_e54_seed42.pt"` + `outlet=` | 82.3 |
+| | exact GeoNames match | within 161 km |
+|---|---|---|
+| 3.4 training recipe | 88.1% | 92.6% |
+| **3.5 model** | **92.6%** | **96.6%** |
 
-Given the correct place-name span, the ranker picks the right GeoNames entry
-92.6% of the time, up from 88.1% for the previous model (macro average over six
-held-out corpora, five training seeds).
+Macro average over the six sets, mean of five training seeds.
+
+**These numbers are conditional on the place name being found correctly.**
+They measure the step that picks a GeoNames entry for a place name, starting
+from the annotated place name. In real use, spaCy's named entity recognizer
+finds place names first, and its misses (nested names like "Aleppo" inside
+"Aleppo University", unusual spellings) are the main source of errors from raw
+text. Better place-name detection is the focus of ongoing work; the opt-in
+`span_detector="gold"` below is an early version of it.
 
 Speed: `geoparse_batch` handles 60–110 documents/second on one RTX 4090.
 Elasticsearch lookups, not the model, take most of that time.
