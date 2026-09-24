@@ -7,10 +7,12 @@ import torch
 #model = geo.model
 
 def evaluate_results(es_data, loader, model):
+    device = next(model.parameters()).device
     pred_val_list = []
     with torch.no_grad():
         model.eval()
         for label, country, input in loader:
+            input = {k: v.to(device, non_blocking=True) for k, v in input.items()}
             if model.country_pred:
                 pred_val, country_pred = model(input)
             else:

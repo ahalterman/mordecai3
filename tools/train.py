@@ -1,7 +1,10 @@
+import glob
+import json
 import os
 import pickle
 import random
 import re
+from collections import Counter
 
 import jsonlines
 
@@ -21,11 +24,11 @@ import typer
 import wandb
 import xmltodict
 from error_utils import make_wandb_dict
-from mordecai3.geoparse import guess_in_rel, add_es_data_doc
+from mordecai3.geoparse import guess_in_rel, add_es_data_batch
 
 from mordecai3.torch_model import geoparse_model
 
-from mordecai3.mordecai_utilities import spacy_doc_setup
+from mordecai3.mordecai_utilities import fast_docbin_io, spacy_doc_setup
 from spacy.tokens import DocBin
 from torch.utils.data import DataLoader
 from mordecai3.torch_model import TrainData, geoparse_model
@@ -41,7 +44,7 @@ logger.setLevel(logging.INFO)
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
 for i in loggers:
-    if re.search("NGEC\.", i.name):
+    if re.search(r"NGEC\.", i.name):
         i.addHandler(handler) 
         i.setLevel(logging.INFO)
         i.propagate = False
@@ -55,6 +58,13 @@ for i in loggers:
 spacy_doc_setup()
 # later, after loading the nlp object, don't forget to run this:
 # nlp.add_pipe("token_tensors")
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
 
 def binary_acc(y_pred, y_test):
     y_pred_tag = torch.argmax(y_pred, axis=1)
@@ -76,6 +86,18 @@ def read_file(fn):
         raise NotImplementedError("Don't know how to handle this filetype")
     return data 
 
+def _as_list(x):
+    """xmltodict collapses a single repeated child into a bare dict.
+
+    An article with exactly one <toponym> therefore came back as a dict, and
+    iterating it yielded its *keys*; every such toponym was lost to the broad
+    `except` below with "string indices must be integers".
+    """
+    if x is None:
+        return []
+    return x if isinstance(x, list) else [x]
+
+
 def split_list(data, frac=0.7):
     split = round(frac*len(data))
     return data[0:split], data[split:]
@@ -88,7 +110,8 @@ def load_es_data(data_dir,
              batch_size,
              test_batch_size,
              train_frac=0.7,
-             data_sources=["Prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"]):
+             data_sources=["Prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"],
+             source_limits=None):
     """
     Load formatted training data with Elasticsearch results
 
@@ -142,12 +165,47 @@ def load_es_data(data_dir,
             with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
                 logger.debug(f"Total wiki results: {len(es_data)}")
+        elif source in ("WikiDocs", "WikiDocsFull"):
+            stem = "wiki_docs" if source == "WikiDocs" else "wiki_docs_full"
+            # Written as one pickle per spaCy shard; concatenating them in
+            # filename order restores the document order they were read in, so
+            # the positional train/test split still splits by article.
+            # Two explicit patterns rather than one `{stem}*` glob: the
+            # sharded names for `wiki_docs` are `wiki_docs.000_...`, and a
+            # trailing wildcard would also swallow every `wiki_docs_full_...`.
+            tail = f'_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl'
+            base = f'{data_dir}/pickled_es/es_formatted_{stem}'
+            files = sorted(glob.glob(f'{base}.[0-9][0-9][0-9]{tail}')) or \
+                sorted(glob.glob(f'{base}{tail}'))
+            if not files:
+                raise FileNotFoundError(f"No pickled {stem} data at {base}*{tail}")
+            es_data = []
+            for fn in files:
+                with open(fn, 'rb') as f:
+                    es_data.extend(pickle.load(f))
+            logger.info(f"Total {stem} results: {len(es_data)} from {len(files)} shard(s)")
             # mean of 'correct' key
             #np.mean([np.mean(i['correct']) for i in es_data])
 
-        es_data = [i for i in es_data if len(i['tensor']) > 1] # This is really weird!! Some sort of bug in the spacy step
+        # Guard against malformed tensors. This used to drop real examples: the
+        # old token_tensors fell back to a scalar/0-d value on some tokens, so
+        # "some sort of bug in the spacy step" was this pipeline's own. It now
+        # drops nothing across all 15,208 entities -- kept as a cheap assertion.
+        es_data = [i for i in es_data if len(i['tensor']) > 1]
         es_data, es_data_val = split_list(es_data, train_frac)
-        logger.debug(f"Training examples from {source}: {len(es_data)}")
+        # Capping happens after the split, so the held-out set for a capped
+        # source is the same one an uncapped run is scored on.
+        limit = (source_limits or {}).get(source)
+        if limit is not None and len(es_data) > limit:
+            logger.info(f"Capping {source} training examples at {limit} "
+                        f"(from {len(es_data)})")
+            # Sampled, not truncated. The examples are in document order, so a
+            # prefix of a wiki corpus is a few hundred articles about a few
+            # events -- which measures the effect of *less* data confounded
+            # with the effect of *narrower* data.
+            es_data = random.Random(4242).sample(es_data, limit)
+        logger.info(f"Training examples from {source}: {len(es_data)}, "
+                    f"held out: {len(es_data_val)}")
         es_train_data.extend(es_data)
         val_datasets.append(es_data_val)
         dataset = TrainData(es_data_val, max_choices=max_results)
@@ -319,29 +377,172 @@ def data_formatter_wiki(docs, data):
         doc_num += 1
     return all_formatted
 
-def data_to_docs(data, source, base_dir, nlp):
+def data_formatter_wiki_docs(docs, data, source="wiki_docs"):
     """
-    search data is involved yet.
+    Format the document-level Wikipedia data written by `prepare_wiki.py`.
+
+    The older `data_formatter_wiki` reads the one-mention-per-row scrape, where
+    each row is its own single-sentence document with exactly one label. This
+    one takes a whole document and every mention linked inside it, which is what
+    the geoparser actually sees at inference: `_add_cross_entity_counts` builds
+    the adm1/country overlap features from the other place names in the same
+    example, and in a one-sentence example there mostly aren't any.
+
+    Entity selection mirrors `doc_to_ex_expanded` so training and inference
+    agree on what counts as a place name:
+
+      * the gold span's own tokens are used, as in `data_formatter`, rather than
+        whichever spaCy entity happens to start inside it. spaCy's boundaries
+        disagree with the wiki links often enough to matter -- "Aleppo" vs
+        "Aleppo Governorate", "Raqqa" vs "Raqqa Governorate" -- and taking
+        spaCy's span there would attach the gold id to a different place.
+      * every remaining GPE/LOC/FAC entity is emitted unlabelled, so it still
+        contributes to the document's overlap features before being discarded.
+      * `locs_tensor` averages GPE/LOC/NORP tokens, which is the context set
+        `doc_to_ex_expanded` uses.
     """
-    # NOTE: doing more than 5000 at a time maxes out RAM. 
-    # To get the full set of Wiki stories, we'll need to batch and
-    # save each batch to disk.
+    all_formatted = []
+    skipped = Counter()
+    for doc, ex in tqdm(zip(docs, data), total=len(docs), leave=False):
+        if doc.text != ex['text']:
+            skipped["document text did not match its record"] += 1
+            all_formatted.append([])
+            continue
+        doc_formatted = []
+        doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
+        context_ents = [ent for ent in doc.ents
+                        if ent.label_ in ['GPE', 'LOC', 'EVENT_LOC', 'NORP']]
+        context_tokens = [i for e in context_ents for i in e]
+
+        def entry(place_tokens, search_name, correct_id):
+            tensor = np.mean(np.vstack([i._.tensor for i in place_tokens]), axis=0)
+            own = {i.i for i in place_tokens}
+            other_locs = [i for i in context_tokens if i.i not in own]
+            if other_locs:
+                locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
+            else:
+                locs_tensor = np.zeros(len(tensor))
+            return {"search_name": search_name,
+                    "tensor": tensor,
+                    "locs_tensor": locs_tensor,
+                    "doc_tensor": doc_tensor,
+                    "in_rel": guess_in_rel(place_tokens),
+                    "correct_geonamesid": correct_id}
+
+        labelled_spans = []
+        for topo in ex['toponyms']:
+            start, end = topo['start'], topo['end']
+            place_tokens = [i for i in doc
+                            if i.idx >= start and i.idx + len(i) <= end]
+            if not place_tokens:
+                skipped["no token fell inside the linked span"] += 1
+                continue
+            # Only entities the geoparser would extract are useful to train on.
+            if not [i for i in place_tokens
+                    if i.ent_type_ in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']]:
+                skipped["linked span is not a place name to spaCy"] += 1
+                continue
+            labelled_spans.append((start, end))
+            if topo['geonamesid']:
+                doc_formatted.append(entry(place_tokens, topo['phrase'],
+                                           topo['geonamesid']))
+            else:
+                # Linked to Wikidata but never resolved to geonames. Useful as
+                # context, useless as a label.
+                skipped["linked mention has no geonames id"] += 1
+                doc_formatted.append(entry(place_tokens, topo['phrase'], None))
+
+        for ent in doc.ents:
+            if ent.label_ not in ['GPE', 'LOC', 'EVENT_LOC', 'FAC']:
+                continue
+            lo = ent[0].idx
+            hi = ent[-1].idx + len(ent[-1])
+            if any(lo < e and s < hi for s, e in labelled_spans):
+                continue
+            doc_formatted.append(entry(list(ent), ent.text, None))
+
+        all_formatted.append(doc_formatted)
+    for reason, count in skipped.most_common():
+        logger.warning(f"{source}: {count} mentions -- {reason}")
+    return all_formatted
+
+
+def shard_paths(base_dir, source):
+    """Every .spacy file for a source, in the order its documents were read.
+
+    A source is either one `source_x.spacy` or a numbered set of
+    `source_x.000.spacy` shards; callers do not need to care which.
+    """
+    single = os.path.join(base_dir, "spacyed", f"source_{source}.spacy")
+    sharded = sorted(glob.glob(os.path.join(base_dir, "spacyed",
+                                            f"source_{source}.[0-9][0-9][0-9].spacy")))
+    if sharded:
+        return sharded
+    return [single] if os.path.exists(single) else []
+
+
+def texts_for(data, source):
+    if source in ["prodigy", "syn_cities", "syn_caps", "wiki", "wiki_docs", "wiki_docs_full"]:
+        return [i['text'] for i in data]
+    return [i['text'] for i in data['articles']['article']]
+
+
+def data_to_docs(data, source, base_dir, nlp, shard_size=0):
+    """
+    Run spaCy over a source and write the docs out for `add_es` to pick up.
+
+    Each doc carries a 768-float tensor per token, so a corpus of any size has
+    to be written in pieces -- the wiki corpus is ~1.2 KB of DocBin per
+    character of text, and a single DocBin for all of it neither fits in RAM
+    here nor in `format_source` when it reads it back. `shard_size` documents
+    are held at a time and flushed to `source_{source}.{n:03d}.spacy`;
+    shard_size=0 keeps the old single-file layout.
+    """
     print("NLPing docs...")
-    doc_bin = DocBin(store_user_data=True)
     print("spaCy batch size: ", nlp.batch_size)
-    if source in ["prodigy", "syn_cities", "syn_caps", "wiki"]:
-        for doc in tqdm(nlp.pipe([i['text'] for i in data], 
-                                 batch_size=100),
-                                   total=len(data)):
-            doc_bin.add(doc)
-    else:
-        for doc in tqdm(nlp.pipe([i['text'] for i in data['articles']['article']]), total=len(data['articles']['article'])):
-            doc_bin.add(doc)
-    fn = f"{base_dir}/spacyed/source_{source}.spacy"
-    print(f"Writing NLPed docs out to {fn}...")
-    with open(fn, "wb") as f:
-        doc_bin.to_disk(fn)
-    print(f"Wrote NLPed docs out to {fn}")
+    texts = texts_for(data, source)
+
+    # Empty and whitespace-only texts crash the tagger on GPU, inside cupy,
+    # before any of our code runs.
+    blank = [n for n, t in enumerate(texts) if not t.strip()]
+    if blank:
+        raise ValueError(f"{source}: {len(blank)} documents are empty or "
+                         f"whitespace-only (first at index {blank[0]}); "
+                         f"spaCy cannot run on them")
+
+    written = []
+
+    def flush(doc_bin, shard):
+        if shard is None:
+            fn = f"{base_dir}/spacyed/source_{source}.spacy"
+        else:
+            fn = f"{base_dir}/spacyed/source_{source}.{shard:03d}.spacy"
+        with fast_docbin_io():
+            doc_bin.to_disk(fn)
+        written.append(fn)
+        print(f"Wrote NLPed docs out to {fn}")
+
+    doc_bin = DocBin(store_user_data=True)
+    shard = 0
+    n_in_bin = 0
+    for doc in tqdm(nlp.pipe(texts, batch_size=100), total=len(texts)):
+        doc_bin.add(doc)
+        n_in_bin += 1
+        if shard_size and n_in_bin >= shard_size:
+            flush(doc_bin, shard)
+            doc_bin = DocBin(store_user_data=True)
+            n_in_bin = 0
+            shard += 1
+    if n_in_bin or not written:
+        flush(doc_bin, shard if shard_size else None)
+
+    # A shard count that shrank between runs would otherwise leave the tail of
+    # the previous run on disk, and `format_source` would read it back as if it
+    # belonged to this one.
+    for stale in shard_paths(base_dir, source):
+        if stale not in written:
+            print(f"Removing stale shard {stale}")
+            os.remove(stale)
 
 
 def data_formatter(docs, data, source):
@@ -366,6 +567,7 @@ def data_formatter(docs, data, source):
     """
     all_formatted = []
     doc_num = 0
+    skipped = Counter()
     if source in ["syn_cities", "syn_caps", "wiki"]:
         articles = data
     else:
@@ -374,7 +576,7 @@ def data_formatter(docs, data, source):
         doc_formatted = []
         doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
         loc_ents = [ent for ent in doc.ents if ent.label_ in ['GPE', 'LOC']]
-        for n, topo in enumerate(ex['toponyms']['toponym']):
+        for n, topo in enumerate(_as_list(ex['toponyms']['toponym'])):
             #print(topo['phrase'])
             if source == "gwn" and 'geonamesID' not in topo.keys():
                 continue
@@ -382,16 +584,16 @@ def data_formatter(docs, data, source):
                 continue
             try:
                 place_tokens = [i for i in doc if i.idx >= int(topo['start']) and i.idx + len(i) <= int(topo['end'])]
-                other_locs = [i for e in loc_ents for i in e if i not in place_tokens]
-                if other_locs:
-                    locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
-                else:
-                    locs_tensor = np.zeros(len(tensor))
                 # remove NORPs?
                 gpes = [i for i in place_tokens if i.ent_type_ in ['GPE', 'LOC']]
                 if not gpes:
                     continue
                 tensor = np.mean(np.vstack([i._.tensor for i in place_tokens]), axis=0)
+                other_locs = [i for e in loc_ents for i in e if i not in place_tokens]
+                if other_locs:
+                    locs_tensor = np.mean(np.vstack([i._.tensor for i in other_locs]), axis=0)
+                else:
+                    locs_tensor = np.zeros(len(tensor))
                 if source == "gwn":
                     correct_geonamesid = topo['geonamesID']
                     search_name = topo['extractedName']
@@ -409,9 +611,12 @@ def data_formatter(docs, data, source):
                                   "in_rel": in_rel,
                                   "correct_geonamesid": correct_geonamesid})
             except Exception as e:
-                print(f"{e}: {doc_num}_{n}")
+                skipped[f"{type(e).__name__}: {e}"] += 1
+                logger.debug(f"{e}: {doc_num}_{n}")
         all_formatted.append(doc_formatted)
         doc_num += 1
+    for reason, count in skipped.most_common():
+        logger.warning(f"{source}: dropped {count} toponyms -- {reason}")
     return all_formatted
 
 #base_dir = "../raw_data/"
@@ -421,50 +626,74 @@ def data_formatter(docs, data, source):
 #fuzzy = 0
 # !!!
 
-def format_source(base_dir, source, conn, max_results, fuzzy, 
-                 limit_types, source_dict, nlp, remove_correct=False):
+def format_source(base_dir, source, geonames, max_results, fuzzy,
+                 limit_types, source_dict, nlp, remove_correct=False,
+                 es_chunk_size=250):
     print(f"limit types: {limit_types}")
-    fn = f"source_{source}.spacy"
-    fn = os.path.join(base_dir, "spacyed", fn)
     print(f"===== {source} =====")
+    shards = shard_paths(base_dir, source)
+    if not shards:
+        raise FileNotFoundError(f"No spaCy output for {source}; run nlp-docs first")
 
-    with open(fn, "rb") as f:
-        doc_bin = DocBin().from_disk(fn)
-    print(f"Converting back to spaCy docs...")
-
-    docs = list(doc_bin.get_docs(nlp.vocab))
     data = read_file(source_dict[source])
-
-    if source == "prodigy":
-        formatted = data_formatter_prodigy(docs, data)
-    elif source == "wiki":
-        formatted = data_formatter_wiki(docs, data)
-    else:
-        formatted = data_formatter(docs, data, source)
-    # formatted is a list of lists. We want the final data to be a flat list.
-    # At the same time, we can exclude examples with missing geonames info 
-    esed_data = []
-    print("Adding Elasticsearch data...")
-    #with multiprocessing.Pool(8) as p:
-    #    esed_data = p.starmap(add_es_data_doc, zip(formatted, repeat(geonames), repeat(max_results), 
-    #                                                       repeat(fuzzy), repeat(limit_types), 
-    #                                                       repeat(remove_correct)))
-    for ff in tqdm(formatted, leave=False):
-        esd = add_es_data_doc(ff, geonames, max_results, fuzzy, limit_types, remove_correct)
-        for e in esd:
-            if e['correct_geonamesid'] != None:
-                esed_data.append(e)
+    records = (data if source in ["prodigy", "syn_cities", "syn_caps", "wiki", "wiki_docs", "wiki_docs_full"]
+               else data['articles']['article'])
 
     if limit_types == True:
         limit_type_str = "pa_only"
     else:
         limit_type_str = "all_loc_types"
-    print(f"Total place names in {source}: {len(esed_data)}")
-    fn = f"es_formatted_{source}_{max_results}_{limit_type_str}_fuzzy_{fuzzy}.pkl"
-    out_file = os.path.join(base_dir, "pickled_es", fn)
-    print(f"Writing to {out_file}...")
-    with open(out_file, 'wb') as f:
-        pickle.dump(esed_data, f)
+
+    total = 0
+    read_so_far = 0
+    for shard_n, fn in enumerate(shards):
+        print(f"Converting {fn} back to spaCy docs...")
+        doc_bin = DocBin().from_disk(fn)
+        docs = list(doc_bin.get_docs(nlp.vocab))
+        # Shards are written in reading order, so a shard's docs line up with
+        # the records that follow the ones already consumed.
+        shard_records = records[read_so_far:read_so_far + len(docs)]
+        read_so_far += len(docs)
+
+        if source == "prodigy":
+            formatted = data_formatter_prodigy(docs, shard_records)
+        elif source in ("wiki_docs", "wiki_docs_full"):
+            formatted = data_formatter_wiki_docs(docs, shard_records, source)
+        elif source == "wiki":
+            formatted = data_formatter_wiki(docs, shard_records)
+        else:
+            formatted = data_formatter(docs, shard_records, source)
+        del docs, doc_bin
+
+        # formatted is a list of lists. We want the final data to be a flat list.
+        # At the same time, we can exclude examples with missing geonames info
+        esed_data = []
+        print("Adding Elasticsearch data...")
+        # Look up a chunk of documents at a time rather than one document at a time.
+        # Each add_es_data_batch call collapses duplicate place names across the
+        # whole chunk and sends what's left as a handful of _msearch requests, so
+        # per-document calls were paying the per-request overhead ~2,000 times over.
+        # Chunking (rather than one call for the corpus) just bounds peak memory
+        # while planning; the candidate cache is per-service and carries across.
+        for start in tqdm(range(0, len(formatted), es_chunk_size), leave=False):
+            chunk = formatted[start:start + es_chunk_size]
+            for esd in add_es_data_batch(chunk, geonames, max_results, fuzzy,
+                                         limit_types, remove_correct):
+                for e in esd:
+                    if e['correct_geonamesid'] != None:
+                        esed_data.append(e)
+
+        suffix = "" if len(shards) == 1 else f".{shard_n:03d}"
+        out_fn = (f"es_formatted_{source}{suffix}_{max_results}"
+                  f"_{limit_type_str}_fuzzy_{fuzzy}.pkl")
+        out_file = os.path.join(base_dir, "pickled_es", out_fn)
+        print(f"Place names in shard: {len(esed_data)}. Writing to {out_file}...")
+        with open(out_file, 'wb') as f:
+            pickle.dump(esed_data, f)
+        total += len(esed_data)
+        del esed_data
+
+    print(f"Total place names in {source}: {total}")
 
 ##################################
 
@@ -472,8 +701,9 @@ app = typer.Typer(add_completion=True)
 
 
 @app.command()
-def nlp_docs(base_dir, 
-            sources = "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki"):
+def nlp_docs(base_dir: str,
+            sources: str = "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki_docs",
+            shard_size: int = 0):
     """
     Run spaCy over a list of training data sources and save the output.
 
@@ -496,7 +726,9 @@ def nlp_docs(base_dir,
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl",
-                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
+                  "wiki": "wiki/wiki_training_data_sents.jsonl",
+                  "wiki_docs": "wiki/wiki_docs.jsonl",
+                  "wiki_docs_full": "wiki/wiki_docs_full.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
 
@@ -507,21 +739,14 @@ def nlp_docs(base_dir,
     for source in sources:
         print(source_dict[source])
         data = read_file(source_dict[source])
-        data_to_docs(data, source, base_dir, nlp)
+        data_to_docs(data, source, base_dir, nlp, shard_size=shard_size)
 
-#@app.command()
-
-base_dir = "/home/andy/projects/mordecai3/raw_data"
-max_results = 500
-fuzzy = 0
-limit_types = False
-sources = "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki"
-
-def add_es(base_dir, 
-          max_results=500,
-          fuzzy=0, 
-          limit_types = False,
-          sources= "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki"):
+@app.command()
+def add_es(base_dir: str,
+          max_results: int = 500,
+          fuzzy: int = 0,
+          limit_types: bool = False,
+          sources: str = "tr, lgl, gwn, prodigy, syn_cities, syn_caps, wiki_docs"):
     """
     Process spaCy outputs to add candidate entity data from Geonames/Elasticsearch.
 
@@ -550,7 +775,9 @@ def add_es(base_dir,
                   "prodigy": "orig_mordecai/loc_rank_db.jsonl",
                   "syn_cities": "synth_raw/synthetic_cities_short.jsonl",
                   "syn_caps": "synth_raw/synth_caps.jsonl",
-                  "wiki": "wiki/wiki_training_data_sents.jsonl"}
+                  "wiki": "wiki/wiki_training_data_sents.jsonl",
+                  "wiki_docs": "wiki/wiki_docs.jsonl",
+                  "wiki_docs_full": "wiki/wiki_docs_full.jsonl"}
     for k, v in source_dict.items():
         source_dict[k] = os.path.join(base_dir, v)
     if type(sources) is str:
@@ -559,7 +786,7 @@ def add_es(base_dir,
         remove_correct = source == "wiki_incorrect"
         format_source(base_dir, 
                       source, 
-                      conn, 
+                      geonames,
                       max_results=max_results, 
                       limit_types=limit_types, 
                       fuzzy=fuzzy,
@@ -569,68 +796,66 @@ def add_es(base_dir,
     print("Complete")
 
 
-#@app.command()
-
-batch_size = 32
-test_batch_size = 64
-epochs = 20
-# fill in the rest of the default values:
-lr = 0.001
-max_choices = 500
-dropout = 0.3
-avg_params = False
-limit_es_results = "all_loc_types"
-country_size = 24
-code_size = 8
-country_pred = False
-mix_dim = 256
-fuzzy = 0
-dataset_names = "Prodigy, TR, LGL, GWN, Synth, Wiki"
-
-
-def train(batch_size=32,
-          test_batch_size=64,
-          epochs=20,
-          lr=0.001,
-          max_choices=500,
-          dropout=0.3,
-          avg_params=False,
-          limit_es_results="all_loc_types",
-          country_size=24,
-          code_size=8,
-          country_pred=False,
-          mix_dim=24,
-          fuzzy=0,
-          dataset_names="Prodigy, TR, LGL, GWN, Synth, Wiki"
+@app.command()
+def train(data_dir: str = "raw_data",
+          batch_size: int = 32,
+          test_batch_size: int = 64,
+          epochs: int = 20,
+          lr: float = 0.001,
+          max_choices: int = 500,
+          dropout: float = 0.3,
+          avg_params: bool = False,
+          limit_es_results: str = "all_loc_types",
+          country_size: int = 24,
+          code_size: int = 8,
+          country_pred: bool = False,
+          mix_dim: int = 24,
+          fuzzy: int = 0,
+          dataset_names: str = "Prodigy, TR, LGL, GWN, Synth, WikiDocs",
+          device: str = "",
+          seed: int = 42,
+          source_limits: str = "",
+          metrics_out: str = "",
+          run_name: str = ""
 ):
     """
     Train the pytorch model from formatted training data.
     """
-    wandb.init(project="mordecai3", entity="ahalt", allow_val_change=True)
+    # The 'seed' in the config was never applied to anything, so two runs with
+    # identical data and hyperparameters differed by more than most of the
+    # effects we want to measure. Seed everything that moves.
+    set_seed(seed)
+    wandb.init(project="mordecai3", entity="ahalt", allow_val_change=True,
+               name=run_name if run_name else None)
 
     dataset_names_list = [str(name).strip() for name in str(dataset_names).split(",")]
+    limits = {}
+    for pair in str(source_limits).split(","):
+        if pair.strip():
+            name, _, count = pair.partition("=")
+            limits[name.strip()] = int(count)
     config = wandb.config          # Initialize config
     config.update({
         'batch_size': batch_size,
         'test_batch_size': test_batch_size,
         'epochs': epochs,
         'lr': lr,
-        'seed': 42,
+        'seed': seed,
         'log_interval': 10,
         'max_choices': max_choices,
         'dropout': dropout,
-        'avg_params': str(avg_params).lower() == "true",
+        'avg_params': avg_params,
         'limit_es_results': limit_es_results,
         'country_size': country_size,
         'code_size': code_size,
-        'country_pred': str(country_pred).lower() == "true",
+        'country_pred': country_pred,
         'mix_dim': mix_dim,
         'dataset_names': dataset_names_list,
+        'source_limits': limits,
         'fuzzy': fuzzy
     },
     allow_val_change=True)
 
-    data_dir = "/home/andy/projects/mordecai3/raw_data"
     print(config.__dict__)
 
     train_loader, es_train_data, data_loaders, datasets = load_es_data(data_dir, 
@@ -639,17 +864,20 @@ def train(batch_size=32,
                                                   config.fuzzy,
                                                   config.batch_size,
                                                   config.test_batch_size,
-                                                  data_sources=dataset_names_list) 
+                                                  data_sources=dataset_names_list,
+                                                  source_limits=limits) 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
-    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device = "cpu"
+    device = torch.device(device if device else
+                          ("cuda:0" if torch.cuda.is_available() else "cpu"))
+    logger.info(f"Training on {device}")
     model = geoparse_model(device = device,
                               bert_size = es_train_data[0]['tensor'].shape[0],
                               num_feature_codes=53+1,
                               dropout = config.dropout,
                               country_size=config.country_size,
-                              code_size=config.code_size, 
+                              code_size=config.code_size,
+                              mix_dim=config.mix_dim,
                               country_pred=config.country_pred)
     model.to(device)
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
@@ -669,18 +897,17 @@ def train(batch_size=32,
     wandb.watch(model, log='all')
 
     model.train()
+    history = []
     for epoch in range(1, config.epochs+1):
         epoch_loss = 0
         epoch_acc = 0
 
         for label, country, input in train_loader:
-            label = label.type(torch.LongTensor) #.to(device)
-            # input is a dict. It should be moved to device
-            #for k, v in input.items():
-            #    input[k] = v.to(device)
+            label = label.type(torch.LongTensor).to(device)
+            country = country.type(torch.LongTensor).to(device)
+            input = {k: v.to(device, non_blocking=True) for k, v in input.items()}
             optimizer.zero_grad()
             if config.country_pred:
-                label = label.type(torch.LongTensor)
                 label_pred, country_pred = model(input)
                 #label_pred = label_pred.type(torch.LongTensor)
                 #country_pred = label_pred.type(torch.LongTensor)
@@ -688,7 +915,6 @@ def train(batch_size=32,
                 loss_country = loss_func(country_pred, country)
                 loss = 0.8*loss_1 + 0.2*loss_country
             else:
-                label = label.type(torch.LongTensor)
                 label_pred = model(input)
                 #label_pred = label_pred.type(torch.LongTensor)
                 loss = loss_func(label_pred, label)
@@ -714,9 +940,31 @@ def train(batch_size=32,
 
         wandb_dict = make_wandb_dict(config.dataset_names, datasets, data_loaders, model)
         wandb_dict['loss'] = epoch_loss/len(train_loader)
+        history.append({k: float(v) for k, v in wandb_dict.items()})
 
         print(f"Epoch {epoch+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Exact Match: {wandb_dict['exact_match_avg']:.3f} | Country Match: {wandb_dict['country_avg']:.3f}")  # | Prodigy Acc: {epoch_acc_prod/len(prod_loader):.3f} | TR Acc: {epoch_acc_tr/len(tr_loader):.3f} | LGL Acc: {epoch_acc_lgl/len(lgl_loader):.3f} | GWN Acc: {epoch_acc_gwn/len(gwn_loader):.3f} | Syn Acc: {epoch_acc_syn/len(syn_loader):.3f}')
         wandb.log(wandb_dict)
+
+    if metrics_out:
+        final = {k: (float(v) if isinstance(v, (int, float, np.floating)) else v)
+                 for k, v in wandb_dict.items()}
+        # A single final-epoch number moves by ~0.01 between seeds; the mean of
+        # the last five epochs is what these runs are actually compared on.
+        tail = history[-5:]
+        final['_last5'] = {k: sum(h[k] for h in tail)/len(tail) for k in tail[0]}
+        final['_history'] = history
+        final['_config'] = {'seed': seed, 'epochs': config.epochs,
+                            'mix_dim': config.mix_dim, 'lr': config.lr,
+                            'dropout': config.dropout,
+                            'max_choices': config.max_choices,
+                            'dataset_names': list(config.dataset_names),
+                            'source_limits': dict(config.source_limits),
+                            'n_train': len(es_train_data),
+                            'n_val': {n: len(d) for n, d in
+                                      zip(config.dataset_names, datasets)}}
+        with open(metrics_out, 'w') as f:
+            json.dump(final, f, indent=2)
+        logger.info(f"Wrote metrics to {metrics_out}")
 
     today = datetime.datetime.today().strftime('%Y-%m-%d')
     logger.info(f"Saving model to mordecai_{today}.pt")
@@ -726,5 +974,4 @@ def train(batch_size=32,
 
 
 if __name__ == "__main__":
-    train(mix_dim = 512, epochs=30)
     app()
