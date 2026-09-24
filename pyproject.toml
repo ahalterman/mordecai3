@@ -50,6 +50,7 @@ console = [
 gpu = ["cupy-cuda12x>=13,<14"]
 
 [project.scripts]
+mordecai3 = "mordecai3.cli:main"
 mordecai3-app = "mordecai3:run_streamlit_app"
 
 [project.urls]
@@ -69,6 +70,7 @@ mordecai3 = [
     "assets/country_bert_768.npy",
     "assets/countryInfo.txt",
     "assets/feature_code_dict.json",
+    "assets/geonames_mapping.json",
     "assets/hierarchy.txt",
     "assets/mordecai_2025-08-27.pt",
     "assets/mordecai_2026-08-20_seed101.pt",

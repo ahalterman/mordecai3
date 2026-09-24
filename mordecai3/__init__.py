@@ -2,7 +2,12 @@
 from .geoparse import Geoparser
 from .exceptions import SpacyModelError, ElasticsearchConnectionError, GeonamesIndexError
 
-__version__ = "3.0.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("mordecai3")
+except PackageNotFoundError:  # running from a checkout without installing
+    __version__ = "unknown"
 
 
 
