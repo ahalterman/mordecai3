@@ -19,6 +19,7 @@ import numpy as np
 import spacy
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import typer
 import wandb
@@ -31,7 +32,8 @@ from mordecai3.torch_model import geoparse_model
 from mordecai3.mordecai_utilities import fast_docbin_io, spacy_doc_setup
 from spacy.tokens import DocBin
 from torch.utils.data import DataLoader
-from mordecai3.torch_model import TrainData, geoparse_model
+from mordecai3.torch_model import (ALL_FEATURE_KEYS, FEATURE_BLOCKS, TrainData,
+                                   expand_feature_blocks, geoparse_model)
 from tqdm import tqdm
 
 logger = logging.getLogger()
@@ -64,6 +66,23 @@ def set_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+
+def masked_smoothed_ce(pred, label, mask, eps):
+    """Cross entropy with the smoothing mass spread over live candidates only.
+
+    `nn.CrossEntropyLoss(label_smoothing=eps)` puts eps/K on every one of the K
+    classes. With --mask-padding the padded classes sit at -1e9, so each of them
+    contributes about eps/K * 1e9 to the loss: the objective blows up to ~1e7,
+    the gradient chases the padding, and accuracy collapses (measured: 0.71-0.78
+    exact match). The smoothing is meant to spread doubt over the *candidates*,
+    so it is spread over the rows the mask says are real.
+    """
+    logp = F.log_softmax(pred, dim=1)
+    nll = -logp.gather(1, label.unsqueeze(1)).squeeze(1)
+    # mask is 0.0 on padded rows, so their -1e9 log-prob drops out here.
+    smooth = -(logp * mask).sum(1) / mask.sum(1)
+    return ((1 - eps) * nll + eps * smooth).mean()
 
 
 def binary_acc(y_pred, y_test):
@@ -103,6 +122,41 @@ def split_list(data, frac=0.7):
     return data[0:split], data[split:]
 
 
+# Everything the training path ever reads off a candidate dict: the model
+# features (torch_model.ProductionData), the enrichment features, and the keys
+# error_utils.evaluate_results scores with. The enriched pickles carry ~50 keys
+# per candidate, including long name strings, and a run holds ~29,000 entities x
+# 500 candidates of them: keeping only these takes peak RSS from ~40 GB to
+# something that fits five runs on one box.
+# What still has to be a dict on each candidate after compaction: the fields
+# the model looks up by name and the ones error_utils.evaluate_results reports.
+CANDIDATE_KEYS_KEPT = ("feature_code", "feature_class", "country_code3",
+                       "admin1_code", "lat", "lon", "geonameid")
+
+
+def compact_candidates(es_data):
+    """Collapse each entity's candidate features into one float32 matrix.
+
+    An enriched candidate is a ~50-key dict, and a run holds ~14 million of
+    them: the dict headers alone are ~25 GB, which is what kept these runs to
+    one at a time. The numeric features become `ex['feat_matrix']`, a
+    (candidates, len(ALL_FEATURE_KEYS)) float32 array in a fixed column order,
+    and the dicts keep only the keys that are still looked up by name.
+    ProductionData._gaz_from_matrix reads the matrix and produces exactly the
+    array the dict path produced.
+    """
+    n_feat = len(ALL_FEATURE_KEYS)
+    for ex in es_data:
+        choices = ex['es_choices']
+        fm = np.empty((len(choices), n_feat), dtype=np.float32)
+        for n, c in enumerate(choices):
+            fm[n] = [c[k] for k in ALL_FEATURE_KEYS]
+        ex['feat_matrix'] = fm
+        ex['es_choices'] = [{k: c[k] for k in CANDIDATE_KEYS_KEPT if k in c}
+                            for c in choices]
+    return es_data
+
+
 def load_es_data(data_dir, 
              max_results, 
              limit_types, 
@@ -111,7 +165,12 @@ def load_es_data(data_dir,
              test_batch_size,
              train_frac=0.7,
              data_sources=["Prodigy", "TR", "LGL", "GWN", "Synth", "Wiki"],
-             source_limits=None):
+             source_limits=None,
+             oov_bucket_fix=False,
+             enriched=False,
+             feature_blocks=None,
+             full_null_row=False,
+             pickle_suffix=""):
     """
     Load formatted training data with Elasticsearch results
 
@@ -126,12 +185,31 @@ def load_es_data(data_dir,
       and administrative units (that is, excluding geographic features)
     fuzzy: int
       Fuzzy ES search? 0=none, 1=some, etc
+    pickle_suffix: str
+      Variant of the enriched pickles to train on, appended after `_enriched`.
+      "" (the default) is the frozen enrichment; "_r2" is the A/P label rewrite
+      written by tools/rewrite_labels.py. Only the labels differ.
 
     Returns
     -------
     list
       a list of formatted, shuffled training data
     """
+    # The `_enriched` pickles hold the same entities, candidates and labels as
+    # the originals, with 30 extra keys per candidate (tools/enrich_pickles.py).
+    # `pickle_suffix` selects a label variant of those same pickles (see
+    # tools/rewrite_labels.py); "" keeps the frozen enrichment.
+    sfx = f"_enriched{pickle_suffix}" if enriched else ""
+    if enriched and os.path.isdir(f'{data_dir}/pickled_es'):
+        # A compacted cache (see the `compact-cache` command) holds the same
+        # entities with their candidate features already in one float32 matrix.
+        # It is what makes several runs fit on the box at once. The cache key
+        # includes the suffix, so a label variant never reads the base cache.
+        probe = (f'{data_dir}/pickled_es/es_formatted_tr_{max_results}_{limit_types}'
+                 f'_fuzzy_{fuzzy}_enriched{pickle_suffix}_compact.pkl')
+        if os.path.exists(probe):
+            sfx = f"_enriched{pickle_suffix}_compact"
+            logger.info(f"Using the compacted enriched pickles ({sfx})")
     es_train_data = [] 
     data_loaders = []
     val_datasets = []
@@ -139,22 +217,22 @@ def load_es_data(data_dir,
     for source in data_sources:
         logger.info(f"Loading data for {source}")
         if source == 'Prodigy':
-            with open(f'{data_dir}/pickled_es/es_formatted_prodigy_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_prodigy_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
         elif source == "TR":
-            with open(f'{data_dir}/pickled_es/es_formatted_tr_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_tr_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
         elif source == "LGL":
-            with open(f'{data_dir}/pickled_es/es_formatted_lgl_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_lgl_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
         elif source == "GWN":
-            with open(f'{data_dir}/pickled_es/es_formatted_gwn_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_gwn_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
         elif source == "Synth":
             # this one's a little different bc there are two files
-            with open(f'{data_dir}/pickled_es/es_formatted_syn_cities_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_syn_cities_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data_syn1 = pickle.load(f)
-            with open(f'{data_dir}/pickled_es/es_formatted_syn_caps_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_syn_caps_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data_syn_caps= pickle.load(f)
             random.seed(617)
             random.shuffle(es_data_syn1)
@@ -162,7 +240,7 @@ def load_es_data(data_dir,
             # combine both syn datasets and split
             es_data = es_data_syn1[0:500] + es_data_syn_caps[0:500]
         elif source == "Wiki":
-            with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl', 'rb') as f:
+            with open(f'{data_dir}/pickled_es/es_formatted_wiki_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl', 'rb') as f:
                 es_data = pickle.load(f)
                 logger.debug(f"Total wiki results: {len(es_data)}")
         elif source in ("WikiDocs", "WikiDocsFull"):
@@ -173,7 +251,7 @@ def load_es_data(data_dir,
             # Two explicit patterns rather than one `{stem}*` glob: the
             # sharded names for `wiki_docs` are `wiki_docs.000_...`, and a
             # trailing wildcard would also swallow every `wiki_docs_full_...`.
-            tail = f'_{max_results}_{limit_types}_fuzzy_{fuzzy}.pkl'
+            tail = f'_{max_results}_{limit_types}_fuzzy_{fuzzy}{sfx}.pkl'
             base = f'{data_dir}/pickled_es/es_formatted_{stem}'
             files = sorted(glob.glob(f'{base}.[0-9][0-9][0-9]{tail}')) or \
                 sorted(glob.glob(f'{base}{tail}'))
@@ -192,6 +270,8 @@ def load_es_data(data_dir,
         # "some sort of bug in the spacy step" was this pipeline's own. It now
         # drops nothing across all 15,208 entities -- kept as a cheap assertion.
         es_data = [i for i in es_data if len(i['tensor']) > 1]
+        if 'feat_matrix' not in es_data[0]:
+            es_data = compact_candidates(es_data)
         es_data, es_data_val = split_list(es_data, train_frac)
         # Capping happens after the split, so the held-out set for a capped
         # source is the same one an uncapped run is scored on.
@@ -208,15 +288,27 @@ def load_es_data(data_dir,
                     f"held out: {len(es_data_val)}")
         es_train_data.extend(es_data)
         val_datasets.append(es_data_val)
-        dataset = TrainData(es_data_val, max_choices=max_results)
+        dataset = TrainData(es_data_val, max_choices=max_results,
+                            oov_bucket_fix=oov_bucket_fix,
+                            feature_blocks=feature_blocks,
+                            full_null_row=full_null_row)
         loader = DataLoader(dataset=dataset, batch_size=test_batch_size, shuffle=False)
         data_loaders.append(loader)
 
     # now make one loader for all training data
     random.seed(617)
     random.shuffle(es_train_data)
-    train_data = TrainData(es_train_data, max_choices=max_results)
+    train_data = TrainData(es_train_data, max_choices=max_results,
+                           oov_bucket_fix=oov_bucket_fix,
+                           feature_blocks=feature_blocks,
+                           full_null_row=full_null_row)
     train_loader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True)
+    # The training candidates have been turned into tensors and are never read
+    # again -- only `len()` and the tensor width of the first entity are. The
+    # held-out sets keep theirs, because evaluate_results scores through them.
+    # This is the single biggest live allocation in a run (~11M dicts).
+    for ex in es_train_data:
+        ex['es_choices'] = []
 
     #debugging
     #[len(i['tensor']) for i in es_train_data]
@@ -797,6 +889,43 @@ def add_es(base_dir: str,
 
 
 @app.command()
+def compact_cache(data_dir: str = "raw_data",
+                  max_results: int = 500,
+                  fuzzy: int = 0,
+                  limit_types: str = "all_loc_types",
+                  pickle_suffix: str = ""):
+    """
+    Write `_enriched{suffix}_compact` copies of the enriched pickles.
+
+    Same entities, same labels, same feature values -- the per-candidate numeric
+    features move into one float32 matrix per entity (`feat_matrix`) and the
+    candidate dicts keep only the seven keys that are still looked up by name.
+    Training auto-detects these and uses them; a run then peaks at ~6 GB instead
+    of ~22 GB, which is the difference between one run at a time and five.
+    """
+    import glob as _glob
+    # The pattern is anchored on the full suffix, so `--pickle-suffix ""` does
+    # not also pick up `_enriched_r2.pkl` and vice versa.
+    tail = f'_enriched{pickle_suffix}.pkl'
+    pat = (f'{data_dir}/pickled_es/es_formatted_*_{max_results}_{limit_types}'
+           f'_fuzzy_{fuzzy}{tail}')
+    for fn in sorted(_glob.glob(pat)):
+        out = fn[:-len(tail)] + f'_enriched{pickle_suffix}_compact.pkl'
+        if os.path.exists(out):
+            print(f"exists, skipping: {out}")
+            continue
+        with open(fn, 'rb') as f:
+            data = pickle.load(f)
+        compact_candidates(data)
+        with open(out, 'wb') as f:
+            pickle.dump(data, f, protocol=4)
+        print(f"{os.path.basename(fn)} -> {os.path.basename(out)} "
+              f"({len(data)} entities, {os.path.getsize(out)/1e9:.2f} GB)")
+        del data
+    print("Complete")
+
+
+@app.command()
 def train(data_dir: str = "raw_data",
           batch_size: int = 32,
           test_batch_size: int = 64,
@@ -816,7 +945,29 @@ def train(data_dir: str = "raw_data",
           seed: int = 42,
           source_limits: str = "",
           metrics_out: str = "",
-          run_name: str = ""
+          run_name: str = "",
+          logits: bool = False,
+          mask_padding: bool = False,
+          oov_bucket_fix: bool = False,
+          modern_mlp: bool = False,
+          label_smoothing: float = 0.0,
+          weight_decay: float = 0.0,
+          enriched: bool = False,
+          feature_blocks: str = "",
+          pickle_suffix: str = "",
+          mix_depth: int = 2,
+          residual: bool = False,
+          listwise: bool = False,
+          listwise_heads: int = 4,
+          aux_country_weight: float = 0.0,
+          aux_class_weight: float = 0.0,
+          full_null_row: bool = False,
+          avg_mode: str = "swa",
+          avg_start: int = 0,
+          ema_decay: float = 0.9,
+          train_after_eval: bool = False,
+          lr_schedule: bool = False,
+          checkpoint_out: str = ""
 ):
     """
     Train the pytorch model from formatted training data.
@@ -834,6 +985,13 @@ def train(data_dir: str = "raw_data",
         if pair.strip():
             name, _, count = pair.partition("=")
             limits[name.strip()] = int(count)
+    blocks = [b.strip() for b in str(feature_blocks).split(",") if b.strip()]
+    if blocks and not enriched:
+        raise typer.BadParameter("--feature-blocks needs --enriched: the extra "
+                                 "features only exist in the enriched pickles")
+    if pickle_suffix and not enriched:
+        raise typer.BadParameter("--pickle-suffix needs --enriched: it selects a "
+                                 "label variant of the enriched pickles")
     config = wandb.config          # Initialize config
     config.update({
         'batch_size': batch_size,
@@ -852,7 +1010,28 @@ def train(data_dir: str = "raw_data",
         'mix_dim': mix_dim,
         'dataset_names': dataset_names_list,
         'source_limits': limits,
-        'fuzzy': fuzzy
+        'fuzzy': fuzzy,
+        'logits': logits,
+        'mask_padding': mask_padding,
+        'oov_bucket_fix': oov_bucket_fix,
+        'modern_mlp': modern_mlp,
+        'label_smoothing': label_smoothing,
+        'weight_decay': weight_decay,
+        'enriched': enriched,
+        'feature_blocks': blocks,
+        'pickle_suffix': pickle_suffix,
+        'mix_depth': mix_depth,
+        'residual': residual,
+        'listwise': listwise,
+        'listwise_heads': listwise_heads,
+        'aux_country_weight': aux_country_weight,
+        'aux_class_weight': aux_class_weight,
+        'full_null_row': full_null_row,
+        'avg_mode': avg_mode,
+        'avg_start': avg_start,
+        'ema_decay': ema_decay,
+        'train_after_eval': train_after_eval,
+        'lr_schedule': lr_schedule
     },
     allow_val_change=True)
 
@@ -865,7 +1044,12 @@ def train(data_dir: str = "raw_data",
                                                   config.batch_size,
                                                   config.test_batch_size,
                                                   data_sources=dataset_names_list,
-                                                  source_limits=limits) 
+                                                  source_limits=limits,
+                                                  oov_bucket_fix=config.oov_bucket_fix,
+                                                  enriched=config.enriched,
+                                                  feature_blocks=blocks,
+                                                  pickle_suffix=config.pickle_suffix,
+                                                  full_null_row=config.full_null_row) 
     logger.info(f"Total training examples: {len(es_train_data)}")
 
     device = torch.device(device if device else
@@ -878,21 +1062,83 @@ def train(data_dir: str = "raw_data",
                               country_size=config.country_size,
                               code_size=config.code_size,
                               mix_dim=config.mix_dim,
-                              country_pred=config.country_pred)
+                              country_pred=config.country_pred,
+                              n_extra_features=len(expand_feature_blocks(blocks)),
+                              mix_depth=config.mix_depth,
+                              residual=config.residual,
+                              listwise=config.listwise,
+                              listwise_heads=config.listwise_heads,
+                              aux_country=config.aux_country_weight > 0,
+                              aux_class=config.aux_class_weight > 0,
+                              return_logits=config.logits,
+                              mask_padding=config.mask_padding,
+                              modern_mlp=config.modern_mlp)
     model.to(device)
     # Future work: Can add  an "ignore_index" argument so that some inputs don't have losses calculated
-    loss_func=nn.CrossEntropyLoss() # single label, multi-class
-    optimizer = optim.Adam(model.parameters(), lr=config.lr)
-    if config.avg_params:
-        from torch.optim.lr_scheduler import CosineAnnealingLR
-        from torch.optim.swa_utils import SWALR, AveragedModel
+    # label_smoothing only means anything when the model returns logits: on a
+    # softmaxed output CrossEntropyLoss is already smoothing by accident.
+    loss_func=nn.CrossEntropyLoss(label_smoothing=config.label_smoothing) # single label, multi-class
+    aux_w = config.aux_country_weight + config.aux_class_weight
+    if aux_w >= 1:
+        raise typer.BadParameter("auxiliary weights must leave room for the "
+                                 "main loss (they sum to >= 1)")
+    use_aux = aux_w > 0
+    aux_loss_func = nn.CrossEntropyLoss()
 
-        swa_model = AveragedModel(model)
-        scheduler = CosineAnnealingLR(optimizer, T_max=config.epochs+1)
-        swa_start = 5
-        swa_scheduler = SWALR(optimizer, swa_lr=0.05)
+    smooth_over_live = config.label_smoothing > 0 and config.mask_padding
+
+    def label_loss(pred, label, input):
+        if smooth_over_live:
+            return masked_smoothed_ce(pred, label, input['mask'],
+                                      config.label_smoothing)
+        return loss_func(pred, label)
+
+    if config.weight_decay > 0:
+        # AdamW, not Adam(weight_decay=): the latter folds L2 into the moment
+        # estimates, which is not the decay we're asking for.
+        optimizer = optim.AdamW(model.parameters(), lr=config.lr,
+                                weight_decay=config.weight_decay)
     else:
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs+1)
+        optimizer = optim.Adam(model.parameters(), lr=config.lr)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.epochs+1)
+
+    # Weight averaging, rewritten. What was here before had three faults: the
+    # averaged copy was never evaluated and never saved (every reported number
+    # came from the raw model), SWALR pinned the learning rate at 0.05 -- fifty
+    # times the base rate -- for every epoch after the fifth, and the cosine
+    # scheduler it fought with was only stepped when averaging was on. There is
+    # no BatchNorm anywhere in the model, so update_bn is genuinely unnecessary.
+    #
+    # `swa`: equal-weight average of the epoch-end weights from avg_start on,
+    # keeping the ordinary schedule (no SWALR: this recipe's accuracy is tuned
+    # around a constant 1e-3, and a 0.05 phase destroys it).
+    # `ema`: exponential moving average with `ema_decay` per epoch.
+    avg_state = None
+    n_avg = 0
+    avg_start = config.avg_start or (config.epochs // 2 + 1)
+    if config.avg_params and config.avg_mode not in ("swa", "ema"):
+        raise typer.BadParameter("--avg-mode must be 'swa' or 'ema'")
+
+    def update_average():
+        nonlocal avg_state, n_avg
+        n_avg += 1
+        sd = model.state_dict()
+        if avg_state is None:
+            avg_state = {k: v.detach().clone().float() for k, v in sd.items()}
+            return
+        for k, v in sd.items():
+            v = v.detach().float()
+            if config.avg_mode == "ema":
+                avg_state[k].mul_(config.ema_decay).add_(v, alpha=1 - config.ema_decay)
+            else:
+                avg_state[k].add_((v - avg_state[k]) / n_avg)
+
+    def load_average():
+        """Swap the averaged weights in; returns the raw weights to restore."""
+        backup = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        model.load_state_dict({k: avg_state[k].to(v.dtype)
+                               for k, v in backup.items()})
+        return backup
 
     wandb.watch(model, log='all')
 
@@ -911,13 +1157,23 @@ def train(data_dir: str = "raw_data",
                 label_pred, country_pred = model(input)
                 #label_pred = label_pred.type(torch.LongTensor)
                 #country_pred = label_pred.type(torch.LongTensor)
-                loss_1 = loss_func(label_pred, label)
+                loss_1 = label_loss(label_pred, label, input)
                 loss_country = loss_func(country_pred, country)
                 loss = 0.8*loss_1 + 0.2*loss_country
+            elif use_aux:
+                label_pred, aux = model(input, return_aux=True)
+                loss = (1 - aux_w) * label_loss(label_pred, label, input)
+                if 'country' in aux:
+                    loss = loss + config.aux_country_weight * aux_loss_func(
+                        aux['country'], country)
+                if 'fclass' in aux:
+                    loss = loss + config.aux_class_weight * aux_loss_func(
+                        aux['fclass'], input['class_label'].type(torch.LongTensor).to(device))
+                loss = loss.squeeze() if loss.dim() else loss
             else:
                 label_pred = model(input)
                 #label_pred = label_pred.type(torch.LongTensor)
-                loss = loss_func(label_pred, label)
+                loss = label_loss(label_pred, label, input)
 
             #logger.debug(country_pred[1])
             #loss_country = loss_func(country_pred, country)
@@ -931,14 +1187,27 @@ def train(data_dir: str = "raw_data",
             epoch_loss += loss.item()
             epoch_acc += acc.item()
 
-        if config.avg_params:
-            if epoch > swa_start:
-                swa_model.update_parameters(model)
-                swa_scheduler.step()
-            else:
-                scheduler.step()
+        if config.lr_schedule:
+            # Never stepped before: the only call site sat inside the
+            # avg_params branch, so every run in this campaign trained at a
+            # flat 1e-3 despite constructing a cosine schedule.
+            scheduler.step()
 
-        wandb_dict = make_wandb_dict(config.dataset_names, datasets, data_loaders, model)
+        if config.avg_params and epoch >= avg_start:
+            update_average()
+
+        if avg_state is not None:
+            # Report the weights we would ship, not the raw ones.
+            backup = load_average()
+            wandb_dict = make_wandb_dict(config.dataset_names, datasets,
+                                         data_loaders, model)
+            model.load_state_dict(backup)
+        else:
+            wandb_dict = make_wandb_dict(config.dataset_names, datasets, data_loaders, model)
+        if config.train_after_eval:
+            # evaluate_results leaves the model in eval mode and nothing put it
+            # back, so dropout has been inert from epoch 2 onward in every run.
+            model.train()
         wandb_dict['loss'] = epoch_loss/len(train_loader)
         history.append({k: float(v) for k, v in wandb_dict.items()})
 
@@ -957,6 +1226,31 @@ def train(data_dir: str = "raw_data",
                             'mix_dim': config.mix_dim, 'lr': config.lr,
                             'dropout': config.dropout,
                             'max_choices': config.max_choices,
+                            'logits': config.logits,
+                            'mask_padding': config.mask_padding,
+                            'oov_bucket_fix': config.oov_bucket_fix,
+                            'modern_mlp': config.modern_mlp,
+                            'label_smoothing': config.label_smoothing,
+                            'weight_decay': config.weight_decay,
+                            'enriched': config.enriched,
+                            'pickle_suffix': config.pickle_suffix,
+                            'feature_blocks': list(config.feature_blocks),
+                            'n_extra_features': len(expand_feature_blocks(blocks)),
+                            'mix_depth': config.mix_depth,
+                            'residual': config.residual,
+                            'listwise': config.listwise,
+                            'listwise_heads': config.listwise_heads,
+                            'aux_country_weight': config.aux_country_weight,
+                            'aux_class_weight': config.aux_class_weight,
+                            'full_null_row': config.full_null_row,
+                            'avg_params': config.avg_params,
+                            'avg_mode': config.avg_mode,
+                            'avg_start': avg_start if config.avg_params else None,
+                            'ema_decay': config.ema_decay,
+                            'train_after_eval': config.train_after_eval,
+                            'lr_schedule': config.lr_schedule,
+                            'country_size': config.country_size,
+                            'code_size': config.code_size,
                             'dataset_names': list(config.dataset_names),
                             'source_limits': dict(config.source_limits),
                             'n_train': len(es_train_data),
@@ -966,9 +1260,49 @@ def train(data_dir: str = "raw_data",
             json.dump(final, f, indent=2)
         logger.info(f"Wrote metrics to {metrics_out}")
 
+    if avg_state is not None:
+        # Ship the average, not the last raw step.
+        load_average()
     today = datetime.datetime.today().strftime('%Y-%m-%d')
-    logger.info(f"Saving model to mordecai_{today}.pt")
-    torch.save(model.state_dict(), f"mordecai_{today}.pt")
+    ckpt = checkpoint_out if checkpoint_out else f"mordecai_{today}.pt"
+    cfg_path = (ckpt + ".json" if checkpoint_out
+                else f"mordecai_{today}.json")
+    if os.path.dirname(ckpt):
+        os.makedirs(os.path.dirname(ckpt), exist_ok=True)
+    logger.info(f"Saving model to {ckpt}")
+    torch.save(model.state_dict(), ckpt)
+    # Layer shapes reveal the dimensions but not the behaviour flags: a
+    # checkpoint trained with --logits/--mask-padding/--modern-mlp loads
+    # silently into a default model and mis-runs. Write them down next to it.
+    model_config = {
+        'bert_size': int(es_train_data[0]['tensor'].shape[0]),
+        'num_feature_codes': 53 + 1,
+        'dropout': config.dropout,
+        'country_size': config.country_size,
+        'code_size': config.code_size,
+        'mix_dim': config.mix_dim,
+        'country_pred': config.country_pred,
+        'max_choices': config.max_choices,
+        'return_logits': config.logits,
+        'mask_padding': config.mask_padding,
+        'modern_mlp': config.modern_mlp,
+        'oov_bucket_fix': config.oov_bucket_fix,
+        'full_null_row': config.full_null_row,
+        'feature_blocks': list(config.feature_blocks),
+        'n_extra_features': len(expand_feature_blocks(blocks)),
+        'enriched': config.enriched,
+        'pickle_suffix': config.pickle_suffix,
+        'mix_depth': config.mix_depth,
+        'residual': config.residual,
+        'listwise': config.listwise,
+        'listwise_heads': config.listwise_heads,
+        'aux_country': config.aux_country_weight > 0,
+        'aux_class': config.aux_class_weight > 0,
+        'weight_avg': (config.avg_mode if avg_state is not None else None),
+    }
+    with open(cfg_path, 'w') as f:
+        json.dump(model_config, f, indent=2)
+    logger.info(f"Wrote model config to {cfg_path}")
     logger.info("Run complete.")
 
 

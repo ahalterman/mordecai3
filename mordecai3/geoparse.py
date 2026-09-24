@@ -37,9 +37,16 @@ from .exceptions import (
     ElasticsearchConnectionError,
     GeonamesIndexError,
 )
+from .candidate_features import (
+    ALL_KEYS as EXTRA_FEATURE_KEYS,
+    add_document_features,
+    add_entity_features,
+    fill_null_features,
+    mention_admin_cue,
+)
 from .geonames import GeonamesService, hit_sources
 from .mordecai_utilities import spacy_doc_setup
-from .torch_model import ProductionData, geoparse_model
+from .torch_model import ProductionData, expand_feature_blocks, geoparse_model
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +69,23 @@ def load_nlp(use_gpu=False):
     nlp.add_pipe("token_tensors")
     return nlp
 
-def load_model(model_path, device=None):
+def load_model(model_path, device=None, n_extra_features=None, **model_kwargs):
+    """Rebuild a geoparse_model from a saved state dict and load the weights.
+
+    Parameters
+    ----------
+    model_path : path-like
+    device : torch.device or None
+    n_extra_features : int or None
+        Number of enrichment feature columns the checkpoint was trained with.
+        None (the default) reads it off the checkpoint's mix_linear layer, which
+        is 13 wide (4 cosine similarities + 9 gazetteer features) plus one column
+        per enrichment feature. Pass a number to assert what you expect.
+    **model_kwargs
+        Passed to geoparse_model. Behavioral training flags that leave no trace
+        in the layer shapes -- ``modern_mlp``, ``mask_padding``, ``return_logits``
+        -- must be repeated here if the checkpoint was trained with them.
+    """
     if not device:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     state = torch.load(model_path, map_location=device)
@@ -70,12 +93,23 @@ def load_model(model_path, device=None):
     # shipped model happens to use the defaults, but tools/train.py exposes
     # --mix-dim, --country-size and --code-size, and a model trained with any
     # of those changed used to fail here with a shape mismatch.
+    ckpt_extra = state['mix_linear.weight'].shape[1] - 13
+    if n_extra_features is None:
+        n_extra_features = ckpt_extra
+    elif n_extra_features != ckpt_extra:
+        raise ValueError(
+            f"checkpoint {model_path} was trained with {ckpt_extra} extra "
+            f"gazetteer features, but {n_extra_features} were requested. The "
+            f"feature_blocks passed to Geoparser must match the ones the model "
+            f"was trained with.")
     model = geoparse_model(device=device,
                            bert_size=state['text_to_country.weight'].shape[1],
                            num_feature_codes=state['code_emb.weight'].shape[0],
                            country_size=state['text_to_country.weight'].shape[0],
                            code_size=state['code_emb.weight'].shape[1],
-                           mix_dim=state['mix_linear.weight'].shape[0])
+                           mix_dim=state['mix_linear.weight'].shape[0],
+                           n_extra_features=n_extra_features,
+                           **model_kwargs)
     model.load_state_dict(state)
     model.eval()
     return model
@@ -205,7 +239,30 @@ class Geoparser:
                  port: int = 9200,
                  device=None,
                  use_ssl: bool=False,
-                 es_client: Elasticsearch | None=None):
+                 es_client: Elasticsearch | None=None,
+                 feature_blocks: str | list[str] | None=None,
+                 oov_bucket_fix: bool=False,
+                 model_options: dict | None=None):
+        """
+        feature_blocks : str, list of str, or None
+            Enrichment feature blocks the loaded checkpoint was trained with,
+            e.g. "prom,name,cue,sib,geo,shape" (see
+            torch_model.FEATURE_BLOCKS). None (the default) is the legacy
+            behavior: the extra features are neither computed nor fed to the
+            model, so pre-enrichment checkpoints keep working unchanged.
+            When set, the lookup path computes those features for every
+            candidate and the model is built with the matching input width,
+            which is checked against the checkpoint.
+        oov_bucket_fix : bool
+            Must match tools/train.py's --oov-bucket-fix for the checkpoint:
+            it decides whether an out-of-vocabulary feature code shares the
+            "NULL" embedding, and what country the reserved last row gets. It
+            leaves no trace in the layer shapes, so it cannot be auto-detected.
+        model_options : dict or None
+            Extra keyword arguments for geoparse_model, for training flags that
+            leave no trace in the checkpoint's layer shapes: modern_mlp,
+            mask_padding, return_logits.
+        """
         # device=None (the default) auto-detects CUDA. Pass device='cpu' to force CPU.
         if device is None:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -255,9 +312,18 @@ class Geoparser:
             logger.info("Successfully connected to Elasticsearch.")
 
         
+        # The enrichment features are opt-in: computing them costs a little CPU
+        # per candidate, and a checkpoint that wasn't trained on them can't use
+        # them anyway.
+        self.feature_blocks = feature_blocks
+        self.extra_feature_keys = expand_feature_blocks(feature_blocks)
+        self.oov_bucket_fix = oov_bucket_fix
+
         if not model_path:
             model_path =  resources.files("mordecai3") / "assets/mordecai_2025-08-27.pt"
-        self.model = load_model(model_path, device=device)
+        self.model = load_model(model_path, device=device,
+                                n_extra_features=len(self.extra_feature_keys),
+                                **(model_options or {}))
         if not geo_asset_path:
             geo_asset_path = resources.files("mordecai3") / "assets/"
         self.hierarchy = load_hierarchy(geo_asset_path)
@@ -394,7 +460,8 @@ class Geoparser:
     def _trim_results(best_list):
         """Remove the internal-only keys that are used to pick the best result."""
         trim_keys = ['admin1_parent_match', 'country_code_parent_match', 'alt_name_length',
-                    'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count', 'country_count']
+                    'min_dist', 'max_dist', 'avg_dist', 'ascii_dist', 'adm1_count',
+                    'country_count'] + EXTRA_FEATURE_KEYS
         for entry in best_list:
             for key in trim_keys:
                 entry.pop(key, None)
@@ -439,7 +506,8 @@ class Geoparser:
         # 2. ES lookups across all documents via a shared thread pool
         all_es_data = add_es_data_batch(
             all_doc_ex, self.geonames, max_results=max_choices,
-            known_country=known_country, es_workers=es_workers)
+            known_country=known_country, es_workers=es_workers,
+            extra_features=bool(self.extra_feature_keys))
 
         # 3. Cross-document model batching: pool all entities into one inference pass
         pooled_es_data = []
@@ -450,7 +518,9 @@ class Geoparser:
 
         all_preds = None
         if pooled_es_data:
-            dataset = ProductionData(pooled_es_data, max_choices=max_choices)
+            dataset = ProductionData(pooled_es_data, max_choices=max_choices,
+                                     oov_bucket_fix=self.oov_bucket_fix,
+                                     feature_blocks=self.feature_blocks)
             data_loader = DataLoader(dataset=dataset, batch_size=64, shuffle=False)
             with torch.no_grad():
                 self.model.eval()
@@ -614,8 +684,9 @@ def add_es_data(ex,
                 max_results=50, 
                 fuzzy=0, 
                 limit_types=False,
-                remove_correct=False, 
-                known_country=None):
+                remove_correct=False,
+                known_country=None,
+                extra_features=False):
     """
     Run an Elasticsearch/geonames query for a single example and add the results
     to the object.
@@ -634,6 +705,11 @@ def add_es_data(ex,
         If True, remove the correct result from the list of results.
         This is useful for training a model to handle "none of the above"
         cases.
+    extra_features: bool
+        If True, add the enrichment features (see mordecai3.candidate_features)
+        that depend on the mention and its own candidate set. The document-level
+        features need every entity in the document, so they are only added by
+        add_es_data_batch/add_es_data_doc.
 
     Examples
     --------
@@ -653,7 +729,8 @@ def add_es_data(ex,
     fuzzy = int(fuzzy)
     search_name = ex['search_name']
 
-    cache_key = _es_cache_key(ex, max_results, fuzzy, limit_types, known_country)
+    cache_key = _es_cache_key(ex, max_results, fuzzy, limit_types, known_country,
+                              extra_features)
     cache = geonames_service._es_cache
     if cache_key in cache:
         # Deep-copy because downstream code mutates choices (adm1_count, country_count)
@@ -673,16 +750,16 @@ def add_es_data(ex,
         parent_place = None
 
     search_res = geonames_service.search_by_name(search_name, max_results, fuzzy, limit_types, known_country)
-    choices = res_formatter(search_res, search_name, parent_place)
+    choices = res_formatter(search_res, search_name, parent_place, extra_features)
 
     # Always try a fuzzy search if no results from previous search, to avoid
     # having no candidates for the ML model to choose from.
     if not choices:
         search_res = geonames_service.search_by_name(search_name, max_results, fuzzy+1, limit_types, known_country)
-        choices = res_formatter(search_res, ex['search_name'], parent_place)
+        choices = res_formatter(search_res, ex['search_name'], parent_place, extra_features)
 
     logger.debug("Adding NULL choice")
-    choices.append(_null_choice())
+    choices.append(_null_choice(search_name if extra_features else None))
 
     # Cache a copy (downstream code mutates dicts via adm1_count/country_count)
     cache[cache_key] = _copy_choices(choices)
@@ -691,16 +768,21 @@ def add_es_data(ex,
     return _finish_es_example(ex, choices, remove_correct)
 
 
-def _es_cache_key(ex, max_results, fuzzy, limit_types, known_country):
+def _es_cache_key(ex, max_results, fuzzy, limit_types, known_country,
+                  extra_features=False):
     """The inputs that determine an entity's ES candidate list.
 
     Repeated place names are extremely common within and across documents, so
     this is what lets both the cache and the batched path collapse duplicate
     work. The value it keys is the candidate list *before* `remove_correct` is
     applied, so it stays reusable either way.
+
+    `extra_features` is part of the key because the entity-level enrichment
+    features are computed once and cached with the candidate list: two callers
+    that disagree about whether they want them must not share an entry.
     """
     return (ex['search_name'], ex.get('in_rel', '') or '', known_country or '',
-            int(max_results), int(fuzzy), limit_types)
+            int(max_results), int(fuzzy), limit_types, bool(extra_features))
 
 
 def _copy_choices(choices):
@@ -714,28 +796,36 @@ def _copy_choices(choices):
     return [dict(c) for c in choices]
 
 
-def _null_choice():
-    """A fresh "none of the above" candidate, always appended last."""
-    return {'feature_code': 'NULL',
-            'feature_class': 'NULL',
-            'country_code3': 'NULL',
-            'lat': 0,
-            'lon': 0,
-            'name': 'NULL',
-            'admin1_code': 'NULL',
-            'admin1_name': 'NULL',
-            'admin2_code': 'NULL',
-            'admin2_name': 'NULL',
-            'geonameid': 'NULL',
-            'admin1_parent_match': -1,
-            'country_code_parent_match': -1,
-            'alt_name_length': 0,
-            'min_dist': 99.0,
-            'max_dist': 99.0,
-            'avg_dist': 99.0,
-            'ascii_dist': 99.0,
-            'adm1_count': 0.0,
-            'country_count': 0.0}
+def _null_choice(search_name=None):
+    """A fresh "none of the above" candidate, always appended last.
+
+    Pass `search_name` to also give it the enrichment features, at the neutral
+    values that keep the per-entity feature arrays rectangular without making
+    "no answer" look well-supported.
+    """
+    choice = {'feature_code': 'NULL',
+              'feature_class': 'NULL',
+              'country_code3': 'NULL',
+              'lat': 0,
+              'lon': 0,
+              'name': 'NULL',
+              'admin1_code': 'NULL',
+              'admin1_name': 'NULL',
+              'admin2_code': 'NULL',
+              'admin2_name': 'NULL',
+              'geonameid': 'NULL',
+              'admin1_parent_match': -1,
+              'country_code_parent_match': -1,
+              'alt_name_length': 0,
+              'min_dist': 99.0,
+              'max_dist': 99.0,
+              'avg_dist': 99.0,
+              'ascii_dist': 99.0,
+              'adm1_count': 0.0,
+              'country_count': 0.0}
+    if search_name is not None:
+        fill_null_features(choice, mention_admin_cue(search_name))
+    return choice
 
 
 def _finish_es_example(ex, choices, remove_correct):
@@ -787,7 +877,7 @@ def _resolve_parents_batch(in_rel_names, geonames_service):
 
 def add_es_data_doc(doc_ex, geonames_service: GeonamesService, max_results=50, fuzzy=0,
                     limit_types=False, remove_correct=False, known_country=None,
-                    es_workers=None):
+                    es_workers=None, extra_features=False):
     """Add ES candidates for every entity in one document.
 
     Thin wrapper over add_es_data_batch so there is a single lookup path.
@@ -799,12 +889,13 @@ def add_es_data_doc(doc_ex, geonames_service: GeonamesService, max_results=50, f
     if not doc_ex:
         return []
     return add_es_data_batch([doc_ex], geonames_service, max_results, fuzzy,
-                             limit_types, remove_correct, known_country)[0]
+                             limit_types, remove_correct, known_country,
+                             extra_features=extra_features)[0]
 
 
 def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results=50,
                       fuzzy=0, limit_types=False, remove_correct=False,
-                      known_country=None, es_workers=None):
+                      known_country=None, es_workers=None, extra_features=False):
     """Look up ES candidates for every entity across many documents.
 
     All lookups for the batch are bundled into a small number of _msearch
@@ -824,6 +915,11 @@ def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results
     geonames_service : GeonamesService
     es_workers : ignored
         Accepted for backwards compatibility. See add_es_data_doc.
+    extra_features : bool
+        If True, every candidate also gets the enrichment features that the
+        `--feature-blocks` models are trained on (see
+        mordecai3.candidate_features). Off by default, so a checkpoint that
+        predates them sees exactly the candidate dicts it always did.
 
     Returns
     -------
@@ -847,7 +943,8 @@ def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results
     # 1. Collapse duplicate lookups. Many entities across a batch share a name.
     by_key = {}
     for doc_idx, ent_idx, ex in tasks:
-        key = _es_cache_key(ex, max_results, fuzzy, limit_types, known_country)
+        key = _es_cache_key(ex, max_results, fuzzy, limit_types, known_country,
+                            extra_features)
         by_key.setdefault(key, []).append((doc_idx, ent_idx, ex))
 
     todo = [k for k in by_key if k not in cache]
@@ -871,7 +968,7 @@ def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results
         fresh = {}
         retry = []
         for k, ex, res in zip(todo, reps, responses):
-            choices = res_formatter(res, k[0], parent_for(ex))
+            choices = res_formatter(res, k[0], parent_for(ex), extra_features)
             if choices:
                 fresh[k] = choices
             else:
@@ -884,10 +981,10 @@ def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results
             specs = [(k[0], max_results, fuzzy + 1, limit_types, known_country)
                      for k, _ in retry]
             for (k, ex), res in zip(retry, geonames_service.search_by_names(specs)):
-                fresh[k] = res_formatter(res, k[0], parent_for(ex))
+                fresh[k] = res_formatter(res, k[0], parent_for(ex), extra_features)
 
         for k, choices in fresh.items():
-            choices.append(_null_choice())
+            choices.append(_null_choice(k[0] if extra_features else None))
             # Stored pristine; every consumer takes its own copy below, since
             # downstream code mutates adm1_count/country_count in place.
             cache[k] = choices
@@ -909,12 +1006,18 @@ def add_es_data_batch(all_doc_ex, geonames_service: GeonamesService, max_results
         doc_es = [r for _, r in entries]
         if doc_es:
             _add_cross_entity_counts(doc_es)
+            if extra_features:
+                # The sibling and anchor-geometry features read the other
+                # mentions in the document, so like the co-occurrence counts
+                # above they can only be computed now that every entity in the
+                # document has its candidates back.
+                add_document_features(doc_es)
         all_doc_es.append(doc_es)
 
     return all_doc_es
 
 
-def res_formatter(res, search_name, parent=None):
+def res_formatter(res, search_name, parent=None, extra_features=False):
     """
     Helper function to format the ES/Geonames results into a format for the ML model, including
     edit distance statistics and parent matches.
@@ -925,15 +1028,21 @@ def res_formatter(res, search_name, parent=None):
     search_name: str
       The original search term from the document
     parent: dict
-      Geonames/ES entry for the inferred parent 
+      Geonames/ES entry for the inferred parent
+    extra_features: bool
+      Also compute the enrichment features that depend on the mention and its
+      own candidate set (see mordecai3.candidate_features). The population and
+      name lists they need are already in the ES hits, so this costs no extra
+      queries -- and none of those raw fields are kept on the returned dicts.
 
     Returns
     -------
     choices: list
       List of formatted Geonames results, including edit distance statistics
     """
-    # choices is our eventual output, a list of dicts, each of which is a formatted Geonames result 
+    # choices is our eventual output, a list of dicts, each of which is a formatted Geonames result
     choices = []
+    sources = []
     alt_lengths = []
     min_dist = []
     max_dist = []
@@ -977,6 +1086,8 @@ def res_formatter(res, search_name, parent=None):
             d['country_code_parent_match'] = 0
 
         choices.append(d)
+        if extra_features:
+            sources.append(i)
         alt_lengths.append(len(i['alternativenames'])+1)
         min_dist.append(np.min(dists))
         max_dist.append(np.max(dists))
@@ -994,6 +1105,8 @@ def res_formatter(res, search_name, parent=None):
         i['max_dist'] = max_dist[n]
         i['avg_dist'] = avg_dist[n]
         i['ascii_dist'] = ascii_dist[n]
+    if extra_features:
+        add_entity_features(search_name, choices, sources)
     return choices
 
 
