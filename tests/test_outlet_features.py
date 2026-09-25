@@ -42,7 +42,11 @@ SHIP_CANDIDATE = os.path.join(REPO_ROOT, "mordecai3", "assets",
 # "Paris" with no other toponym to triangulate from. Without the outlet the
 # population prior wins and the answer is France.
 PARIS_TN = "4647963"
-PARIS_FR = "2988507"
+# France's Paris is three coextensive GeoNames rows (the capital 2988507, the
+# commune, the ADM2 departement 2968815), and which one wins depends on the dump's
+# alternate-name counts. These tests are about Tennessee vs France, so they
+# check the country.
+PARIS_FR = "FRA"
 PARIS_TEXT = "The city council will meet Tuesday in Paris to discuss the new budget."
 
 
@@ -179,6 +183,15 @@ def _ids(result):
     return [e.get("geonameid") for e in result["geolocated_ents"]]
 
 
+def _paris_fr(result):
+    """[PARIS_FR] if the only place is a Paris in France, else the ids."""
+    ents = result["geolocated_ents"]
+    if len(ents) == 1 and ents[0].get("country_code3") == "FRA" \
+            and ents[0].get("name") == "Paris":
+        return [PARIS_FR]
+    return _ids(result)
+
+
 def test_the_outlet_checkpoint_loads_its_block_and_its_table(outlet_geoparser):
     geo = outlet_geoparser
     assert "outlet" in geo.feature_blocks
@@ -189,7 +202,7 @@ def test_the_outlet_checkpoint_loads_its_block_and_its_table(outlet_geoparser):
 def test_a_local_papers_own_town_beats_the_population_prior(outlet_geoparser):
     """The case the whole arm was aimed at, end to end through geoparse_doc."""
     geo = outlet_geoparser
-    assert _ids(geo.geoparse_doc(PARIS_TEXT)) == [PARIS_FR]
+    assert _paris_fr(geo.geoparse_doc(PARIS_TEXT)) == [PARIS_FR]
     assert _ids(geo.geoparse_doc(PARIS_TEXT, outlet="parispi.net")) == [PARIS_TN]
     # ...and a URL is accepted wherever a bare domain is.
     assert _ids(geo.geoparse_doc(
@@ -204,7 +217,7 @@ def test_a_different_papers_town_does_not_move_it(outlet_geoparser):
     home-permutation control in outlet_feature_report.md §6.4.
     """
     geo = outlet_geoparser
-    assert _ids(geo.geoparse_doc(PARIS_TEXT, outlet="post-gazette.com")) == [PARIS_FR]
+    assert _paris_fr(geo.geoparse_doc(PARIS_TEXT, outlet="post-gazette.com")) == [PARIS_FR]
 
 
 def test_an_unknown_outlet_is_the_no_outlet_path(outlet_geoparser):
@@ -253,7 +266,7 @@ def test_batch_takes_one_outlet_per_document(outlet_geoparser):
     res = geo.geoparse_batch(texts, outlets=["parispi.net", None,
                                              "theparisnews.com"])
     assert _ids(res[0]) == [PARIS_TN]
-    assert _ids(res[1]) == [PARIS_FR]
+    assert _paris_fr(res[1]) == [PARIS_FR]
     assert _ids(res[2]) == ["4717560"]        # Paris, Texas
     with pytest.raises(ValueError):
         geo.geoparse_batch(texts, outlets=["parispi.net"])
