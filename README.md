@@ -129,12 +129,45 @@ text. Better place-name detection is the focus of ongoing work; the opt-in
 Speed: `geoparse_batch` handles 60–110 documents/second on one RTX 4090.
 Elasticsearch lookups, not the model, take most of that time.
 
+### Confidence scores and thresholds
+
+Each place's `score` is a calibrated probability that the chosen GeoNames entry
+is correct: of the answers scored around 0.8, roughly 80% are right. (The model
+is slightly under-confident, so it's usually a bit better than that.) Thresholds
+tuned for 3.4's scores will throw away many correct answers in 3.5, so re-check
+any cutoff you use.
+
+Filtering the answers the 3.5 model returns on the held-out sets (pooled over
+all six; the news sets alone lose a few points more correct answers at each
+cutoff):
+
+| keep `score >=` | answers kept | accuracy of kept | correct answers dropped | wrong answers dropped |
+|---|---|---|---|---|
+| (none) | 100% | 92.3% | 0% | 0% |
+| 0.6 | 95% | 94.6% | 3% | 34% |
+| **0.7** | **92%** | **95.9%** | **5%** | **51%** |
+| 0.8 | 88% | 96.9% | 8% | 65% |
+| 0.85 | 86% | 97.2% | 10% | 69% |
+| 0.9 | 82% | 97.8% | 14% | 77% |
+
+**0.7 is a sensible default.** Use a higher cutoff only if a wrong location
+costs you much more than a missing one.
+
+When the model decides none of its candidates is right, the result carries
+`"no_match": True` and a `p_no_match` probability, with no `score` or GeoNames
+fields, so check for that key before reading `score`. About 1% of mentions
+come back this way, and the model's best guess on them would have been wrong
+nearly 90% of the time. The accuracy numbers above don't apply a threshold. They
+count every answer the model gives.
+
 ### What changed in 3.5
 
 - A fresh GeoNames index (dump of 2026-09-24, 13.5M places), with the model
   retrained against it.
 - A retrained ranker with 26 new candidate features (prominence, name match,
   context cues, sibling places, geography, name shape).
+- `score` is now a calibrated probability, so re-check any cutoff you used
+  with 3.4 (see "Confidence scores and thresholds" above).
 - Abbreviated place names ("Calif.", "N.Y.") are normalized before lookup.
 - Demonyms are no longer returned as places; the `accept_norp` argument is gone.
 - `geoparse_batch()`, batched Elasticsearch queries, and automatic GPU use.
