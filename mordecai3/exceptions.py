@@ -34,8 +34,9 @@ class GeonamesIndexError(Exception):
         if message is None:
             message = (
                 "Connected to Elasticsearch, but the 'geonames' index was not found.\n"
-                "Download the prebuilt index (see the README) or build one with:\n\n"
-                "    mordecai3 index build\n\n"
+                "Download the prebuilt index (it offers to build one if that fails):\n\n"
+                "    mordecai3 index fetch\n\n"
+                "or build one from GeoNames with `mordecai3 index build`.\n"
                 "https://github.com/ahalterman/mordecai3#installation-and-requirements\n"
             )
         super().__init__(message)

@@ -31,7 +31,7 @@ Demonyms ("Syrian", "Turkish") are deliberately **not** returned as places.
 |---|---|
 | `mordecai3/` | the library; `geoparse.py` is the entry point |
 | `mordecai3/assets/` | checkpoints (`*.pt`) with config sidecars (`*.pt.json`), GeoNames lookup tables, the ES mapping |
-| `mordecai3/cli.py`, `index_builder.py` | the `mordecai3` command: `index build/status`, `check` |
+| `mordecai3/cli.py`, `index_builder.py` | the `mordecai3` command: `index fetch/build/status`, `check`, `cite` |
 | `tests/` | pytest; most tests need a running ES with the full index |
 | `tools/` | training (`train.py`) and the data prep and evaluation it needs (see `DEV.md`) |
 | `console/` | a FastAPI + d3 analyst demo; not part of the wheel (`console/README.md`) |
@@ -47,7 +47,7 @@ mordecai3 check             # spaCy model, torch/CUDA, ES, index size and age
 ```
 
 For real results you need the **full** index (13M+ documents): download the
-prebuilt one (README) or run `mordecai3 index build`.
+prebuilt one with `mordecai3 index fetch`, or run `mordecai3 index build`.
 
 ## Diagnosing problems
 
@@ -60,6 +60,11 @@ Start with `mordecai3 check`. Then, by symptom:
   wheels exist, and the sdist doesn't build under Cython >= 3.1.
   `pyproject.toml` pins the build to `cython<3.1`; a stale clone predates that.
   Or use Python 3.12. `console/DEPLOY.md` has the details.
+- **`mordecai3 index fetch` fails.** It lists each mirror it tried and why
+  (network, HTTP status, checksum mismatch). A checksum mismatch usually means a
+  truncated download or a re-uploaded archive: the SHA-256 is pinned in
+  `index_builder.PREBUILT_SHA256` and must change together with the filename
+  whenever a new index is published. `MORDECAI_INDEX_URL` adds a mirror.
 - **Results are poor or strange, with no errors.** Check the index size with
   `mordecai3 index status`. The test index from `tools/load-es-test-data.sh` has a few
   thousand rows, so everything outside the test fixtures resolves badly or not

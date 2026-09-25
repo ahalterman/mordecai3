@@ -1,6 +1,7 @@
 """The `mordecai3` command: build the GeoNames index and check a setup."""
 
 import os
+import sys
 from pathlib import Path
 
 import typer
@@ -17,22 +18,16 @@ DATA_DIR = typer.Option(Path("geonames_data"), "--data-dir",
                         help="Where the GeoNames dump is downloaded to / read from.")
 
 
-@index_app.command("build")
-def index_build(es_url: str = ES_URL, data_dir: Path = DATA_DIR,
-                skip_download: bool = typer.Option(
-                    False, help="Reuse a gazetteer already in --data-dir.")):
-    """Download GeoNames and (re)build the `geonames` index from scratch.
+DOCKER_RUN = ("docker run -d -p 127.0.0.1:9200:9200 -e discovery.type=single-node "
+              "-v {path}:/usr/share/elasticsearch/data elasticsearch:7.10.1")
 
-    Deletes and recreates only the `geonames` index; other indices on the node
-    are left alone. Needs ~4 GB of disk for the dump plus ~2 GB for the index.
-    """
+
+def _build(es_url, data_dir, skip_download=False):
     from . import index_builder as ib
     es = ib.connect(es_url)
     if not es.ping():
-        typer.secho(f"No Elasticsearch at {es_url}. Start one with:\n\n"
-                    "    docker run -d -p 127.0.0.1:9200:9200 -e discovery.type=single-node "
-                    "-v $PWD/geonames_index:/usr/share/elasticsearch/data elasticsearch:7.10.1",
-                    fg="red", err=True)
+        typer.secho(f"No Elasticsearch at {es_url}. Start one with:\n\n    "
+                    + DOCKER_RUN.format(path="$PWD/geonames_index"), fg="red", err=True)
         raise typer.Exit(1)
     if not skip_download:
         ib.download(data_dir)
@@ -45,9 +40,73 @@ def index_build(es_url: str = ES_URL, data_dir: Path = DATA_DIR,
     typer.echo(f"provenance: {meta}")
 
 
-@index_app.command("download")
+@index_app.command("build")
+def index_build(es_url: str = ES_URL, data_dir: Path = DATA_DIR,
+                skip_download: bool = typer.Option(
+                    False, help="Reuse a gazetteer already in --data-dir.")):
+    """Download GeoNames and (re)build the `geonames` index from scratch.
+
+    Deletes and recreates only the `geonames` index; other indices on the node
+    are left alone. Needs ~4 GB of disk for the dump plus ~2 GB for the index.
+    """
+    _build(es_url, data_dir, skip_download)
+
+
+@index_app.command("fetch")
+def index_fetch(dest: Path = typer.Option(Path("."), "--dir",
+                                          help="Unpacks to <dir>/geonames_index."),
+                es_url: str = ES_URL,
+                yes: bool = typer.Option(False, "--yes", "-y",
+                                         help="If the download fails, build from "
+                                              "GeoNames without asking."),
+                keep_archive: bool = typer.Option(False, help="Keep the .tar.gz.")):
+    """Download the prebuilt index that matches this release's model.
+
+    The archive is checked against a pinned SHA-256 before it is unpacked. If
+    no mirror works, offers to build the index from GeoNames instead.
+    Set MORDECAI_INDEX_URL to try another mirror (or a file:// path) first.
+    """
+    from . import index_builder as ib
+    try:
+        path = ib.fetch_prebuilt(dest, keep_archive=keep_archive)
+    except ib.FetchError as e:
+        typer.secho("Could not get the prebuilt index:", fg="red", err=True)
+        for source, reason in e.failures:
+            typer.echo(f"  {source}\n    {reason}", err=True)
+        if not e.fallback_ok:
+            raise typer.Exit(1)
+        typer.echo("\nYou can build it from GeoNames instead: about 30 minutes and "
+                   "~6 GB of disk. It uses today's GeoNames rather than the dump the "
+                   "model was tested on, so a few answers may differ.", err=True)
+        es = ib.connect(es_url)
+        if not es.ping():
+            empty = (dest / ib.PREBUILT_TOP).resolve()
+            typer.echo("Start an empty Elasticsearch, then build into it:\n\n"
+                       f"    mkdir -p {empty}\n    {DOCKER_RUN.format(path=empty)}\n"
+                       "    mordecai3 index build\n", err=True)
+            raise typer.Exit(1)
+        existing = ib.count(es)
+        if existing is not None:
+            typer.secho(f"Note: {es_url} already has a 'geonames' index "
+                        f"({existing:,} documents); building replaces it.",
+                        fg="yellow", err=True)
+        interactive = sys.stdin.isatty()
+        if yes or (interactive and typer.confirm(
+                f"Build it now into the Elasticsearch at {es_url}?",
+                default=existing is None)):
+            _build(es_url, dest / "geonames_data")
+            return
+        typer.echo(f"\nWhen ready:  mordecai3 index build --es-url {es_url}", err=True)
+        raise typer.Exit(1)
+    typer.secho(f"Prebuilt index unpacked to {path}", fg="green")
+    typer.echo("Start Elasticsearch on it with:\n\n    "
+               + DOCKER_RUN.format(path=path.resolve()))
+    typer.echo("\nthen run `mordecai3 check`.")
+
+
+@index_app.command("download-geonames")
 def index_download(data_dir: Path = DATA_DIR):
-    """Only fetch the GeoNames dump (no Elasticsearch needed)."""
+    """Only download the GeoNames dump that `build` loads (no Elasticsearch needed)."""
     from . import index_builder as ib
     ib.download(data_dir)
 
@@ -62,7 +121,8 @@ def index_status(es_url: str = ES_URL):
         raise typer.Exit(1)
     n = ib.count(es)
     if n is None:
-        typer.secho("No 'geonames' index. Build one with `mordecai3 index build`.",
+        typer.secho("No 'geonames' index. Get one with `mordecai3 index fetch` "
+                    "or build one with `mordecai3 index build`.",
                     fg="red", err=True)
         raise typer.Exit(1)
     typer.echo(f"documents: {n:,}")
@@ -108,7 +168,8 @@ def check(es_url: str = ES_URL):
         report(True, f"Elasticsearch at {es_url}", version)
         n = ib.count(es)
         if n is None:
-            report(False, "geonames index", "missing -- `mordecai3 index build`")
+            report(False, "geonames index",
+                   "missing -- `mordecai3 index fetch` (or `index build`)")
         else:
             report(n > 10_000_000, "geonames index", f"{n:,} documents"
                    + ("" if n > 10_000_000 else " (a test or partial index?)"))

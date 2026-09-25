@@ -18,7 +18,12 @@ index built here is interchangeable with the prebuilt download. Differences:
 """
 
 import csv
+import hashlib
 import json
+import os
+import shutil
+import sys
+import tarfile
 import time
 import unicodedata
 import zipfile
@@ -249,3 +254,107 @@ def stamp(es, data_dir, doc_count):
     }
     es.indices.put_mapping(index=INDEX, body={"_meta": meta})
     return meta
+
+
+# ---------------------------------------------------------------- prebuilt index
+#
+# The prebuilt index is paired with the packaged checkpoint (candidate features
+# come from the index), so the archive is pinned by checksum, and a new index
+# means a new filename and checksum here. Mirrors are tried in order;
+# MORDECAI_INDEX_URL puts another one in front (a private mirror, or a file://
+# path to an archive already on disk).
+
+PREBUILT_NAME = "mordecai3_geonames_index_2026-09-24.tar.gz"
+PREBUILT_SHA256 = "7fe3d44337e423d4cb467ef2f7cbd40eb9c73eee16c0a750ccae8bb6865d1979"
+PREBUILT_MIRRORS = [f"https://andrewhalterman.com/files/{PREBUILT_NAME}"]
+PREBUILT_TOP = "geonames_index"
+PREBUILT_NEEDS_BYTES = 4 * 1024**3   # 1.5 GB archive + 2.2 GB unpacked, with headroom
+
+
+class FetchError(Exception):
+    """The prebuilt index could not be downloaded, verified, or unpacked."""
+
+    def __init__(self, failures, fallback_ok=True):
+        self.failures = failures          # [(source, reason)]
+        self.fallback_ok = fallback_ok    # False when building would fail too (disk)
+        super().__init__("; ".join(f"{s}: {r}" for s, r in failures))
+
+
+def prebuilt_urls():
+    extra = os.environ.get("MORDECAI_INDEX_URL")
+    return ([extra] if extra else []) + PREBUILT_MIRRORS
+
+
+def _download_verified(url, dest, sha256, progress=True):
+    """Stream `url` to `dest`, hashing on the way. Raises on any failure."""
+    from urllib.request import urlopen
+    part = dest.with_name(dest.name + ".part")
+    h = hashlib.sha256()
+    try:
+        with urlopen(url, timeout=60) as r, open(part, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0) or None
+            with tqdm(total=total, unit="B", unit_scale=True, disable=not progress,
+                      desc=PREBUILT_NAME) as bar:
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+                    h.update(chunk)
+                    bar.update(len(chunk))
+        if h.hexdigest() != sha256:
+            raise ValueError(f"checksum mismatch (got {h.hexdigest()[:12]}..., "
+                             f"expected {sha256[:12]}...) -- incomplete or different file")
+        part.replace(dest)
+    finally:
+        part.unlink(missing_ok=True)
+
+
+def _safe_extract(archive, dest_dir):
+    """Unpack, refusing any member outside `<dest_dir>/geonames_index/`."""
+    with tarfile.open(archive) as tar:
+        for m in tar.getmembers():
+            p = Path(m.name)
+            if p.is_absolute() or ".." in p.parts or p.parts[0] != PREBUILT_TOP \
+                    or m.issym() or m.islnk():
+                raise ValueError(f"unexpected archive member {m.name!r}")
+        if sys.version_info >= (3, 12):
+            tar.extractall(dest_dir, filter="data")
+        else:
+            tar.extractall(dest_dir)
+
+
+def fetch_prebuilt(dest_dir, urls=None, sha256=None, keep_archive=False,
+                   progress=True):
+    """Download, verify and unpack the prebuilt index into `dest_dir/geonames_index`.
+
+    Raises FetchError listing what went wrong at each mirror.
+    """
+    sha256 = sha256 or PREBUILT_SHA256
+    dest_dir = Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    target = dest_dir / PREBUILT_TOP
+    if target.exists() and any(target.iterdir()):
+        raise FetchError([(str(target), "already exists and is not empty; "
+                           "remove it or pass another --dir")], fallback_ok=False)
+    free = shutil.disk_usage(dest_dir).free
+    if free < PREBUILT_NEEDS_BYTES:
+        raise FetchError([(str(dest_dir), f"only {free / 1024**3:.1f} GB free; "
+                           f"need about {PREBUILT_NEEDS_BYTES / 1024**3:.0f} GB")],
+                         fallback_ok=False)
+    archive = dest_dir / PREBUILT_NAME
+    failures = []
+    for url in (urls or prebuilt_urls()):
+        try:
+            _download_verified(url, archive, sha256, progress=progress)
+            break
+        except Exception as e:                      # network, HTTP, checksum, disk
+            failures.append((url, str(e) or type(e).__name__))
+    else:
+        raise FetchError(failures)
+    try:
+        _safe_extract(archive, dest_dir)
+    except Exception as e:
+        shutil.rmtree(target, ignore_errors=True)   # it was empty or absent before
+        raise FetchError([(str(archive), f"could not unpack: {e}")])
+    finally:
+        if not keep_archive:
+            archive.unlink(missing_ok=True)
+    return target

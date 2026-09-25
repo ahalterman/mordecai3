@@ -74,32 +74,34 @@ python -m spacy download en_core_web_trf
 ```
 
 Mordecai also needs Elasticsearch with a GeoNames index. The fastest route is
-the prebuilt index (about 2 GB unpacked, GeoNames dump of 2026-09-24):
+the prebuilt index that the model was trained and tested against (GeoNames dump
+of 2026-09-24, 1.5 GB download, 2.2 GB unpacked):
 
 ```bash
-curl -O https://andrewhalterman.com/files/mordecai3_geonames_index_2026-09-24.tar.gz
-tar -xzf mordecai3_geonames_index_2026-09-24.tar.gz   # -> geonames_index/
+mordecai3 index fetch            # download, verify checksum, unpack to ./geonames_index
 docker run -d -p 127.0.0.1:9200:9200 -e "discovery.type=single-node" \
     -v $PWD/geonames_index/:/usr/share/elasticsearch/data elasticsearch:7.10.1
+mordecai3 check                  # spaCy model, Elasticsearch, index size and age
 ```
 
-Or build a fresh one from the current GeoNames dump (about 30 minutes; start an
-empty Elasticsearch with the same `docker run` first):
+If the download fails (or its checksum doesn't match), `fetch` offers to build
+the index from GeoNames instead. To get another copy yourself, set
+`MORDECAI_INDEX_URL` to a mirror or a `file://` path and run `fetch` again; the
+checksum is still verified.
+
+To build from the current GeoNames dump (about 30 minutes; start an empty
+Elasticsearch with the same `docker run` first):
 
 ```bash
 mordecai3 index build            # download GeoNames, create and load the index
 mordecai3 index status           # document count and which dump it was built from
 ```
 
-Then check that everything is in place:
-
-```bash
-mordecai3 check
-```
-
-`index build` deletes and recreates only the `geonames` index, so it is safe on
-a node that holds other indices. Use `--es-url` (or `MORDECAI_ES_URL`) for a
-node that is not on `localhost:9200`.
+A fresh build uses today's GeoNames, not the dump the model was tested on, so a
+few answers can differ from the prebuilt index. `index build` deletes and
+recreates only the `geonames` index, so it is safe on a node that holds other
+indices. Use `--es-url` (or `MORDECAI_ES_URL`) for a node that is not on
+`localhost:9200`.
 
 ## Accuracy and speed
 
@@ -139,7 +141,7 @@ Elasticsearch lookups, not the model, take most of that time.
 - Opt-in: a learned place-span detector (`span_detector="gold"`) and an
   outlet-aware ranker that uses where a story was published
   (`geoparse_doc(text, outlet="nytimes.com")`).
-- The `mordecai3` command: `index build`, `index status`, `check`.
+- The `mordecai3` command: `index fetch`, `index build`, `index status`, `check`, `cite`.
 
 ## Details and Citation
 
