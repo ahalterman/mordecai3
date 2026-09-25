@@ -38,6 +38,7 @@ from .exceptions import (
     ElasticsearchConnectionError,
     GeonamesIndexError,
 )
+from .citation import maybe_show_citation_notice
 from .candidate_features import (
     ALL_KEYS as EXTRA_FEATURE_KEYS,
     add_document_features,
@@ -872,6 +873,7 @@ class Geoparser:
             geo_asset_path = resources.files("mordecai3") / "assets/"
         self.hierarchy = load_hierarchy(geo_asset_path)
         self.model.to(device)
+        maybe_show_citation_notice()
 
     def lookup_city(self, entry):
         """

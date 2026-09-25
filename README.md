@@ -141,7 +141,7 @@ Elasticsearch lookups, not the model, take most of that time.
 
 More details on the model and its accuracy are available here: https://arxiv.org/abs/2303.13675
 
-If you use Mordecai 3, please cite (`mordecai3 cite` prints this):
+If you use Mordecai 3, please cite (`mordecai3 cite` prints this). The first `Geoparser()` on a machine prints a one-time reminder to stderr; set `MORDECAI_NO_CITATION_NOTICE=1` to skip it:
 
 ```bibtex
 @article{halterman2023mordecai,
