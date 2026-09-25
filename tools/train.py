@@ -741,10 +741,9 @@ def data_formatter(docs, data, source):
     all_formatted = []
     doc_num = 0
     skipped = Counter()
-    if source in ["syn_cities", "syn_caps", "wiki"]:
-        articles = data
-    else:
-        articles = data['articles']['article']
+    # format_source has already unwrapped data['articles']['article'] into the
+    # records for this shard.
+    articles = data
     for doc, ex in tqdm(zip(docs, articles), total=len(docs), leave=False):
         doc_formatted = []
         doc_tensor = np.mean(np.vstack([i._.tensor for i in doc]), axis=0)
