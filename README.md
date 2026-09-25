@@ -110,9 +110,11 @@ annotations, Wikipedia, and synthetic sentences), given the place name, the
 | | exact GeoNames match | within 161 km |
 |---|---|---|
 | 3.4 training recipe | 88.1% | 92.6% |
-| **3.5 model** | **92.6%** | **96.6%** |
+| **3.5 model** | **92.5%** | **96.7%** |
 
-Macro average over the six sets, mean of five training seeds.
+Macro average over the six sets, mean of five training seeds. The 3.5 model is
+trained and evaluated against the GeoNames dump of 2026-09-24 (the prebuilt
+index); the 3.4 recipe against the January 2024 dump.
 
 **These numbers are conditional on the place name being found correctly.**
 They measure the step that picks a GeoNames entry for a place name, starting
@@ -127,6 +129,8 @@ Elasticsearch lookups, not the model, take most of that time.
 
 ### What changed in 3.5
 
+- A fresh GeoNames index (dump of 2026-09-24, 13.5M places), with the model
+  retrained against it.
 - A retrained ranker with 26 new candidate features (prominence, name match,
   context cues, sibling places, geography, name shape).
 - Abbreviated place names ("Calif.", "N.Y.") are normalized before lookup.

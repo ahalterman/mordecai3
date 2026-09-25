@@ -74,6 +74,8 @@ mordecai3 = [
     "assets/hierarchy.txt",
     "assets/mordecai_2025-08-27.pt",
     "assets/mordecai_2026-08-20_seed101.pt",
+    "assets/mordecai_2026-09-24_seed101.pt",
+    "assets/mordecai_2026-09-24_seed101.pt.json",
     "assets/mordecai_2026-08-20_seed101.pt.json",
     "assets/mordecai_2026-08-20_e54_seed42.pt",
     "assets/mordecai_2026-08-20_e54_seed42.pt.json",

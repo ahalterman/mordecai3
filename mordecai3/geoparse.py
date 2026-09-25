@@ -124,17 +124,20 @@ def load_model(model_path, device=None, n_extra_features=None, **model_kwargs):
 
 
 
-# The packaged ship artifact: `experiments/e29_swa_ep15/seed101.pt`, the
-# campaign's best single checkpoint (macro exact match 0.9300), promoted here
-# by decision D3. `mordecai_2025-08-27.pt` is the pre-campaign asset and is
-# left in place for anyone who needs the old behavior.
+# The packaged ship artifact: the e29 recipe (seed 101) retrained on training
+# data rebuilt against the GeoNames dump of 2026-09-24 -- the same dump as the
+# prebuilt index. Held-out exact match ties the previous asset
+# (experiments/e70_fresh_index). Features like alt_name_length come from the
+# index, so a checkpoint should be served with the dump it was trained on:
+# `mordecai_2026-08-20_seed101.pt` is the same recipe on the January 2024 dump,
+# and `mordecai_2025-08-27.pt` the pre-campaign asset.
 #
 # STAGED, NOT DEFAULT: `assets/mordecai_2026-08-20_e54_seed42.pt` is the e54
 # outlet ship candidate (+0.0368 TLG-hard, +3.4 e2e EM with outlets supplied,
 # no regression without them -- experiments/campaign2/outlet_integration_report.md).
 # It is packaged and its sidecar turns on the `outlet` block by itself, so
 # promoting it is this one line and nothing else. The flip is the owner's call.
-DEFAULT_MODEL_ASSET = "assets/mordecai_2026-08-20_seed101.pt"
+DEFAULT_MODEL_ASSET = "assets/mordecai_2026-09-24_seed101.pt"
 
 # The behavioral flags a checkpoint's config sidecar can supply. They leave no
 # trace in the layer shapes (or, for mix_depth/listwise, they do but silently),

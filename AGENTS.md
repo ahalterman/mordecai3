@@ -100,4 +100,8 @@ always override it.
 - Comments in `mordecai3/` and `tests/` sometimes cite `experiments/...`
   reports. Those are the research record from the 2026 accuracy campaigns, kept
   outside this repo; the citation tells you where a number or decision came from.
+- A checkpoint's candidate features (e.g. `alt_name_length`) come from the
+  GeoNames index, so serve a checkpoint with the dump it was trained on. A new
+  dump means rebuilding the training pickles (`train.py add-es`, then
+  `enrich_pickles.py`) and retraining; see `DEV.md`.
 - Commit messages: short, lowercase, imperative subject; terse bullets if needed.
