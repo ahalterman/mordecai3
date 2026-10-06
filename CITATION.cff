@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Mordecai 3, please cite the paper below."
+title: "Mordecai 3"
+authors:
+  - family-names: Halterman
+    given-names: Andrew
+repository-code: "https://github.com/ahalterman/mordecai3"
+license: MIT
+preferred-citation:
+  type: article
+  title: "Mordecai 3: A Neural Geoparser and Event Geocoder"
+  authors:
+    - family-names: Halterman
+      given-names: Andrew
+  journal: "arXiv preprint arXiv:2303.13675"
+  year: 2023
+  url: "https://arxiv.org/abs/2303.13675"

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mordecai3"
-version = "3.4.0"
+version = "3.5.0"
 description = "Full text geoparsing/toponym resolution with event geolocation"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "MIT"}
@@ -33,8 +33,24 @@ dependencies = [
 
 [project.optional-dependencies]
 streamlit = ["streamlit>=1.0.0"]
+# The geoparse console demo (console/). fastapi+uvicorn serve it; ijson streams
+# the 1.3 GB geoBoundaries CGAZ GeoJSON without holding it in memory; shapely
+# simplifies the polygons on the way into the SQLite store.
+console = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    "ijson>=3.2",
+    "shapely>=2.0",
+]
+# Without cupy, spacy.prefer_gpu() returns False and the transformer runs on
+# CPU -- no error, just ~5x slower. Capped below 14 because thinc 8.3's
+# xp2torch still uses cupy's deprecated toDlpack(), which cupy 14 hands to
+# torch in a form it rejects ("invalid capsule").
+gpu = ["cupy-cuda12x>=13,<14"]
 
 [project.scripts]
+mordecai3 = "mordecai3.cli:main"
 mordecai3-app = "mordecai3:run_streamlit_app"
 
 [project.urls]
@@ -43,6 +59,10 @@ Repository = "https://github.com/ahalterman/mordecai3.git"
 
 [tool.setuptools.packages.find]
 namespaces = false
+# The console demo is not part of the library: it ships a vendored d3 bundle,
+# a basemap and the design handoff, none of which belong in the wheel. Run it
+# from a checkout -- see console/README.md.
+exclude = ["console*", "tools*", "tests*", "experiments*"]
 
 [tool.setuptools.package-data]
 mordecai3 = [
@@ -50,15 +70,66 @@ mordecai3 = [
     "assets/country_bert_768.npy",
     "assets/countryInfo.txt",
     "assets/feature_code_dict.json",
+    "assets/geonames_mapping.json",
     "assets/hierarchy.txt",
     "assets/mordecai_2025-08-27.pt",
+    "assets/mordecai_2026-08-20_seed101.pt",
+    "assets/mordecai_2026-09-24_seed101.pt",
+    "assets/mordecai_2026-09-24_seed101.pt.json",
+    "assets/mordecai_2026-08-20_seed101.pt.json",
+    "assets/mordecai_2026-08-20_e54_seed42.pt",
+    "assets/mordecai_2026-08-20_e54_seed42.pt.json",
+    "assets/outlet_homes.json",
+    "assets/span_head_2026-08-20_gold.pt",
+    "assets/span_head_2026-08-20_all.pt",
     "assets/wikipedia-iso-country-codes.txt"
 ]
 
 [dependency-groups]
+# The spaCy model is a direct-URL wheel, so it lives in a group rather than in
+# [project.dependencies] (PyPI rejects direct URLs). Without it declared
+# somewhere, `uv sync` prunes it out of the venv and spacy.load() starts failing.
+models = [
+    "en_core_web_trf",
+]
 dev = [
     "pytest>=8.3.4",
+    # console/test_console_ui.py drives a real browser. Declared here because
+    # console/README.md tells people to run it: installed by hand instead, it
+    # works until the next `uv sync` prunes it and the instruction breaks.
+    # The browser binary is separate -- `uv run playwright install chromium`.
+    "playwright>=1.44",
+    {include-group = "models"},
 ]
 es-data = [
     "textacy>=0.13.0",
 ]
+train = [
+    "wandb>=0.16",
+    "haversine>=2.8",
+    "mordecai3[gpu]",
+    {include-group = "models"},
+]
+
+[tool.uv]
+# `curated-tokenizers` publishes wheels only up to cp312. On Python 3.13 there
+# is nothing to download, so uv builds it from the sdist -- and its Cython
+# sources do not compile under Cython 3.1 or later, which is what PyPI now
+# serves by default:
+#
+#     Cython.Compiler.Errors.CompileError: curated_tokenizers/_bbpe.pyx
+#     TypeError: 'NoneType' object is unsliceable
+#
+# It is not a direct dependency: en_core_web_trf 3.8.0 -> spacy-curated-
+# transformers -> curated-tokenizers, and the console needs en_core_web_trf,
+# so it cannot simply be dropped. This constrains the *build* environment only:
+# nothing here is installed at runtime, and adding it moved no resolved
+# version -- uv.lock gained three lines recording the constraint, nothing more.
+#
+# A machine that built the wheel before Cython 3.1 shipped keeps working from
+# uv's cache, which is why this can pass on a laptop and fail on a fresh
+# server. Remove this when curated-tokenizers ships cp313 wheels.
+build-constraint-dependencies = ["cython<3.1"]
+
+[tool.uv.sources]
+en_core_web_trf = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.8.0/en_core_web_trf-3.8.0-py3-none-any.whl" }

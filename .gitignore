@@ -181,3 +181,24 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# Training pipeline outputs (see DEV.md). raw_data/ holds the corpora and the
+# cached spaCy/Elasticsearch artifacts; none of it belongs in the repo.
+raw_data/*
+!raw_data/README.txt
+tools/wandb/
+tools/mordecai_*.pt
+
+# Accuracy-campaign artifacts kept out of git: checkpoints, run logs, local wandb
+experiments/**/*.pt
+experiments/**/*.log
+/mordecai_*.pt
+/mordecai_*.json
+wandb/
+
+# geoBoundaries CGAZ bulk data for the console demo (1.3 GB, fetched by
+# console/fetch_boundaries.sh) and the SQLite store built from it.
+data/geoboundaries/
+/*.zip
+
+# vim swap files
+*.swp

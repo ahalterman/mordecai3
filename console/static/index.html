@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en" data-theme="ops" data-pal="amber" data-layout="split" data-chrome="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mordecai Geoparse Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Both theme stacks: Barlow Condensed / JetBrains Mono for the ops look,
+     Public Sans / IBM Plex Mono for the field look. One request, because
+     switching themes must not wait on a network round trip mid-demo -- and a
+     projector room is exactly where the network is worst. Self-host these for
+     an offline deployment; see console/DEPLOY.md. -->
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/console.css">
+</head>
+<body>
+
+<!-- ── menu bar ──────────────────────────────────────────────────────────── -->
+<!-- Everything that changes how the console looks or what it draws, in one
+     place. The menus are built in console.js from a declarative spec, so the
+     next thing worth turning on and off is a row in that array rather than a
+     new control wedged into the rail. -->
+<div data-el="menubar">
+  <div class="menus" id="menus"></div>
+  <div class="menuspacer"></div>
+  <div class="menuright">
+    <span class="demobadge" id="demobadge"></span>
+  </div>
+</div>
+
+<!-- ── title bar ─────────────────────────────────────────────────────────── -->
+<header data-el="title">
+  <div class="lockup">
+    <span class="diamond" aria-hidden="true"></span>
+    <div>
+      <div class="brandname" id="brand-name">MORDECAI</div>
+      <div class="brandsub" id="brand-sub">GEOPARSE ENGINE</div>
+    </div>
+  </div>
+  <div class="titlecenter">
+    <span class="rule" data-orn></span>
+    <div class="stats" id="title-stats"></div>
+  </div>
+  <div class="clock">
+    <div class="clocktime" id="clock">--:--:--</div>
+    <div class="clocksub" id="clocksub">UTC</div>
+  </div>
+</header>
+
+<!-- ── body ──────────────────────────────────────────────────────────────── -->
+<div data-el="shell">
+
+  <!-- left rail -->
+  <nav data-el="rail">
+    <div class="railscroll">
+      <div class="seclabel" id="lab-pipeline">PIPELINE</div>
+      <div id="stages"></div>
+
+      <!-- Above the corpus, not below it. Pasting your own text is what a
+           visitor wants to do first, and it had been the smallest, lowest
+           thing on the screen. -->
+      <div class="divider"></div>
+      <div class="seclabel" id="lab-yourtext">YOUR TEXT</div>
+      <div class="pastebox">
+        <textarea id="paste" rows="11" spellcheck="false"
+          placeholder="Paste any text here, then press PARSE below."></textarea>
+        <label class="filerow">
+          <span class="filebtn" id="filebtn">▸ UPLOAD .txt / .jsonl</span>
+          <input type="file" id="upload" accept=".txt,.jsonl,.ndjson" hidden>
+        </label>
+        <div class="filehint" id="filehint">
+          Blank-line separated, or JSONL with a <code>text</code> field.
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="seclabel" id="lab-corpus">CORPUS</div>
+      <div id="corpus"></div>
+    </div>
+
+    <div class="railfoot">
+      <!-- The palette swatches used to live here. They are in the menu bar's
+           LOOK menu now, beside the theme they belong to: a palette is only
+           meaningful within one look, and having them in two places invited
+           picking an ops palette while the field theme was on. -->
+      <!-- `sat` keeps its key for the config and the tests, but the label is
+           RELIEF now: with real imagery a button away, calling the procedural
+           terrain "SAT" is a claim it cannot back up. The labels are written
+           from the theme's copy at boot. -->
+      <div class="seg2" id="mapmode">
+        <button data-mode="sat" class="on">RELIEF</button>
+        <button data-mode="imagery">SATELLITE</button>
+        <button data-mode="wire">VECTOR</button>
+      </div>
+      <button class="runbtn" id="run">▶ <span id="runlabel">PARSE</span></button>
+      <div class="gazfoot" id="gazfoot">—</div>
+    </div>
+  </nav>
+
+  <div class="gutter gv" id="gut-rail"
+       title="Drag to resize the rail · double-click to reset"></div>
+
+  <!-- workspace -->
+  <main data-el="main">
+
+    <!-- document -->
+    <section data-el="doc">
+      <div class="hairline" data-orn></div>
+      <div class="pane-head">
+        <div>
+          <div class="pane-title" id="doc-title">—</div>
+          <div class="pane-meta" id="doc-meta"></div>
+        </div>
+        <div class="tokchip" id="tokchip" data-orn><span class="dot"></span><span class="toklab">TOKENIZED</span></div>
+      </div>
+      <div class="pane-body" id="doc-body">
+        <div class="doc-text" id="doc-text"></div>
+      </div>
+      <div class="pane-foot" id="doc-foot"></div>
+    </section>
+
+    <!-- map -->
+    <section data-el="map">
+      <geo-scope id="scope"></geo-scope>
+      <div class="map-top">
+        <span class="map-region" id="map-region"></span>
+        <span class="map-mode" id="map-modemeta"></span>
+      </div>
+      <div class="map-badges" id="map-badges" data-orn></div>
+      <div class="map-coord" id="map-coord"></div>
+      <div class="map-nav">
+        <span class="navhint" id="navhint">SCROLL ZOOM · DRAG PAN</span>
+        <span class="zoomchip" id="zoomchip">×1.0</span>
+        <button class="resetbtn" id="reset">RESET</button>
+      </div>
+    </section>
+
+    <!-- stage panel -->
+    <section data-el="stage">
+      <div class="pane-head stage-head">
+        <span class="stage-title" id="stage-title">—</span>
+        <span class="rule" data-orn></span>
+        <span class="stage-meta" id="stage-meta"></span>
+      </div>
+      <div class="pane-body" id="stage-body"></div>
+    </section>
+
+    <!-- Pane seams. Positioned from --split-col / --split-row; see console.css. -->
+    <div class="gutter gv" id="gut-col"
+         title="Drag to resize · double-click to reset"></div>
+    <div class="gutter gh" id="gut-row"
+         title="Drag to resize · double-click to reset"></div>
+
+  </main>
+</div>
+
+<!-- ── status bar ────────────────────────────────────────────────────────── -->
+<footer data-el="status">
+  <div class="statecell"><span class="dot"></span><span id="statusword">BOOTING</span></div>
+  <div class="logcell"><span id="logtime"></span><span id="logline"></span><span class="caret">▊</span></div>
+  <div class="telemcell" id="telemetry"></div>
+</footer>
+
+<div class="grit scanlines" data-orn></div>
+<div class="grit noise" data-orn></div>
+<div class="grit vignette"></div>
+
+<script src="/vendor/d3.min.js"></script>
+<script src="/vendor/topojson-client.min.js"></script>
+<script src="/geoscope.js"></script>
+<script type="module" src="/console.js"></script>
+</body>
+</html>
