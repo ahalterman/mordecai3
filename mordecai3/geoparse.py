@@ -71,7 +71,13 @@ def load_nlp(use_gpu=False):
         else:
             logger.info("spaCy: GPU requested but not available, using CPU")
     try:
-        nlp = spacy.load("en_core_web_trf")
+        # en_core_web_trf imports curated_transformers, which calls
+        # torch.jit.script at import time; recent torch (2.14 here) warns that
+        # it is deprecated. Not ours to fix, and it lands on every startup.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=r".*torch\.jit\.script.*deprecated",
+                                    category=FutureWarning)
+            nlp = spacy.load("en_core_web_trf")
     except OSError:
         raise SpacyModelError()
     nlp.add_pipe("token_tensors")
